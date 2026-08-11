@@ -1,22 +1,33 @@
 {
   "name": "mona-agent",
-  "version": "0.1.0",
-  "description": "Cloud-brained device agent. No local LLM keys — all reasoning runs on agent.mona.expert.",
+  "version": "1.0.0",
+  "description": "Cloud-brained device agent with terminal dashboard. No local LLM keys — all reasoning runs on agent.mona.expert.",
   "type": "module",
   "bin": {
     "mona-agent": "./bin/mona-agent.js"
   },
   "scripts": {
-    "start": "node bin/mona-agent.js",
-    "gui": "node src/gui/server.js",
+    "start": "node bin/mona-agent.js start",
+    "gui": "node bin/mona-agent.js gui",
     "login": "node bin/mona-agent.js login",
-    "setup": "node scripts/setup.js"
+    "test": "node --test test/agent.test.mjs"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "ws": "^8.18.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MONAEXPERT/mona-agent.git"
+  },
+  "keywords": [
+    "ai-agent",
+    "device-daemon",
+    "cloud-brain",
+    "terminal-ui",
+    "openclaw"
+  ]
 }
