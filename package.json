@@ -1,7 +1,7 @@
 {
   "name": "mona-agent",
-  "version": "1.0.0",
-  "description": "Cloud-brained device agent with terminal dashboard. No local LLM keys — all reasoning runs on agent.mona.expert.",
+  "version": "1.1.0",
+  "description": "Cloud-brained device agent with terminal dashboard. Multi-OS (macOS/Linux/Windows). No local LLM keys.",
   "type": "module",
   "bin": {
     "mona-agent": "./bin/mona-agent.js"

@@ -1,30 +1,36 @@
 // Terminal dashboard — full-screen TUI for the mona-agent daemon.
 // Zero external dependencies — pure ANSI escape codes + Node builtins.
+// Multi-OS support (macOS, Linux, Windows Terminal).
 //
-// Layout:
-// ┌─ header ─────────────────────────────────────────────────────────┐
-// │  ┌─ system ──────────────┐  ┌─ activity log ───────────────────┐│
-// │  │                       │  │                                   ││
-// │  ├─ task ────────────────┤  │                                   ││
-// │  │                       │  │                                   ││
-// │  └───────────────────────┘  └───────────────────────────────────┘│
-// ├─ footer ─────────────────────────────────────────────────────────┤
-// └──────────────────────────────────────────────────────────────────┘
+// Key bindings:
+//   q / Ctrl+C    Quit
+//   c             Clear activity log
+//   r             Force reconnect
+//   d             Toggle debug info
+//   ↑ / ↓         Scroll log
+//   h             Show help overlay
+//   /             Chat input mode (future)
 
 import os from 'node:os';
-import { DEFAULTS } from './config.js';
+import { DEFAULTS, CLOUD, PATHS } from './config.js';
+
+// ── Platform detection ────────────────────────────────────────────
+const PLATFORM = os.platform(); // 'darwin' | 'linux' | 'win32'
+const IS_WIN = PLATFORM === 'win32';
 
 // ── ANSI helpers ──────────────────────────────────────────────────
 const ESC = '\x1b[';
 const ansi = {
   clear:      `${ESC}2J${ESC}H`,
+  clearLine:  `${ESC}2K`,
   hide:       `${ESC}?25l`,
   show:       `${ESC}?25h`,
   bold:       `${ESC}1m`,
   dim:        `${ESC}2m`,
   reset:      `${ESC}0m`,
+  reverse:    `${ESC}7m`,
   fg: {
-    black:    `${ESC}30m`,
+    gray:     `${ESC}90m`,
     red:      `${ESC}31m`,
     green:    `${ESC}32m`,
     yellow:   `${ESC}33m`,
@@ -32,7 +38,6 @@ const ansi = {
     magenta:  `${ESC}35m`,
     cyan:     `${ESC}36m`,
     white:    `${ESC}37m`,
-    gray:     `${ESC}90m`,
     bCyan:    `${ESC}96m`,
     bGreen:   `${ESC}92m`,
     bYellow:  `${ESC}93m`,
@@ -40,22 +45,17 @@ const ansi = {
     bMagenta: `${ESC}95m`,
     bWhite:   `${ESC}97m`,
   },
-  bg: {
-    black:    `${ESC}40m`,
-    blue:     `${ESC}44m`,
-    magenta:  `${ESC}45m`,
-    darkGray: `${ESC}100m`,
-  },
-  moveTo: (r, c) => `${ESC}${r};${c}H`,
 };
 
-// ── Box-drawing chars ─────────────────────────────────────────────
-const B = {
+// ── Box-drawing chars (ASCII-safe fallback for Windows) ──────────
+const B = IS_WIN ? {
+  tl: '+', tr: '+', bl: '+', br: '+',
+  h: '-', v: '|',
+  lt: '+', rt: '+', tt: '+', bt: '+', x: '+',
+} : {
   tl: '┌', tr: '┐', bl: '└', br: '┘',
   h: '─', v: '│',
   lt: '├', rt: '┤', tt: '┬', bt: '┴', x: '┼',
-  dh: '═', dv: '║',
-  dtl: '╔', dtr: '╗', dbl: '╚', dbr: '╝',
 };
 
 // ── Status icons ──────────────────────────────────────────────────
@@ -66,13 +66,17 @@ const ICON = {
   done:         '✓',
   error:        '✗',
   tool:         '⚙',
-  metrics:      '◌',
   arrow:        '↳',
   task:         '▸',
   token:        '·',
+  debug:        '…',
 };
 
-// ── Memory bar helper ─────────────────────────────────────────────
+// ── Platform icon ─────────────────────────────────────────────────
+const PLATFORM_ICON = { darwin: '', linux: '🐧', win32: '🪟' };
+const PLATFORM_LABEL = { darwin: 'macOS', linux: 'Linux', win32: 'Windows' };
+
+// ── Helpers ───────────────────────────────────────────────────────
 function memBar(used, total, width = 12) {
   const pct = Math.min(1, used / total);
   const filled = Math.round(pct * width);
@@ -112,14 +116,17 @@ export class Dashboard {
   #logs = [];
   #maxLogs = 500;
   #scrollOffset = 0;
+  #showDebug = false;
+  #showHelp = false;
+  #reconnectAttempts = 0;
   #state = {
     connected: false,
     agentId:   null,
     host:      os.hostname(),
-    task:      null,     // { text, tokens, startedAt }
+    task:      null,
     stats:     { tasks: 0, tokens: 0, toolCalls: 0, errors: 0 },
     metrics:   null,
-    tokenBuf:  '',       // accumulated streaming tokens for display
+    tokenBuf:  '',
   };
   #renderTimer = null;
   #agent = null;
@@ -129,45 +136,40 @@ export class Dashboard {
     this.#state.agentId = agent?.creds?.agentId;
   }
 
-  /** Bind agent events and start rendering. */
   start() {
     if (!this.#out.isTTY) {
       process.stderr.write('TUI requires a terminal (TTY). Use "mona-agent start" for headless mode.\n');
       process.exit(1);
     }
 
-    // Hide cursor, enable raw mode for keyboard input
     this.#out.write(ansi.hide);
     process.stdin.setRawMode?.(true);
     process.stdin.resume();
     process.stdin.setEncoding('utf8');
 
-    // Key handling
     process.stdin.on('data', (key) => this.#onKey(key));
-
-    // Terminal resize
     this.#out.on('resize', () => this.#render());
 
-    // Wire agent events
     if (this.#agent) this.#wireAgent(this.#agent);
 
-    // Render loop (4 fps)
     this.#renderTimer = setInterval(() => this.#render(), 250);
     this.#render();
 
-    this.#log('info', 'Dashboard started');
+    this.#log('info', `Dashboard started on ${PLATFORM_LABEL[PLATFORM]}`);
     return this;
   }
 
   #wireAgent(agent) {
     agent.on('connected', () => {
       this.#state.connected = true;
-      this.#log('info', `Connected to cloud`);
+      this.#reconnectAttempts = 0;
+      this.#log('info', `Connected to ${CLOUD.base}`);
     });
 
-    agent.on('disconnected', () => {
+    agent.on('disconnected', (code) => {
       this.#state.connected = false;
-      this.#log('warn', 'Disconnected from cloud');
+      this.#reconnectAttempts++;
+      this.#log('warn', `Disconnected (code=${code}), reconnecting (attempt ${this.#reconnectAttempts})...`);
     });
 
     agent.on('metrics', (m) => {
@@ -183,7 +185,6 @@ export class Dashboard {
     agent.on('task:token', (delta) => {
       if (this.#state.task) this.#state.task.tokens++;
       this.#state.tokenBuf += delta;
-      // Keep only last ~200 chars for display
       if (this.#state.tokenBuf.length > 200) {
         this.#state.tokenBuf = this.#state.tokenBuf.slice(-200);
       }
@@ -213,6 +214,8 @@ export class Dashboard {
       this.#state.stats.toolCalls++;
       if (result.error) {
         this.#log('warn', `Tool ${name}: ${result.error}`);
+      } else {
+        this.#log('tool', `${name} done`);
       }
     });
 
@@ -225,14 +228,16 @@ export class Dashboard {
   #log(type, msg) {
     this.#logs.push({ time: timeStr(), type, msg });
     if (this.#logs.length > this.#maxLogs) this.#logs.shift();
-    // Auto-scroll to bottom when new entries arrive
-    if (this.#scrollOffset === 0) {
-      // Already at bottom, stay there
-    }
   }
 
   // ── Key handler ─────────────────────────────────────────────────
   #onKey(key) {
+    // Help overlay dismiss
+    if (this.#showHelp) {
+      this.#showHelp = false;
+      return;
+    }
+
     switch (key) {
       case 'q':
       case '\x03': // Ctrl+C
@@ -243,15 +248,24 @@ export class Dashboard {
       case 'c':
         this.#logs = [];
         this.#scrollOffset = 0;
+        this.#log('info', 'Log cleared');
         break;
       case 'r':
-        this.#log('info', 'Reconnecting...');
-        // Agent will handle reconnect
+        this.#log('info', 'Forcing reconnect...');
+        this.#agent?.close?.();
+        setTimeout(() => this.#agent?.start?.(), 500);
         break;
-      case '\x1b[A': // Up arrow
+      case 'd':
+        this.#showDebug = !this.#showDebug;
+        this.#log('info', `Debug ${this.#showDebug ? 'on' : 'off'}`);
+        break;
+      case 'h':
+        this.#showHelp = true;
+        break;
+      case '\x1b[A': // Up
         this.#scrollOffset = Math.min(this.#scrollOffset + 1, Math.max(0, this.#logs.length - 5));
         break;
-      case '\x1b[B': // Down arrow
+      case '\x1b[B': // Down
         this.#scrollOffset = Math.max(0, this.#scrollOffset - 1);
         break;
     }
@@ -261,81 +275,115 @@ export class Dashboard {
   #render() {
     const W = this.#out.columns || 80;
     const H = this.#out.rows || 24;
-    if (W < 40 || H < 12) return; // Too small
+    if (W < 40 || H < 12) return;
 
     const buf = [];
     const w = (s) => buf.push(s);
-
-    // Clear + move to top
     w(ansi.clear);
 
+    // ── Help overlay ──────────────────────────────────────────────
+    if (this.#showHelp) {
+      this.#renderHelp(w, W, H);
+      this.#out.write(buf.join(''));
+      return;
+    }
+
     // ── Header ────────────────────────────────────────────────────
-    const title = ` ${ansi.bold}${ansi.fg.bCyan}mona-agent${ansi.reset} ${ansi.dim}v${DEFAULTS.version}${ansi.reset}`;
+    const pfIcon = PLATFORM_ICON[PLATFORM] || '';
+    const title = `${ansi.bold}${ansi.fg.bCyan}mona-agent${ansi.reset} ${ansi.dim}v${DEFAULTS.version}${ansi.reset} ${pfIcon}`;
     const statusIcon = this.#state.connected
       ? `${ansi.fg.bGreen}${ICON.connected} connected${ansi.reset}`
       : `${ansi.fg.bRed}${ICON.disconnected} disconnected${ansi.reset}`;
     const headerPad = W - this.#stripAnsi(title).length - this.#stripAnsi(statusIcon).length - 4;
     w(`${ansi.fg.gray}${B.tl}${B.h}${ansi.reset}${title} ${ansi.fg.gray}${B.h.repeat(Math.max(1, headerPad))} ${statusIcon} ${ansi.fg.gray}${B.h}${B.tr}${ansi.reset}\n`);
 
-    // ── Layout calculations ───────────────────────────────────────
-    const leftW = Math.min(30, Math.floor(W * 0.35));
-    const rightW = W - leftW - 5; // 5 = borders + padding
-    const bodyH = H - 4;          // header(1) + footer(2) + border(1)
+    // Debug bar
+    if (this.#showDebug) {
+      const debugInfo = `${ansi.dim}Cloud: ${CLOUD.base} | WS: ${CLOUD.wsUrl} | Agent: ${this.#state.agentId || 'pending'} | Reconnects: ${this.#reconnectAttempts}${ansi.reset}`;
+      w(`${ansi.fg.gray}${B.v}${ansi.reset} ${this.#padRight(debugInfo, W - 2)} ${ansi.fg.gray}${B.v}${ansi.reset}\n`);
+    }
+
+    // ── Layout ────────────────────────────────────────────────────
+    const leftW = Math.min(32, Math.floor(W * 0.35));
+    const rightW = W - leftW - 3;
+    const bodyH = H - 4 - (this.#showDebug ? 1 : 0);
     const sysH = Math.min(9, Math.floor(bodyH * 0.6));
     const taskH = bodyH - sysH;
 
-    // ── Left column: System + Task ────────────────────────────────
     const sysLines = this.#renderSystem(leftW - 2);
     const taskLines = this.#renderTask(leftW - 2);
-
-    // ── Right column: Activity log ────────────────────────────────
     const logLines = this.#renderLog(rightW - 2, bodyH - 2);
 
-    // ── Compose body rows ─────────────────────────────────────────
+    // ── Body ──────────────────────────────────────────────────────
     for (let row = 0; row < bodyH; row++) {
-      let left = '';
-      let right = '';
+      let left = '', right = '';
 
-      // Left: system panel or task panel
+      // Left panels
       if (row === 0) {
         left = `${ansi.fg.gray}${B.tl}${B.h} ${ansi.fg.bCyan}System${ansi.reset} ${ansi.fg.gray}${B.h.repeat(Math.max(0, leftW - 11))}${B.tr}${ansi.reset}`;
       } else if (row > 0 && row <= sysH - 2) {
-        const line = sysLines[row - 1] || '';
-        left = `${ansi.fg.gray}${B.v}${ansi.reset} ${this.#padRight(line, leftW - 2)} ${ansi.fg.gray}${B.v}${ansi.reset}`;
+        left = `${ansi.fg.gray}${B.v}${ansi.reset} ${this.#padRight(sysLines[row - 1] || '', leftW - 2)} ${ansi.fg.gray}${B.v}${ansi.reset}`;
       } else if (row === sysH - 1) {
         left = `${ansi.fg.gray}${B.lt}${B.h} ${ansi.fg.bMagenta}Task${ansi.reset} ${ansi.fg.gray}${B.h.repeat(Math.max(0, leftW - 9))}${B.rt}${ansi.reset}`;
       } else if (row >= sysH && row < bodyH - 1) {
         const tIdx = row - sysH;
-        const line = taskLines[tIdx] || '';
-        left = `${ansi.fg.gray}${B.v}${ansi.reset} ${this.#padRight(line, leftW - 2)} ${ansi.fg.gray}${B.v}${ansi.reset}`;
-      } else if (row === bodyH - 1) {
+        left = `${ansi.fg.gray}${B.v}${ansi.reset} ${this.#padRight(taskLines[tIdx] || '', leftW - 2)} ${ansi.fg.gray}${B.v}${ansi.reset}`;
+      } else {
         left = `${ansi.fg.gray}${B.bl}${B.h.repeat(leftW)}${B.br}${ansi.reset}`;
       }
 
-      // Right: log panel
+      // Right panel (log)
       if (row === 0) {
         right = `${ansi.fg.gray}${B.tl}${B.h} ${ansi.fg.bYellow}Activity${ansi.reset} ${ansi.fg.gray}${B.h.repeat(Math.max(0, rightW - 12))}${B.tr}${ansi.reset}`;
       } else if (row === bodyH - 1) {
         right = `${ansi.fg.gray}${B.bl}${B.h.repeat(rightW)}${B.br}${ansi.reset}`;
       } else {
-        const logLine = logLines[row - 1] || '';
-        right = `${ansi.fg.gray}${B.v}${ansi.reset} ${this.#padRight(logLine, rightW - 2)} ${ansi.fg.gray}${B.v}${ansi.reset}`;
+        right = `${ansi.fg.gray}${B.v}${ansi.reset} ${this.#padRight(logLines[row - 1] || '', rightW - 2)} ${ansi.fg.gray}${B.v}${ansi.reset}`;
       }
 
-      w(`${ansi.fg.gray}${B.v}${ansi.reset}${left} ${right}${ansi.fg.gray}${B.v}${ansi.reset}\n`);
+      w(`${left} ${right}\n`);
     }
 
     // ── Footer ────────────────────────────────────────────────────
-    const keys = `${ansi.dim}q${ansi.reset} quit ${ansi.fg.gray}·${ansi.reset} ${ansi.dim}c${ansi.reset} clear ${ansi.fg.gray}·${ansi.reset} ${ansi.dim}↑↓${ansi.reset} scroll`;
+    const keys = `${ansi.dim}q${ansi.reset} quit ${ansi.fg.gray}·${ansi.reset} ${ansi.dim}c${ansi.reset} clear ${ansi.fg.gray}·${ansi.reset} ${ansi.dim}r${ansi.reset} reconnect ${ansi.fg.gray}·${ansi.reset} ${ansi.dim}d${ansi.reset} debug ${ansi.fg.gray}·${ansi.reset} ${ansi.dim}h${ansi.reset} help`;
     const taskStatus = this.#state.task
-      ? `${ansi.fg.bYellow}${ICON.thinking} thinking${ansi.reset}`
-      : `${ansi.fg.green}idle${ansi.reset}`;
-    const footerPad = W - this.#stripAnsi(keys).length - this.#stripAnsi(taskStatus).length - 6;
-    w(`${ansi.fg.gray}${B.lt}${B.h.repeat(W - 2)}${B.rt}${ansi.reset}\n`);
+      ? `${ansi.fg.bYellow}${ICON.thinking} thinking (${this.#state.task.tokens} tok)${ansi.reset}`
+      : `${ansi.dim}${ansi.fg.green}idle${ansi.reset}`;
+    const footerPad = W - this.#stripAnsi(keys).length - this.#stripAnsi(taskStatus).length - 4;
+    w(`${ansi.fg.gray}${B.lt}${B.h.repeat(W)}${B.rt}${ansi.reset}\n`);
     w(`${ansi.fg.gray}${B.v}${ansi.reset} ${keys}${' '.repeat(Math.max(1, footerPad))}${taskStatus} ${ansi.fg.gray}${B.v}${ansi.reset}\n`);
-    w(`${ansi.fg.gray}${B.bl}${B.h.repeat(W - 2)}${B.br}${ansi.reset}\n`);
+    w(`${ansi.fg.gray}${B.bl}${B.h.repeat(W)}${B.br}${ansi.reset}\n`);
 
     this.#out.write(buf.join(''));
+  }
+
+  // ── Help overlay ────────────────────────────────────────────────
+  #renderHelp(w, W, H) {
+    const lines = [
+      '',
+      `  ${ansi.bold}${ansi.fg.bCyan}mona-agent${ansi.reset} v${DEFAULTS.version} ${PLATFORM_ICON[PLATFORM] || ''}`,
+      `  ${ansi.dim}${PLATFORM_LABEL[PLATFORM]} | Node ${process.version}${ansi.reset}`,
+      '',
+      `  ${ansi.bold}Key Bindings${ansi.reset}`,
+      '',
+      `  ${ansi.fg.bGreen}q${ansi.reset} / ${ansi.fg.bGreen}Ctrl+C${ansi.reset}    Quit`,
+      `  ${ansi.fg.bGreen}c${ansi.reset}             Clear activity log`,
+      `  ${ansi.fg.bGreen}r${ansi.reset}             Force reconnect to cloud`,
+      `  ${ansi.fg.bGreen}d${ansi.reset}             Toggle debug info bar`,
+      `  ${ansi.fg.bGreen}h${ansi.reset}             Show this help (any key to dismiss)`,
+      `  ${ansi.fg.bGreen}↑ / ↓${ansi.reset}         Scroll activity log`,
+      '',
+      `  ${ansi.bold}Environment${ansi.reset}`,
+      `  ${ansi.dim}Cloud:${ansi.reset}  ${CLOUD.base}`,
+      `  ${ansi.dim}WS:${ansi.reset}     ${CLOUD.wsUrl}`,
+      '',
+      `  ${ansi.dim}Press any key to dismiss${ansi.reset}`,
+    ];
+
+    const startRow = Math.max(1, Math.floor((H - lines.length) / 2));
+    for (let i = 0; i < lines.length; i++) {
+      w(`${ansi.moveTo(startRow + i, 1)}${lines[i]}`);
+    }
   }
 
   // ── Panel renderers ─────────────────────────────────────────────
@@ -349,7 +397,7 @@ export class Dashboard {
 
     return [
       `${ansi.fg.gray}Host${ansi.reset}   ${ansi.fg.bWhite}${truncate(os.hostname(), width - 7)}${ansi.reset}`,
-      `${ansi.fg.gray}OS${ansi.reset}     ${os.platform()} ${os.arch()}`,
+      `${ansi.fg.gray}OS${ansi.reset}     ${PLATFORM_LABEL[PLATFORM]} ${os.arch()}`,
       `${ansi.fg.gray}CPUs${ansi.reset}   ${os.cpus().length} cores`,
       `${ansi.fg.gray}Mem${ansi.reset}    ${ansi.fg.cyan}${memBar(usedMem, totalMem, barW)}${ansi.reset}`,
       `${ansi.fg.gray}       ${fmtBytes(usedMem)} / ${fmtBytes(totalMem)}${ansi.reset}`,
@@ -365,23 +413,26 @@ export class Dashboard {
     if (t) {
       const elapsed = ((Date.now() - t.startedAt) / 1000).toFixed(0);
       const preview = truncate(this.#state.tokenBuf.replace(/\n/g, ' '), width - 2);
-      return [
+      const lines = [
         `${ansi.fg.bYellow}${ICON.thinking} Thinking...${ansi.reset}`,
         `${ansi.fg.gray}Tokens${ansi.reset} ${ansi.fg.bWhite}${t.tokens}${ansi.reset}  ${ansi.fg.gray}${elapsed}s${ansi.reset}`,
         `${ansi.dim}${preview}${ansi.reset}`,
-        '',
-        `${ansi.fg.gray}Total${ansi.reset}  ${s.tasks} tasks · ${s.tokens} tok`,
       ];
+      // Fill remaining
+      while (lines.length < 5) lines.push('');
+      return lines;
     }
 
-    return [
+    const lines = [
       `${ansi.fg.green}${ICON.done} Idle${ansi.reset}`,
       '',
-      `${ansi.fg.gray}Tasks${ansi.reset}  ${ansi.fg.bWhite}${s.tasks}${ansi.reset} completed`,
+      `${ansi.fg.gray}Tasks${ansi.reset}  ${ansi.fg.bWhite}${s.tasks}${ansi.reset} done`,
       `${ansi.fg.gray}Tokens${ansi.reset} ${ansi.fg.bWhite}${s.tokens}${ansi.reset} total`,
       `${ansi.fg.gray}Tools${ansi.reset}  ${ansi.fg.bWhite}${s.toolCalls}${ansi.reset} calls`,
-      s.errors > 0 ? `${ansi.fg.bRed}Errors${ansi.reset} ${s.errors}` : '',
     ];
+    if (s.errors > 0) lines.push(`${ansi.fg.bRed}Errors${ansi.reset} ${s.errors}`);
+    while (lines.length < 6) lines.push('');
+    return lines;
   }
 
   #renderLog(width, height) {
@@ -392,11 +443,10 @@ export class Dashboard {
     for (let i = start; i < end; i++) {
       const entry = this.#logs[i];
       const icon = this.#logIcon(entry.type);
-      const msg = truncate(entry.msg, width - 12);
+      const msg = truncate(entry.msg, width - 13);
       lines.push(`${ansi.fg.gray}${entry.time}${ansi.reset} ${icon} ${msg}`);
     }
 
-    // Pad remaining
     while (lines.length < height) lines.push('');
     return lines;
   }
