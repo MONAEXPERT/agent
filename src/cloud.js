@@ -1,4 +1,5 @@
 // Cloud API client — all LLM reasoning runs remotely on agent.mona.expert.
+// Supports both sngine-based (agent.mona.expert) and Docker-based platforms.
 // This device sends prompts up and receives streamed reasoning back.
 // No LLM provider keys are ever stored or used locally.
 
@@ -6,18 +7,22 @@ import { CLOUD, DEFAULTS } from './config.js';
 import { log } from './log.js';
 
 const UA = `mona-agent/${DEFAULTS.version}`;
+const P = CLOUD.paths; // platform-aware API paths
 
 // ── Generic API fetch ─────────────────────────────────────────────
-async function apiFetch(path, { apiKey, method = 'POST', body, signal } = {}) {
+async function apiFetch(path, { apiKey, method = 'POST', body, signal, headers: extraHeaders } = {}) {
   const url = CLOUD.base + path;
+  const headers = {
+    'authorization': `Bearer ${apiKey}`,
+    'content-type':  'application/json',
+    'user-agent':    UA,
+    'x-mona-agent':  DEFAULTS.version,
+    ...(extraHeaders || {}),
+  };
+
   const res = await fetch(url, {
     method,
-    headers: {
-      'authorization':  `Bearer ${apiKey}`,
-      'content-type':   'application/json',
-      'user-agent':     UA,
-      'x-mona-agent':   DEFAULTS.version,
-    },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
     signal,
   });
@@ -33,7 +38,7 @@ async function apiFetch(path, { apiKey, method = 'POST', body, signal } = {}) {
 
 // ── Verify API key ────────────────────────────────────────────────
 export async function verifyKey(apiKey) {
-  const res = await apiFetch('/v1/auth/verify', { apiKey, method: 'GET' });
+  const res = await apiFetch(P.verifyKey, { apiKey, method: 'GET' });
   return res.json();
 }
 
@@ -43,47 +48,62 @@ export async function verifyKey(apiKey) {
 // onUsage(usage) — called with final token counts (if provided)
 // Returns the full assembled response text.
 export async function think({ apiKey, messages, tools, onChunk, onUsage, signal }) {
-  const res = await apiFetch('/v1/agent/think', {
+  const res = await apiFetch(P.think, {
     apiKey,
     body: { messages, tools, stream: true },
     signal,
   });
 
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let buf = '';
-  let full = '';
+  // Handle both SSE streaming and plain JSON responses
+  const contentType = res.headers.get('content-type') || '';
 
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
+  if (contentType.includes('text/event-stream')) {
+    // SSE streaming
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let full = '';
 
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop() || '';
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-      for (const line of lines) {
-        if (!line.startsWith('data:')) continue;
-        const payload = line.slice(5).trim();
-        if (payload === '[DONE]') {
-          return full;
-        }
-        try {
-          const j = JSON.parse(payload);
-          if (j.delta) {
-            full += j.delta;
-            onChunk?.(j.delta);
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') return full;
+          try {
+            const j = JSON.parse(payload);
+            if (j.delta) {
+              full += j.delta;
+              onChunk?.(j.delta);
+            }
+            if (j.usage) onUsage?.(j.usage);
+          } catch {
+            // Skip malformed or keepalive lines
           }
-          if (j.usage) onUsage?.(j.usage);
-        } catch {
-          // Skip malformed or keepalive lines
         }
       }
+    } finally {
+      reader.releaseLock();
     }
-  } finally {
-    reader.releaseLock();
+    return full;
   }
 
-  return full;
+  // Plain JSON response
+  const data = await res.json();
+  return data.content || data.text || JSON.stringify(data);
+}
+
+// ── Report tool result to cloud ───────────────────────────────────
+export async function reportToolResult(apiKey, agentId, tool, result) {
+  return apiFetch(P.toolResult, {
+    apiKey,
+    body: { agentId, tool, result },
+  });
 }

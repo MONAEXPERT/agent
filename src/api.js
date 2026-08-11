@@ -4,29 +4,36 @@
 //   - Executing tools directly  
 //   - Testing connectivity
 //   - Managing agent registration
+//
+// Supports both sngine-based (agent.mona.expert) and Docker-based platforms.
 
 import { CLOUD, DEFAULTS } from './config.js';
 import { log } from './log.js';
 
 const UA = `mona-agent/${DEFAULTS.version}`;
+const P = CLOUD.paths; // platform-aware API paths
 
 // ── Generic fetch with auth ───────────────────────────────────────
-async function apiFetch(apiKey, path, { method = 'GET', body, signal } = {}) {
+async function apiFetch(apiKey, path, { method = 'GET', body, signal, headers: extraHeaders } = {}) {
   const url = CLOUD.base + path;
+  const headers = {
+    'authorization': `Bearer ${apiKey}`,
+    'content-type': 'application/json',
+    'user-agent': UA,
+    'x-mona-agent': DEFAULTS.version,
+    ...(extraHeaders || {}),
+  };
+
   const res = await fetch(url, {
     method,
-    headers: {
-      'authorization': `Bearer ${apiKey}`,
-      'content-type': 'application/json',
-      'user-agent': UA,
-      'x-mona-agent': DEFAULTS.version,
-    },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
     signal,
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    let text;
+    try { text = await res.text(); } catch { text = ''; }
     const err = new Error(`API ${res.status}: ${text.slice(0, 200)}`);
     err.status = res.status;
     throw err;
@@ -37,23 +44,29 @@ async function apiFetch(apiKey, path, { method = 'GET', body, signal } = {}) {
 // ── Health check ──────────────────────────────────────────────────
 export async function checkHealth(apiKey) {
   try {
-    const res = await apiFetch(apiKey, '/health');
+    const res = await apiFetch(apiKey, P.health);
     const data = await res.json();
-    return { ok: true, ...data };
+    // Normalize response
+    return {
+      ok: true,
+      uptime: data.uptime || data.ok ? 1 : 0,
+      platform: CLOUD.platform,
+      ...data,
+    };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return { ok: false, error: err.message, platform: CLOUD.platform };
   }
 }
 
 // ── Verify API key ────────────────────────────────────────────────
 export async function verifyKey(apiKey) {
-  const res = await apiFetch(apiKey, '/v1/auth/verify', { method: 'GET' });
+  const res = await apiFetch(apiKey, P.verifyKey, { method: 'GET' });
   return res.json();
 }
 
 // ── Send chat message ─────────────────────────────────────────────
 export async function sendChat(apiKey, agentId, message) {
-  const res = await apiFetch(apiKey, `/api/agents/${agentId}/chat`, {
+  const res = await apiFetch(apiKey, P.chat(agentId), {
     method: 'POST',
     body: { message },
   });
@@ -62,7 +75,7 @@ export async function sendChat(apiKey, agentId, message) {
 
 // ── Execute tool directly via API ─────────────────────────────────
 export async function execTool(apiKey, agentId, tool, args) {
-  const res = await apiFetch(apiKey, `/api/agents/${agentId}/tool`, {
+  const res = await apiFetch(apiKey, P.toolExec(agentId), {
     method: 'POST',
     body: { tool, args },
   });
@@ -71,19 +84,22 @@ export async function execTool(apiKey, agentId, tool, args) {
 
 // ── List agents ───────────────────────────────────────────────────
 export async function listAgents(apiKey) {
-  const res = await apiFetch(apiKey, '/api/agents');
-  return res.json();
+  // Sngine returns array directly, Docker returns { ok: true, agents: [...] }
+  const res = await apiFetch(apiKey, P.agents);
+  const data = await res.json();
+  if (Array.isArray(data)) return data;
+  return data.agents || data.agent || data;
 }
 
 // ── Get agent status ──────────────────────────────────────────────
 export async function getAgent(apiKey, agentId) {
-  const res = await apiFetch(apiKey, `/api/agents/${agentId}`);
+  const res = await apiFetch(apiKey, P.agents + '/' + agentId);
   return res.json();
 }
 
 // ── Stream reasoning from cloud (SSE) ─────────────────────────────
 export async function think({ apiKey, messages, tools, onChunk, onUsage, signal }) {
-  const res = await apiFetch(apiKey, '/v1/agent/think', {
+  const res = await apiFetch(apiKey, P.think, {
     method: 'POST',
     body: { messages, tools, stream: true },
   });
@@ -126,27 +142,33 @@ export async function think({ apiKey, messages, tools, onChunk, onUsage, signal 
 }
 
 // ── Force connection test ─────────────────────────────────────────
-export async function testConnection(apiKey) {
+export async function testConnection(apiKey, targetUrl) {
+  // Override base temporarily if targetUrl provided
+  const base = targetUrl || CLOUD.base;
   const results = {};
 
-  // 1. Health check
-  log.info('Testing HTTP health...');
-  results.health = await checkHealth(apiKey);
-
-  // 2. Verify auth
-  log.info('Verifying API key...');
   try {
-    results.auth = await verifyKey(apiKey);
-  } catch (err) {
-    results.auth = { error: err.message };
-  }
+    log.info(`Testing ${base}...`);
 
-  // 3. List agents
-  log.info('Listing agents...');
-  try {
-    results.agents = await listAgents(apiKey);
+    // 1. Health check
+    results.health = await checkHealth(apiKey);
+
+    // 2. Verify auth
+    try {
+      results.auth = await verifyKey(apiKey);
+    } catch (err) {
+      results.auth = { error: err.message };
+    }
+
+    // 3. List agents
+    try {
+      const agents = await listAgents(apiKey);
+      results.agents = agents;
+    } catch (err) {
+      results.agents = { error: err.message };
+    }
   } catch (err) {
-    results.agents = { error: err.message };
+    results.error = err.message;
   }
 
   return results;
