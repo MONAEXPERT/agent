@@ -1,0 +1,7 @@
+node_modules/
+*.log
+.DS_Store
+# Never commit credentials — they live in ~/.mona-agent/ anyway
+.mona-agent/
+credentials.json
+.env

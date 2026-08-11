@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mona Agent</title>
+<style>
+  :root {
+    --bg: #0b0d12; --panel: #141821; --line: #232a37;
+    --text: #e6e9ef; --muted: #8b94a7; --accent: #6ea8fe; --ok: #46d39a; --warn: #ffcc66;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); height: 100vh; display: grid;
+    grid-template-rows: auto 1fr;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+    border-bottom: 1px solid var(--line); background: linear-gradient(180deg,#11151d,#0b0d12);
+  }
+  header .logo { width: 28px; height: 28px; border-radius: 8px;
+    background: radial-gradient(circle at 30% 30%, #6ea8fe, #3a6ff0); }
+  header h1 { font-size: 15px; margin: 0; letter-spacing: .3px; }
+  header .status { margin-left: auto; font-size: 12px; color: var(--muted); }
+  header .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--warn); margin-right:6px;}
+  header .dot.on { background: var(--ok); }
+  main { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; padding: 16px; overflow: hidden; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    display: flex; flex-direction: column; overflow: hidden; }
+  .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted);
+    margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .panel .body { padding: 14px 16px; overflow: auto; flex: 1; }
+  .left { display: grid; grid-template-rows: auto 1fr; gap: 16px; }
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .metric { background:#0f131b; border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .metric .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing:.5px;}
+  .metric .v { font-size: 20px; font-weight: 600; margin-top: 4px; }
+  .metric .v small { font-size: 12px; color: var(--muted); font-weight: 400; }
+  .steps .item { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+  .steps .item:last-child { border-bottom: none; }
+  .steps .name { color: var(--accent); font-weight: 600; }
+  .steps .t { color: var(--muted); font-size: 11px; float: right; }
+  #output { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px; }
+  .runbar { display: flex; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--line); }
+  .runbar input { flex: 1; background:#0f131b; border:1px solid var(--line); color: var(--text);
+    border-radius: 10px; padding: 10px 12px; font-size: 14px; outline: none; }
+  .runbar input:focus { border-color: var(--accent); }
+  .runbar button { background: var(--accent); color:#06101f; border:none; border-radius:10px;
+    padding: 0 18px; font-weight: 600; cursor: pointer; }
+  .runbar button:disabled { opacity:.5; cursor: default; }
+  .cloud-note { font-size: 11px; color: var(--muted); padding: 0 16px 12px; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo"></div>
+    <h1>Mona Agent</h1>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">connecting…</span></div>
+  </header>
+  <main>
+    <div class="left">
+      <div class="panel">
+        <h2>Device Monitoring</h2>
+        <div class="body metrics">
+          <div class="metric"><div class="k">CPU load (1m)</div><div class="v" id="m-cpu">—</div></div>
+          <div class="metric"><div class="k">Memory used</div><div class="v" id="m-mem">—</div></div>
+          <div class="metric"><div class="k">Uptime</div><div class="v" id="m-up">—</div></div>
+          <div class="metric"><div class="k">Platform</div><div class="v" id="m-plat">—</div></div>
+          <div class="metric"><div class="k">Cores</div><div class="v" id="m-cores">—</div></div>
+          <div class="metric"><div class="k">Streaming</div><div class="v" id="m-stream" style="color:var(--ok)">live</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Agent Output</h2>
+        <div class="body"><div id="output">Ready. Type a task below.</div></div>
+        <div class="runbar">
+          <input id="task" placeholder="Ask the agent to do something…" />
+          <button id="run">Run</button>
+        </div>
+        <div class="cloud-note">🔒 Reasoning runs on agent.mona.expert · no LLM keys stored on this device</div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Live Steps &amp; Telemetry → agent.mona.expert</h2>
+      <div class="body steps" id="steps"></div>
+    </div>
+  </main>
+<script>
+const $ = s => document.querySelector(s);
+const fmtBytes = b => (b/1073741824).toFixed(1) + ' GB';
+const fmtUp = s => { const h=Math.floor(s/3600), m=Math.floor(s%3600/60); return h+'h '+m+'m'; };
+
+let ws;
+function connect() {
+  ws = new WebSocket(`ws://${location.host}`);
+  ws.onopen = () => { $('#dot').classList.add('on'); $('#statusText').textContent = 'connected'; };
+  ws.onclose = () => { $('#dot').classList.remove('on'); $('#statusText').textContent = 'reconnecting…'; setTimeout(connect, 2000); };
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === 'device.metrics') {
+      const d = msg.data;
+      $('#m-cpu').innerHTML = d.cpuLoad[0].toFixed(2);
+      const used = d.mem.total - d.mem.free;
+      $('#m-mem').innerHTML = fmtBytes(used) + ' <small>/ ' + fmtBytes(d.mem.total) + '</small>';
+      $('#m-up').textContent = fmtUp(d.uptime);
+      $('#m-plat').textContent = d.platform + ' ' + d.arch;
+      $('#m-cores').textContent = d.cpus;
+    } else if (msg.type === 'agent.step') {
+      addStep(msg.data.name, JSON.stringify(msg.data.detail || {}));
+    } else if (msg.type === 'agent.log') {
+      addStep(msg.data.level, msg.data.message);
+    } else if (msg.type === 'token') {
+      if ($('#output').dataset.fresh !== '1') { $('#output').textContent=''; $('#output').dataset.fresh='1'; }
+      $('#output').textContent += msg.data;
+    } else if (msg.type === 'done') {
+      $('#run').disabled = false; $('#output').dataset.fresh='0';
+      addStep('done', 'task complete');
+    } else if (msg.type === 'error') {
+      addStep('error', msg.data);
+    }
+  };
+}
+function addStep(name, detail) {
+  const el = document.createElement('div');
+  el.className = 'item';
+  el.innerHTML = `<span class="t">${new Date().toLocaleTimeString()}</span><span class="name">${name}</span><div>${detail||''}</div>`;
+  $('#steps').prepend(el);
+}
+function run() {
+  const task = $('#task').value.trim();
+  if (!task || !ws || ws.readyState !== 1) return;
+  $('#run').disabled = true;
+  $('#output').textContent = '';
+  $('#output').dataset.fresh = '0';
+  addStep('run', task);
+  ws.send(JSON.stringify({ type: 'run', task }));
+  $('#task').value = '';
+}
+$('#run').onclick = run;
+$('#task').addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+connect();
+</script>
+</body>
+</html>

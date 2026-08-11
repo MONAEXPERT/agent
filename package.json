@@ -1,0 +1,22 @@
+{
+  "name": "mona-agent",
+  "version": "0.1.0",
+  "description": "Cloud-brained device agent. No local LLM keys — all reasoning runs on agent.mona.expert.",
+  "type": "module",
+  "bin": {
+    "mona-agent": "./bin/mona-agent.js"
+  },
+  "scripts": {
+    "start": "node bin/mona-agent.js",
+    "gui": "node src/gui/server.js",
+    "login": "node bin/mona-agent.js login",
+    "setup": "node scripts/setup.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "MIT"
+}
