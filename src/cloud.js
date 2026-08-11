@@ -1,52 +1,89 @@
-// All LLM reasoning happens remotely on agent.mona.expert.
-// This client sends prompts/steps up and receives streamed reasoning back.
-import { CLOUD } from './config.js';
+// Cloud API client — all LLM reasoning runs remotely on agent.mona.expert.
+// This device sends prompts up and receives streamed reasoning back.
+// No LLM provider keys are ever stored or used locally.
 
-async function apiFetch(path, { apiKey, method = 'POST', body } = {}) {
-  const res = await fetch(CLOUD.base + path, {
+import { CLOUD, DEFAULTS } from './config.js';
+import { log } from './log.js';
+
+const UA = `mona-agent/${DEFAULTS.version}`;
+
+// ── Generic API fetch ─────────────────────────────────────────────
+async function apiFetch(path, { apiKey, method = 'POST', body, signal } = {}) {
+  const url = CLOUD.base + path;
+  const res = await fetch(url, {
     method,
     headers: {
-      'authorization': `Bearer ${apiKey}`,
-      'content-type': 'application/json',
-      'x-mona-agent': '0.1.0',
+      'authorization':  `Bearer ${apiKey}`,
+      'content-type':   'application/json',
+      'user-agent':     UA,
+      'x-mona-agent':   DEFAULTS.version,
     },
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
+
   if (!res.ok) {
-    const t = await res.text().catch(() => '');
-    throw new Error(`cloud ${res.status}: ${t.slice(0, 200)}`);
+    const text = await res.text().catch(() => '');
+    const err = new Error(`Cloud API ${res.status}: ${text.slice(0, 200)}`);
+    err.status = res.status;
+    throw err;
   }
   return res;
 }
 
+// ── Verify API key ────────────────────────────────────────────────
 export async function verifyKey(apiKey) {
   const res = await apiFetch('/v1/auth/verify', { apiKey, method: 'GET' });
-  return res.json(); // { agentId, plan, ... }
+  return res.json();
 }
 
-// Stream reasoning tokens from the cloud brain. onChunk(text) called per token.
-export async function think({ apiKey, messages, tools, onChunk }) {
+// ── Stream reasoning from cloud brain ─────────────────────────────
+// Calls the cloud LLM endpoint and streams tokens back via SSE.
+// onChunk(text)  — called per delta token
+// onUsage(usage) — called with final token counts (if provided)
+// Returns the full assembled response text.
+export async function think({ apiKey, messages, tools, onChunk, onUsage, signal }) {
   const res = await apiFetch('/v1/agent/think', {
     apiKey,
     body: { messages, tools, stream: true },
+    signal,
   });
+
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   let buf = '';
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const lines = buf.split('\n');
-    buf = lines.pop() || '';
-    for (const line of lines) {
-      if (!line.startsWith('data:')) continue;
-      const payload = line.slice(5).trim();
-      if (payload === '[DONE]') return;
-      try {
-        const j = JSON.parse(payload);
-        if (j.delta) onChunk?.(j.delta);
-      } catch { /* ignore keepalive */ }
+  let full = '';
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (payload === '[DONE]') {
+          return full;
+        }
+        try {
+          const j = JSON.parse(payload);
+          if (j.delta) {
+            full += j.delta;
+            onChunk?.(j.delta);
+          }
+          if (j.usage) onUsage?.(j.usage);
+        } catch {
+          // Skip malformed or keepalive lines
+        }
+      }
     }
+  } finally {
+    reader.releaseLock();
   }
+
+  return full;
 }
