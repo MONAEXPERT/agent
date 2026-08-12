@@ -44,6 +44,23 @@ Please report privately first so we can fix before disclosure:
 - 48 h — acknowledgment
 - 14 days — fix + coordinated disclosure (extendable on request)
 
+### Vulnerability handling (CRA-aligned)
+
+- Every report is triaged by severity within 48 h
+- Fixes ship with an advisory; exploited vulnerabilities are reported to
+  ENISA / competent authorities as required
+- Dependency surface is tracked via the [SBOM](docs/SBOM.md)
+  (`sbom.cyclonedx.json`)
+- Security updates install with one command
+  (`curl -fsSL https://agent.mona.expert/install.sh | bash`)
+
+## Compliance
+
+- [docs/COMPLIANCE.md](docs/COMPLIANCE.md) — CRA, NIS2, AI Act, GDPR
+- [docs/AI-ACT.md](docs/AI-ACT.md) — AI Act transparency record
+- [docs/GDPR.md](docs/GDPR.md) — privacy & data processing
+- [docs/SBOM.md](docs/SBOM.md) — software bill of materials
+
 ## Hall of fame
 
 We appreciate all responsible disclosures. With your permission, we list

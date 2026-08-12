@@ -157,6 +157,23 @@ npm run gui         # run the dev build of the TUI
 Requires Node.js ≥ 20. The codebase is plain modern JavaScript (ESM), no
 build step.
 
+## Compliance & Trust
+
+<a href="docs/COMPLIANCE.md"><img src="https://img.shields.io/badge/EU_CRA-ready-blue.svg" alt="EU Cyber Resilience Act ready"></a>
+<a href="docs/COMPLIANCE.md"><img src="https://img.shields.io/badge/NIS2-aligned-blue.svg" alt="NIS2 aligned"></a>
+<a href="docs/AI-ACT.md"><img src="https://img.shields.io/badge/EU_AI_Act-transparency_documented-blueviolet.svg" alt="EU AI Act transparency"></a>
+<a href="docs/GDPR.md"><img src="https://img.shields.io/badge/GDPR-privacy_by_design-brightgreen.svg" alt="GDPR privacy by design"></a>
+<a href="docs/SBOM.md"><img src="https://img.shields.io/badge/SBOM-CycloneDX_1.5-informational.svg" alt="SBOM CycloneDX 1.5"></a>
+
+- **[EU Cyber Resilience Act](docs/COMPLIANCE.md)** — SBOM, vulnerability
+  handling, secure by design, coordinated disclosure
+- **[NIS2](docs/COMPLIANCE.md)** — TOMs, logging, incident support for
+  essential/important entities
+- **[EU AI Act](docs/AI-ACT.md)** — limited-risk classification,
+  transparency obligations implemented and documented
+- **[GDPR](docs/GDPR.md)** — data minimisation, Art. 30 record, DPA-ready
+- **[SBOM](docs/SBOM.md)** — CycloneDX, one runtime dependency
+
 ## Community
 
 ⭐ **Star the repo** if mona-agent is useful to you — it genuinely helps

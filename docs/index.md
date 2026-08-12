@@ -10,6 +10,10 @@ Open-source cloud-brained AI agent for your device — macOS, Linux, WSL2.
 - [FAQ](FAQ.md) — common questions
 - [Changelog](CHANGELOG.md) — release history
 - [Security](../SECURITY.md) — security model & disclosure
+- [Compliance](COMPLIANCE.md) — CRA, NIS2, AI Act, GDPR
+- [AI Act transparency](AI-ACT.md) — classification & obligations
+- [GDPR](GDPR.md) — privacy & data processing
+- [SBOM](SBOM.md) — software bill of materials
 - [Contributing](../CONTRIBUTING.md) — development setup
 - [examples/](../examples) — launchd & systemd units, health check script
 
