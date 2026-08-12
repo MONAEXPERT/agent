@@ -45,10 +45,10 @@ async function login() {
   }
 
   const apiKey = (await rl.question('  agent.mona.expert API key: ')).trim();
-  rl.close();
 
   if (!apiKey) {
     console.error('\n  No key entered.\n');
+    rl.close();
     process.exit(1);
   }
 
@@ -67,6 +67,7 @@ async function login() {
     console.log(`    ${CYAN}mona-agent start${RESET}     ${DIM}# headless daemon${RESET}`);
     console.log(`    ${CYAN}mona-agent connect${RESET}   ${DIM}# test connection${RESET}`);
     console.log();
+    rl.close();
   } catch (e) {
     console.log(`${RED}FAILED${RESET}`);
     console.error(`\n  ${e.message}\n`);
@@ -77,6 +78,7 @@ async function login() {
       const path = saveCreds({ apiKey });
       console.log(`\n  ${YELLOW}Saved unverified key to ${path}${RESET}\n`);
     }
+    rl.close();
     process.exit(1);
   }
 }
