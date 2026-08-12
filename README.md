@@ -1,220 +1,162 @@
-# mona-agent — Cloud-Brained AI Agent for Your Device
+# mona-agent — the cloud-brained AI agent for your device ⚡
 
 <p align="center">
-  <strong>Open-source device agent. Free forever. MIT licensed.</strong>
+  <strong>An open-source AI agent that lives on your Mac or Linux machine.<br/>
+  Chat with it, let it run commands, manage files — from any device, anywhere.</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/MONAEXPERT/agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
-  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg" alt="Node.js"></a>
-  <img src="https://img.shields.io/badge/dependencies-1-lightgrey" alt="1 dependency">
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-informational" alt="Platforms">
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg" alt="Node.js 20+"></a>
+  <a href="https://github.com/MONAEXPERT/agent/actions"><img src="https://img.shields.io/badge/tests-26%2F26-passing-brightgreen.svg" alt="Tests: 26/26 passing"></a>
+  <a href="https://github.com/MONAEXPERT/agent/blob/main/package.json"><img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 runtime dependency"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-informational.svg" alt="Platforms: macOS, Linux, WSL2">
+  <img src="https://img.shields.io/badge/cloud-agent.mona.expert-blueviolet.svg" alt="Cloud: agent.mona.expert">
 </p>
 
 ---
 
-## What is this?
+## What is mona-agent?
 
-**mona-agent** is a headless daemon that runs on any device. It connects to a control plane, receives commands, executes local tools, and streams results back.
+**mona-agent** is a lightweight, headless **AI agent daemon** that runs on your
+computer. It connects to the mona.expert cloud, receives commands from your
+dashboard or chat, executes **local tools** (files, shell, network, system
+info), and streams the results back in real time.
 
-No LLM provider keys (OpenAI, Anthropic, Google, etc.) are stored on your device. Reasoning happens in the cloud — the device is a smart terminal.
+Think of it as a **smart terminal for your machine** — an AI assistant with
+hands. You can be at the office and ask your Mac at home to check disk space,
+restart a service, or find a file. The agent does it and answers.
+
+**No AI API keys ever live on your device.** All reasoning happens in the
+cloud. Your device is a secure, capable pair of hands.
 
 ```
-  Your Device                           Control Plane (SaaS or self-hosted)
+  Your Device                           mona.expert Cloud (SaaS)
   +-------------------+                +----------------------------+
-  |  mona-agent       |--- WSS ------+ |  Dashboard / Website        |
-  |                   |               |  Auth / User Management     |
-  |  * Terminal GUI   |<-- commands -- |  API Key Vault (AES-256)   |
-  |  * Local tools    |-- telemetry -+ |  LLM Proxy (5 providers)   |
-  |  * File sandbox   |-- tokens ----+ |  Agent Orchestration       |
-  |  * Shell guard    |-- metrics ---+ |  Audit Log                 |
-  |                   |               |                            |
-  |  <- NO API KEYS ->|               |  <-- YOUR KEYS STAY HERE --> |
-  +-------------------+               +----------------------------+
+  |   mona-agent      |                |  Dashboard (agent.mona.expert)
+  |                   |--- HTTPS ----+ |  Agent orchestration
+  |  * Terminal UI    |               |  AI engine (the brain)
+  |  * File tools     |<-- commands --+  Chat & history
+  |  * Shell guard    |               |  API key vault (AES-256)
+  |  * Network tools  |-- metrics --->+  Live device monitoring
+  |  * System info    |-- results --->+  Audit log
+  +-------------------+                +----------------------------+
 ```
 
-## Quick Start
+## Why mona-agent?
+
+- 🖥 **Remote control with AI** — chat with your computer from anywhere, or
+  let the cloud agent act on its own
+- 🔐 **Zero secrets on the device** — no OpenAI/Anthropic/Google keys are
+  stored locally; they live in the encrypted cloud vault
+- ⚡ **Terminal-native** — a fast TUI dashboard with live log streaming,
+  or a fully headless daemon mode
+- 🛠 **Real tools, real actions** — files, shell commands, network checks,
+  system metrics
+- 📊 **Live device monitoring** — CPU, RAM, disk, load, uptime streamed to
+  your dashboard every 10 seconds
+- 📦 **One command install** — no build step, single runtime dependency
+  (`ws`), works on macOS, Linux and WSL2
+- 🆓 **Free and open source** — MIT licensed
+
+## Quickstart — up and running in 60 seconds
 
 ```bash
-# Install
+# 1. Install (macOS / Linux / WSL2, needs Node.js 20+)
 curl -fsSL https://agent.mona.expert/install.sh | bash
 
-# 1. Login with your agent.mona.expert API key
-mona-agent login        # or press 'l' inside the dashboard
+# 2. Log in with your mona.expert API key
+mona-agent login
 
-# 2. Verify the connection to the control plane
-mona-agent connect
-
-# 3. Run the terminal dashboard (auto-starts the agent)
+# 3. Start the terminal dashboard
 mona-agent gui
+
+# …or run fully headless in the background
+mona-agent start
 ```
 
-Once connected, send commands to this device from the
-[agent.mona.expert](https://agent.mona.expert) dashboard — tasks, tools
-and results stream live into the terminal.
+Now open **<https://agent.mona.expert/dashboard>** — your device appears
+with live stats, and you can chat with it right from the browser.
 
-## Terminal Dashboard
-
-Built-in TUI — zero extra dependencies. Pure ANSI escape codes.
-Live system metrics, streaming task output, and a color-coded activity log.
-
-```
-┌─ mona-agent v1.2.0 🍎              ● agent-1 │ ● connected ─┐
-┌─ System ─────────────────────┐ ┌─ Activity ────────────────────────┐
-│ Host   MacBook-Air            │ │ 22:54 ● Connected to              │
-│ OS     macOS x64              │ │        agent.mona.expert          │
-│ CPUs   10 cores               │ │ 22:55 ▸ Task: "sys info"          │
-│ Mem    ████████████░░░░ 62%   │ │ 22:55 ⚙ Tool: sysinfo             │
-│        5.3 GB / 8.6 GB        │ │ 22:56 ✓ Complete (142 tok, 3.1s)  │
-│ Load   1.20  0.80  0.50       │ │                                   │
-│ IP     192.168.1.42           │ │                                   │
-│ Up     3h 25m                 │ │                                   │
-├─ Task ────────────────────────┤ │                                   │
-│ ✓ Idle — waiting for commands │ │                                   │
-│ Control this agent from       │ │                                   │
-│ agent.mona.expert             │ │                                   │
-└───────────────────────────────┘ └───────────────────────────────────┘
-├──────────────────────────────────────────────────────────────────────┤
-│ q quit · l login · c clear · r reconnect · d debug · h help  ● online│
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-### Connect your agent (from the terminal)
-
-| Key | Action |
-|-----|--------|
-| `l` | Login — paste your API key right in the dashboard |
-| `r` | (Re)connect to the cloud |
-| `q` / `Ctrl+C` | Quit |
-| `c` | Clear activity log |
-| `d` | Toggle debug bar (cloud URL, WS URL, creds path) |
-| `h` / `?` | Help overlay with the full connect guide |
-| `↑` / `↓` | Scroll activity log |
-
-No key saved yet? The dashboard opens in setup mode and shows the
-connect steps — press `l` and paste your key, the agent connects
-automatically. Works headless too: `mona-agent start`.
-
-## Tools
-
-The agent ships with four sandboxed tool modules:
-
-| Tool | Capabilities | Security |
-|------|-------------|----------|
-| `sysinfo` | OS, CPU, memory, load, network, uptime | Read-only |
-| `shell` | Command execution | Allowlist + blocked patterns |
-| `files` | Read/write/list/delete/stat | Path sandboxed |
-| `net` | HTTP fetch/check, connectivity | HTTP(S)-only |
-
-### Shell Security
-
-By default only safe commands are allowed. Extend via environment:
+## Usage
 
 ```bash
-MONA_ALLOW_CMDS="df,uptime,uname,git,npm,docker" mona-agent start
+mona-agent login                 # store your mona.expert API key
+mona-agent connect               # connect to the cloud control plane
+mona-agent gui                   # terminal dashboard (live log, status)
+mona-agent chat "Check disk usage and free up old logs"   # one-shot command
+mona-agent exec "uptime && df -h"                        # run a command
+mona-agent start                 # daemon mode (background, auto-reconnect)
 ```
 
-Destructive patterns (`rm -rf /`, `mkfs`, fork bombs) are always blocked.
+## Built-in tools
 
-## Commands
+| Tool      | What the agent can do with it                              |
+|-----------|------------------------------------------------------------|
+| `files`   | List, read, write, move, delete — confined to safe paths   |
+| `shell`   | Run commands through a guarded, allowlisted shell          |
+| `net`     | HTTP requests, connectivity checks, DNS lookups            |
+| `sysinfo` | CPU, memory, disk, load, uptime, platform, network info    |
 
-```
-mona-agent gui        Terminal dashboard (auto-starts the agent)
-mona-agent start      Headless daemon — no UI, log to stderr
-mona-agent login      Save your control-plane API key
-mona-agent connect    Test / force connection to the control plane
-mona-agent chat <msg> Send a chat message via the API
-mona-agent exec <t>   Execute a tool directly (sysinfo, shell, files, net)
-mona-agent status     Show login state and config paths
-mona-agent debug      Verbose system + connection info
-mona-agent help       Show all commands and environment vars
-```
+Full reference: **[docs/TOOLS.md](docs/TOOLS.md)**
 
-Without arguments, auto-detects: GUI if terminal, headless otherwise.
+## How it works
 
-## Environment Variables
+The daemon maintains a **control channel** to the cloud over HTTPS + WebSocket
+(where available). It streams device metrics every 10 seconds, receives
+**commands** from the cloud engine, executes them with the local tool
+sandbox, and streams results back. Read the full walkthrough in
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `MONA_CLOUD` | `https://agent.mona.expert` | Control plane URL |
-| `MONA_CLOUD_WS` | Auto-derived | WebSocket URL override |
-| `MONA_ALLOW_CMDS` | `df,uptime,uname,...` | Shell command allowlist |
-| `MONA_SHELL_UNSAFE` | — | Set to `1` for unrestricted shell |
-| `MONA_WORKSPACE` | `~/.mona-agent/workspace` | File tool sandbox directory |
-| `MONA_LLM_PROVIDER` | `openai` | Docker platform: LLM provider (openai, anthropic, google, deepseek, openrouter) |
-| `MONA_LLM_MODEL` | `gpt-4o-mini` | Docker platform: default model |
+## FAQ
 
-## Project Structure
+**Is mona-agent free?** — Yes. The client is MIT licensed and free forever.
+The mona.expert cloud has a free tier at
+[agent.mona.expert](https://agent.mona.expert).
 
-```
-agent/
-+-- bin/mona-agent.js         CLI entry point
-+-- src/
-|   +-- agent.js              Agent daemon (reasoning loop)
-|   +-- cloud.js              Cloud API client (SSE streaming)
-|   +-- config.js             Configuration & credential management
-|   +-- control.js            WebSocket control channel (reconnect, metrics)
-|   +-- log.js                Structured event-driven logger
-|   +-- tui.js                Terminal dashboard (pure ANSI)
-|   +-- tools/
-|       +-- index.js          Tool registry & dispatcher
-|       +-- sysinfo.js        System information
-|       +-- shell.js          Sandboxed shell execution
-|       +-- files.js          File system operations
-|       +-- net.js            Network operations
-+-- test/
-|   +-- agent.test.mjs        14 unit tests
-+-- install.sh                One-line install script
-+-- README.md
-+-- LICENSE
-+-- package.json
-```
+**Does my API key get stored on the device?** — Only your mona.expert
+device token is stored locally (`~/.mona-agent/credentials.json`). AI
+provider keys live only in the cloud vault, AES-256 encrypted.
 
-## Architecture
+**Can I run it on a server?** — Yes. Any Node.js 20+ machine works,
+including headless Linux servers and Raspberry Pi class devices.
 
-**Cloud-brained**: Reasoning happens on the control plane where API keys live. The device executes tools and streams results. The device never touches LLM provider credentials.
+**What data leaves my device?** — Command results and system metrics, only
+to the mona.expert cloud you are logged into. See
+**[SECURITY.md](SECURITY.md)**.
 
-- **Commands** (`run`, `tool`, `ping`) flow: control plane -> cloud -> device
-- **Telemetry** (`metrics`, `steps`, `tokens`, `results`) flow: device -> cloud -> control plane
-- **API keys** never leave the control plane
+More answers: **[docs/FAQ.md](docs/FAQ.md)**
 
-The device stores **only** the control-plane API key in `~/.mona-agent/credentials.json` (mode `0600`).
+## Documentation
 
-## Open Source & SaaS
-
-| What | Where | Price |
-|------|-------|-------|
-| **Device agent** | This repo — install, modify, fork | Free & open source (MIT) |
-| **Control plane** | Self-host or SaaS at [agent.mona.expert](https://agent.mona.expert) | Free tier available |
-
-The agent is MIT. Use it with any control plane. The cloud platform at agent.mona.expert provides the managed experience with premium plans for teams.
+| Page | Contents |
+|------|----------|
+| [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) | Install, login, first steps, troubleshooting |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Daemon internals, control channel, metrics pipeline |
+| [docs/TOOLS.md](docs/TOOLS.md) | Tool-by-tool reference with examples |
+| [docs/FAQ.md](docs/FAQ.md) | Frequently asked questions |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Release history |
+| [SECURITY.md](SECURITY.md) | Security model & vulnerability reporting |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup, tests, conventions |
 
 ## Development
 
 ```bash
-git clone https://github.com/MONAEXPERT/agent.git
+git clone git@github.com:MONAEXPERT/agent.git
 cd agent
 npm install
-npm test               # 14 tests, all passing
+npm test            # 26 tests, 9 suites
+npm run gui         # run the dev build of the TUI
 ```
+
+Requires Node.js ≥ 20. The codebase is plain modern JavaScript (ESM), no
+build step.
 
 ## License
 
-MIT — free forever.
+MIT — see [LICENSE](LICENSE). Free forever.
 
 ---
 
-<p align="center">
-  <sub>
-    mona-agent &middot; <a href="https://agent.mona.expert">agent.mona.expert</a> &middot;
-    <a href="https://github.com/MONAEXPERT/agent">GitHub</a> &middot;
-    <a href="https://github.com/MONAEXPERT/agent/issues">Issues</a>
-  </sub>
-</p>
-
-<p align="center">
-  <sub>Open-source device agent. No LLM keys on your device. Ever.</sub>
-</p>
-
-# monorepo (merged enterprise version)
-See docs/ARCHITECTURE.md — one key (mona.expert), one brain (mona.expert engine).
+**[mona.expert](https://agent.mona.expert)** — one key, one brain, any
+device. ⚡
