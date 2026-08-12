@@ -10,7 +10,7 @@
     "start": "node bin/mona-agent.js start",
     "gui": "node bin/mona-agent.js gui",
     "login": "node bin/mona-agent.js login",
-    "test": "node --test test/agent.test.mjs test/control.test.mjs test/docker-control.test.mjs"
+    "test": "node --test test/agent.test.mjs test/control.test.mjs test/docker-control.test.mjs test/tui-scroll.test.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -16,6 +16,7 @@
 //   c             Clear activity log
 //   d             Toggle debug info
 //   ↑ / ↓         Scroll log
+//   g / End        Jump to end of log (auto-follow on)
 //   h / ?         Show help + connect instructions
 
 import os from 'node:os';
@@ -191,9 +192,11 @@ export class Dashboard {
   };
   #renderTimer = null;
   #agent = null;
+  #stdin = null;
 
-  constructor(agent, { out = process.stdout, setup = false } = {}) {
+  constructor(agent, { out = process.stdout, setup = false, stdin = process.stdin } = {}) {
     this.#out = out;
+    this.#stdin = stdin;
     this.#agent = agent || null;
     const creds = loadCreds();
     this.#state.agentId = agent?.creds?.agentId || creds?.agentId || null;
@@ -207,12 +210,12 @@ export class Dashboard {
     }
 
     this.#out.write(ansi.hide);
-    if (process.stdin.isTTY) {
-      process.stdin.setRawMode?.(true);
-      process.stdin.resume();
-      process.stdin.setEncoding('utf8');
+    if (this.#stdin.isTTY) {
+      this.#stdin.setRawMode?.(true);
+      this.#stdin.resume();
+      this.#stdin.setEncoding('utf8');
     }
-    process.stdin.on('data', (key) => this.#onKey(key));
+    this.#stdin.on('data', (key) => this.#onKey(key));
     this.#out.on?.('resize', () => this.#render());
 
     if (this.#agent) this.#wireAgent(this.#agent);
@@ -305,6 +308,9 @@ export class Dashboard {
   #log(type, msg) {
     this.#logs.push({ time: timeStr(), type, msg });
     if (this.#logs.length > this.#maxLogs) this.#logs.shift();
+    // Auto-follow: new activity snaps the view back to the latest entry.
+    // (Scrolling up to read history is fine — the next event brings you back.)
+    this.#scrollOffset = 0;
   }
 
   // ── Input handling ──────────────────────────────────────────────
@@ -363,6 +369,10 @@ export class Dashboard {
         break;
       case '\x1b[B': // Down
         this.#scrollOffset = Math.max(0, this.#scrollOffset - 1);
+        break;
+      case 'g':
+      case '\x1b[F': // End
+        this.#scrollOffset = 0;
         break;
     }
   }
@@ -443,7 +453,11 @@ export class Dashboard {
 
     const sysLines = this.#renderSystem(wide ? Math.floor(W * 0.38) - 2 : W - 2, panelH);
     const taskLines = this.#renderTask(wide ? Math.floor(W * 0.38) - 2 : W - 2, panelH);
-    const logLines = this.#renderLog(wide ? W - Math.floor(W * 0.38) - 3 : W - 2, wide ? bodyH : panelH - 1);
+    // The log panel draws a header row and a bottom border, so only
+    // (panel height − 2) entries are actually visible. Size the window
+    // accordingly or the two newest entries get cut off every render.
+    const logViewH = wide ? bodyH - 2 : Math.max(1, bodyH - panelH - 2);
+    const logLines = this.#renderLog(wide ? W - Math.floor(W * 0.38) - 3 : W - 2, logViewH);
 
     if (wide) {
       const leftW = Math.floor(W * 0.38);
