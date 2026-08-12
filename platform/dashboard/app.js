@@ -1,8 +1,9 @@
 /**
- * agent.mona.expert — Dashboard SPA
+ * mona.expert — Dashboard SPA
  *
- * Single-page app for managing agents, API keys, audit logs.
- * Communicates with the platform via REST API + WebSocket.
+ * Single brain. Single key.
+ * All reasoning and direction comes from the mona.expert engine.
+ * This UI never asks for or stores any provider key.
  */
 
 const API = '/api';
@@ -28,7 +29,6 @@ function setupNavigation() {
 }
 
 function setupForms() {
-  // Create agent
   document.getElementById('create-agent-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const form = e.target;
@@ -54,31 +54,6 @@ function setupForms() {
       alert(`Failed to create agent: ${err.message}`);
     }
   });
-
-  // Add key
-  document.getElementById('add-key-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const data = {
-      provider: form.provider.value,
-      label: form.label.value || `${form.provider.value}-key`,
-      key: form.key.value
-    };
-
-    try {
-      const res = await fetch(`${API}/keys`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) throw new Error((await res.json()).error);
-      hideAddKey();
-      form.reset();
-      loadKeys();
-    } catch (err) {
-      alert(`Failed to add key: ${err.message}`);
-    }
-  });
 }
 
 // ── WebSocket ──────────────────────────────────────────────────────
@@ -88,27 +63,19 @@ function connectWS() {
 
   ws = new WebSocket(wsUrl);
 
-  ws.onopen = () => {
-    updateStatus('connected', 'Connected');
-  };
-
+  ws.onopen = () => updateStatus('connected', 'Connected');
   ws.onmessage = (event) => {
     try {
-      const msg = JSON.parse(event.data);
-      handleWSMessage(msg);
+      handleWSMessage(JSON.parse(event.data));
     } catch (err) {
       console.error('WS parse error:', err);
     }
   };
-
   ws.onclose = () => {
     updateStatus('disconnected', 'Disconnected');
     setTimeout(connectWS, 3000);
   };
-
-  ws.onerror = () => {
-    updateStatus('disconnected', 'Connection error');
-  };
+  ws.onerror = () => updateStatus('disconnected', 'Connection error');
 }
 
 function handleWSMessage(msg) {
@@ -118,31 +85,22 @@ function handleWSMessage(msg) {
       break;
     case 'agent:registered':
     case 'agent:disconnected':
-      if (currentPage === 'dashboard') loadDashboard();
-      if (currentPage === 'agents') loadAgents();
-      break;
     case 'agent:status':
       if (currentPage === 'dashboard') loadDashboard();
       if (currentPage === 'agents') loadAgents();
       break;
     case 'agent:chat':
-      if (chatAgentId === msg.agentId) {
-        addChatMessage('agent', msg.message);
-      }
+      if (chatAgentId === msg.agentId) addChatMessage('agent', msg.message);
       break;
     case 'agent:error':
-      if (chatAgentId === msg.agentId) {
-        addChatMessage('error', msg.error);
-      }
+      if (chatAgentId === msg.agentId) addChatMessage('error', msg.error);
       break;
   }
 }
 
 function updateStatus(status, text) {
-  const dot = document.getElementById('status-dot');
-  const label = document.getElementById('status-text');
-  dot.className = 'status-dot ' + status;
-  label.textContent = text;
+  document.getElementById('status-dot').className = 'status-dot ' + status;
+  document.getElementById('status-text').textContent = text;
 }
 
 // ── Navigation ─────────────────────────────────────────────────────
@@ -158,7 +116,6 @@ function loadPage(page) {
   switch (page) {
     case 'dashboard': loadDashboard(); break;
     case 'agents': loadAgents(); break;
-    case 'keys': loadKeys(); break;
     case 'audit': loadAudit(); break;
     case 'settings': loadSettings(); break;
   }
@@ -172,23 +129,22 @@ async function loadDashboard() {
 
     document.getElementById('stat-agents').textContent = sys.agentsRunning || 0;
     document.getElementById('stat-total').textContent = sys.agentsTotal || 0;
-    document.getElementById('stat-keys').textContent = sys.keysStored || 0;
+    document.getElementById('stat-uptime').textContent = sys.uptime ? formatUptime(sys.uptime) : '—';
 
-    const uptime = sys.uptime ? formatUptime(sys.uptime) : '—';
-    document.getElementById('stat-uptime').textContent = uptime;
-
-    // Recent activity
     const auditRes = await fetch(`${API}/audit?limit=10`);
     const audit = await auditRes.json();
     const container = document.getElementById('recent-activity');
+    const count = document.getElementById('activity-count');
     if (audit.length === 0) {
-      container.innerHTML = '<p class="muted">No activity yet. Create an agent or add an API key to get started.</p>';
+      container.innerHTML = '<p class="muted">No activity yet. Create an agent to get started.</p>';
+      count.textContent = '';
     } else {
+      count.textContent = `${audit.length} latest`;
       container.innerHTML = audit.map(entry => `
         <div class="activity-item">
           <span class="activity-icon">${eventIcon(entry.type)}</span>
           <span>${formatEvent(entry)}</span>
-          <span style="margin-left:auto;font-size:11px;color:var(--fg2)">${timeAgo(entry.timestamp)}</span>
+          <span class="activity-time">${timeAgo(entry.timestamp)}</span>
         </div>
       `).join('');
     }
@@ -214,7 +170,7 @@ async function loadAgents() {
         <div class="agent-card-header">
           <div>
             <div class="agent-name">${esc(agent.name)}</div>
-            <div class="agent-model">${esc(agent.model)}</div>
+            <div class="agent-model">engine · ${esc(agent.model)}</div>
           </div>
           <span class="agent-status ${agent.status}">${agent.status}</span>
         </div>
@@ -263,8 +219,8 @@ function hideCreateAgent() {
 // ── Chat ───────────────────────────────────────────────────────────
 function openChat(agentId, name) {
   chatAgentId = agentId;
-  document.getElementById('chat-title').textContent = `💬 ${name}`;
-  document.getElementById('chat-messages').innerHTML = '';
+  document.getElementById('chat-title').textContent = name;
+  document.getElementById('chat-messages').innerHTML = '<p class="muted chat-empty">Send a message to start talking with this agent.</p>';
   document.getElementById('chat-panel').classList.add('open');
   document.getElementById('chat-input').focus();
 }
@@ -289,11 +245,8 @@ async function sendChat() {
       body: JSON.stringify({ message })
     });
     const data = await res.json();
-    if (data.error) {
-      addChatMessage('error', data.error);
-    } else if (data.reply) {
-      addChatMessage('agent', data.reply);
-    }
+    if (data.error) addChatMessage('error', data.error);
+    else if (data.reply) addChatMessage('agent', data.reply);
   } catch (err) {
     addChatMessage('error', `Connection error: ${err.message}`);
   }
@@ -301,52 +254,13 @@ async function sendChat() {
 
 function addChatMessage(role, text) {
   const container = document.getElementById('chat-messages');
+  const empty = container.querySelector('.chat-empty');
+  if (empty) empty.remove();
   const div = document.createElement('div');
   div.className = `chat-msg ${role}`;
   div.textContent = text;
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
-}
-
-// ── Keys ───────────────────────────────────────────────────────────
-async function loadKeys() {
-  try {
-    const res = await fetch(`${API}/keys`);
-    const keys = await res.json();
-    const container = document.getElementById('keys-list');
-
-    if (keys.length === 0) {
-      container.innerHTML = '<p class="muted">No API keys stored. Add your first key to enable agents.</p>';
-      return;
-    }
-
-    container.innerHTML = keys.map(key => `
-      <div class="key-card">
-        <div class="key-info">
-          <div class="key-provider">${esc(key.provider)}</div>
-          <div class="key-label">${esc(key.label)}</div>
-        </div>
-        <div class="key-masked">${esc(key.masked)}</div>
-        <button class="btn btn-danger btn-sm" onclick="deleteKey('${key.id}')">Remove</button>
-      </div>
-    `).join('');
-  } catch (err) {
-    console.error('Keys error:', err);
-  }
-}
-
-async function deleteKey(id) {
-  if (!confirm('Remove this API key? Agents using it will fail.')) return;
-  await fetch(`${API}/keys/${id}`, { method: 'DELETE' });
-  loadKeys();
-}
-
-function showAddKey() {
-  document.getElementById('add-key-modal').classList.add('open');
-}
-
-function hideAddKey() {
-  document.getElementById('add-key-modal').classList.remove('open');
 }
 
 // ── Audit ──────────────────────────────────────────────────────────
@@ -382,8 +296,8 @@ async function loadSettings() {
     const sys = await res.json();
 
     document.getElementById('setting-docker').textContent = sys.docker?.available
-      ? `✅ Available (${sys.docker.containers || 0} containers)`
-      : '❌ Not running — agents run as local processes';
+      ? `Available (${sys.docker.containers || 0} containers)`
+      : 'Not running — agents run as local processes';
 
     document.getElementById('setting-url').textContent = location.origin;
     document.getElementById('setting-data-dir').textContent = 'data/ (SQLite)';
@@ -417,17 +331,15 @@ function timeAgo(ts) {
 }
 
 function eventIcon(type) {
-  if (type.startsWith('llm:')) return '🤖';
-  if (type.startsWith('agent:')) return '🤖';
-  if (type.startsWith('key:')) return '🔑';
+  if (type.startsWith('llm:')) return '◈';
+  if (type.startsWith('agent:')) return '✦';
   if (type.startsWith('tool:')) return '🔧';
-  return '📋';
+  return '≡';
 }
 
 function eventTypeClass(type) {
   if (type.startsWith('llm:')) return 'llm';
   if (type.startsWith('agent:')) return 'agent';
-  if (type.startsWith('key:')) return 'key';
   if (type.startsWith('tool:')) return 'tool';
   if (type.includes('error')) return 'error';
   return '';
@@ -437,11 +349,11 @@ function formatEvent(entry) {
   const d = entry.data || {};
   switch (entry.type) {
     case 'llm:call':
-      return `LLM call to ${d.provider}/${d.model || ''} — ${d.messageCount || 0} messages, ${d.tokenUsage?.total || 0} tokens`;
+      return `Engine call to ${d.model || 'brain'} — ${d.messageCount || 0} messages, ${d.tokenUsage?.total || 0} tokens`;
     case 'llm:proxy':
-      return `LLM proxied for agent ${d.agentId} — ${d.messageCount || 0} messages`;
+      return `Engine reasoning for agent ${d.agentId} — ${d.messageCount || 0} messages`;
     case 'llm:proxy:error':
-      return `LLM proxy error for ${d.agentId}: ${d.error}`;
+      return `Engine error for ${d.agentId}: ${d.error}`;
     case 'agent:create':
       return `Agent "${d.name}" created`;
     case 'agent:start':
@@ -456,10 +368,6 @@ function formatEvent(entry) {
       return `Error: ${d.error}`;
     case 'tool:executed':
       return `Tool "${d.tool}" executed`;
-    case 'key:create':
-      return `API key added for ${d.provider}`;
-    case 'key:delete':
-      return `API key removed (${d.id})`;
     default:
       return JSON.stringify(d).substring(0, 100);
   }

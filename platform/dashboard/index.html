@@ -27,9 +27,6 @@
         <li class="nav-item" data-page="agents">
           <span class="nav-icon">✦</span><span class="nav-label">Agents</span>
         </li>
-        <li class="nav-item" data-page="keys">
-          <span class="nav-icon">🔑</span><span class="nav-label">Provider Keys</span>
-        </li>
         <li class="nav-item" data-page="audit">
           <span class="nav-icon">≡</span><span class="nav-label">Audit Log</span>
         </li>
@@ -52,7 +49,7 @@
         <div class="page-head">
           <div>
             <h1>Dashboard</h1>
-            <p class="page-sub">Your cloud brain at a glance</p>
+            <p class="page-sub">Powered by the mona.expert engine</p>
           </div>
           <span class="live-badge"><span class="live-dot"></span> LIVE</span>
         </div>
@@ -69,9 +66,9 @@
             <div class="stat-label">Total Agents</div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon stat-icon-cyan">🔑</div>
-            <div class="stat-value" id="stat-keys">0</div>
-            <div class="stat-label">Provider Keys</div>
+            <div class="stat-icon stat-icon-cyan">◈</div>
+            <div class="stat-value stat-static">mona.expert</div>
+            <div class="stat-label">AI Engine</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon stat-icon-amber">◔</div>
@@ -96,7 +93,7 @@
         <div class="page-head">
           <div>
             <h1>Agents</h1>
-            <p class="page-sub">Device agents and their brains</p>
+            <p class="page-sub">Directed by the mona.expert engine</p>
           </div>
           <button class="btn btn-primary" onclick="showCreateAgent()">＋ New Agent</button>
         </div>
@@ -115,17 +112,9 @@
               <label>Name</label>
               <input type="text" name="name" placeholder="My Agent" required>
 
-              <label>Model</label>
-              <select name="model">
-                <option value="openai/gpt-4o">OpenAI GPT-4o</option>
-                <option value="openai/gpt-4.5-preview">OpenAI GPT-4.5</option>
-                <option value="openai/o4-mini">OpenAI o4-mini</option>
-                <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4</option>
-                <option value="anthropic/claude-opus-4-20250514">Claude Opus 4</option>
-                <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
-                <option value="deepseek/deepseek-chat">DeepSeek V4</option>
-              </select>
+              <label>Brain</label>
+              <div class="brain-note">mona.expert engine — model auto-assigned</div>
+              <input type="hidden" name="model" value="openai/gpt-4o">
 
               <label>System Prompt <span class="opt">optional</span></label>
               <textarea name="systemPrompt" rows="3" placeholder="You are a helpful AI agent…"></textarea>
@@ -165,62 +154,12 @@
         </div>
       </div>
 
-      <!-- Provider Keys Page -->
-      <div class="page" id="page-keys">
-        <div class="page-head">
-          <div>
-            <h1>Provider Keys</h1>
-            <p class="page-sub">Cloud vault — devices never see these</p>
-          </div>
-          <button class="btn btn-primary" onclick="showAddKey()">＋ Add Key</button>
-        </div>
-        <div class="key-note">
-          <span class="key-note-icon">🛡</span>
-          <div>
-            Keys are encrypted at rest and stay in the cloud vault. The platform proxies every LLM call —
-            <strong>the only key a device ever holds is its MONA key.</strong>
-          </div>
-        </div>
-        <div id="keys-list" class="keys-list">
-          <p class="muted">Loading keys…</p>
-        </div>
-
-        <div class="modal" id="add-key-modal">
-          <div class="modal-backdrop" onclick="hideAddKey()"></div>
-          <div class="modal-content">
-            <div class="modal-head">
-              <h3>Add Provider Key</h3>
-              <button class="btn-close" onclick="hideAddKey()">✕</button>
-            </div>
-            <form id="add-key-form">
-              <label>Provider</label>
-              <select name="provider">
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="google">Google</option>
-                <option value="deepseek">DeepSeek</option>
-                <option value="openrouter">OpenRouter</option>
-              </select>
-              <label>Label <span class="opt">optional</span></label>
-              <input type="text" name="label" placeholder="My OpenAI key">
-              <label>API Key</label>
-              <input type="password" name="key" placeholder="sk-…" required autocomplete="off">
-              <p class="form-hint">Encrypted before storage. It never leaves the platform.</p>
-              <div class="modal-actions">
-                <button type="button" class="btn btn-ghost" onclick="hideAddKey()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Key</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-
       <!-- Audit Page -->
       <div class="page" id="page-audit">
         <div class="page-head">
           <div>
             <h1>Audit Log</h1>
-            <p class="page-sub">Every call, proxied or executed</p>
+            <p class="page-sub">Every command from the engine, every execution</p>
           </div>
           <select id="audit-filter-type" class="filter-select" onchange="loadAudit()">
             <option value="">All Events</option>
@@ -230,8 +169,6 @@
             <option value="agent:start">Agent Started</option>
             <option value="agent:stop">Agent Stopped</option>
             <option value="tool:executed">Tool Executed</option>
-            <option value="key:create">Key Added</option>
-            <option value="key:delete">Key Removed</option>
             <option value="agent:log">Agent Log</option>
             <option value="agent:error">Agent Error</option>
           </select>
@@ -265,9 +202,21 @@
           </div>
         </div>
         <div class="card">
+          <div class="card-head"><h3>Security</h3></div>
+          <div class="setting-row">
+            <span class="setting-label">Device key</span>
+            <span class="setting-value">mona.expert key only</span>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Provider keys</span>
+            <span class="setting-value setting-good">none — engine handles everything</span>
+          </div>
+        </div>
+        <div class="card">
           <div class="card-head"><h3>About</h3></div>
           <p>mona.expert control plane v1.0.0</p>
           <p class="muted">Open-source AI agent platform. MIT licensed.</p>
+          <p class="muted">One key. One brain. mona.expert.</p>
         </div>
       </div>
     </main>
