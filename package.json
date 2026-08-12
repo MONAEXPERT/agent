@@ -1,8 +1,13 @@
 {
-  "name": "mona-agent",
-  "version": "1.2.0",
-  "description": "Cloud-brained device agent with terminal dashboard. Multi-OS (macOS/Linux/Windows). No local LLM keys.",
+  "name": "mona-expert",
+  "version": "2.0.0",
+  "description": "mona.expert — merged enterprise monorepo: device agent, control plane, cloud brain. One key (mona.expert), one brain (mona.expert engine).",
   "type": "module",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "platform"
+  ],
   "bin": {
     "mona-agent": "./bin/mona-agent.js"
   },
@@ -10,7 +15,12 @@
     "start": "node bin/mona-agent.js start",
     "gui": "node bin/mona-agent.js gui",
     "login": "node bin/mona-agent.js login",
-    "test": "node --test test/agent.test.mjs test/control.test.mjs test/docker-control.test.mjs test/tui-scroll.test.mjs"
+    "test": "node --test test/agent.test.mjs test/control.test.mjs test/docker-control.test.mjs test/tui-scroll.test.mjs",
+    "migrate": "node scripts/migrate.mjs",
+    "setup": "node scripts/setup.mjs",
+    "seed": "node scripts/seed.mjs",
+    "keygen": "node scripts/keygen.mjs",
+    "emit:mysql": "node database/migrations/emit-mysql.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -21,13 +31,15 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/MONAEXPERT/mona-agent.git"
+    "url": "https://github.com/MONAEXPERT/agent.git"
   },
   "keywords": [
     "ai-agent",
     "device-daemon",
     "cloud-brain",
     "terminal-ui",
-    "openclaw"
+    "control-plane",
+    "enterprise",
+    "mona-expert"
   ]
 }

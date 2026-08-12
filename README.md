@@ -215,3 +215,6 @@ MIT — free forever.
 <p align="center">
   <sub>Open-source device agent. No LLM keys on your device. Ever.</sub>
 </p>
+
+# monorepo (merged enterprise version)
+See docs/ARCHITECTURE.md — one key (mona.expert), one brain (mona.expert engine).

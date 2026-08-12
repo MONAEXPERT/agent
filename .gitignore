@@ -31,3 +31,8 @@ build/
 platform/node_modules/
 platform/data/
 platform/.env
+
+# enterprise core
+var/
+.env
+packages/*/node_modules/
