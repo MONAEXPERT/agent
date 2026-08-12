@@ -54,6 +54,7 @@ export class ControlChannel extends EventEmitter {
   #reconnectTimer = null;
   #closing = false;
   #stopped = false;
+  #wsSkipped = false;
 
   constructor(apiKey, agentId, capabilities = null, { metricsIntervalMs } = {}) {
     super();
@@ -66,6 +67,11 @@ export class ControlChannel extends EventEmitter {
   /** Connect (or reconnect) to the cloud. Returns this for chaining. */
   connect() {
     if (this.#closing || this.#stopped) return this;
+
+    // Device metrics stream over HTTPS, independent of the WS link.
+    // This keeps the dashboard live even when the WS relay is down
+    // (shared hosting has no Node.js).
+    this.#startMetrics();
 
     let url = CLOUD.wsUrl;
     // Docker platform registers agents by agentId in the query string.
@@ -102,7 +108,6 @@ export class ControlChannel extends EventEmitter {
         });
       }
       this.#flush();
-      this.#startMetrics();
       this.emit('connected');
     });
 
@@ -125,8 +130,9 @@ export class ControlChannel extends EventEmitter {
     });
 
     this.#ws.on('close', (code) => {
-      this.#stopMetrics();
       if (this.#closing) return;
+      // WS relay absent (HTTP fallback active): no reconnect loop.
+      if (this.#wsSkipped) return;
       // Terminal close: the credential itself was rejected — do not loop.
       if (TERMINAL_CLOSE_CODES.has(code)) {
         this.#stopped = true;
@@ -146,6 +152,16 @@ export class ControlChannel extends EventEmitter {
     });
 
     this.#ws.on('error', (err) => {
+      // Shared hosting has no WS relay: LiteSpeed answers the upgrade
+      // with a normal HTTP response. Skip WS and keep the HTTPS
+      // metrics fallback — the dashboard stays live.
+      if (CLOUD.platform === 'sngine' && /unexpected server response/i.test(err.message)) {
+        if (!this.#wsSkipped) {
+          this.#wsSkipped = true;
+          log.info('WS relay unavailable on this control plane — device metrics stream via HTTPS');
+        }
+        return;
+      }
       log.error(`WebSocket error: ${err.message}`);
       this.emit('error', err);
     });
@@ -236,7 +252,8 @@ export class ControlChannel extends EventEmitter {
 
   // ── Device metrics stream ──────────────────────────────────────
   #startMetrics() {
-    this.#metricsTimer = setInterval(async () => {
+    if (this.#metricsTimer) return;
+    const tick = async () => {
       const totalMem = os.totalmem(), freeMem = os.freemem();
       const cpus = os.cpus();
       const metrics = {
@@ -260,8 +277,32 @@ export class ControlChannel extends EventEmitter {
       } else {
         this.#send('device.metrics', metrics);
       }
+      // HTTP fallback: shared hosting cannot run the Node WS relay,
+      // so also push metrics straight to the Sngine PHP API.
+      this.#httpStats(metrics);
       this.emit('metrics', metrics);
-    }, this.#metricsIntervalMs);
+    };
+    tick();
+    this.#metricsTimer = setInterval(tick, this.#metricsIntervalMs);
+  }
+
+  /** Push metrics + host info to the Sngine PHP API over HTTPS. */
+  #httpStats(payload) {
+    fetch(`${CLOUD.base}/api/v1/agent/stats`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'authorization': `Bearer ${this.#apiKey}`,
+      },
+      body: JSON.stringify({
+        agentId: this.#agentId,
+        host: os.hostname(),
+        platform: os.platform(),
+        arch: os.arch(),
+        version: DEFAULTS.version,
+        ...payload,
+      }),
+    }).catch(() => {});
   }
 
   #stopMetrics() {

@@ -1,0 +1,9 @@
+{
+  "name": "@mona/engine",
+  "version": "1.0.0",
+  "description": "mona.expert AI engine client — the single brain. One key (the mona.expert key), one endpoint, no third-party models.",
+  "type": "module",
+  "private": true,
+  "main": "src/index.mjs",
+  "exports": { ".": "./src/index.mjs" }
+}
