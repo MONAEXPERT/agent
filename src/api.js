@@ -17,7 +17,7 @@ const P = CLOUD.paths; // platform-aware API paths
 async function apiFetch(apiKey, path, { method = 'GET', body, signal, headers: extraHeaders } = {}) {
   const url = CLOUD.base + path;
   const headers = {
-    'authorization': `Bearer ${apiKey}`,
+    'Authorization': `Bearer ${apiKey}`,
     'content-type': 'application/json',
     'user-agent': UA,
     'x-mona-agent': DEFAULTS.version,
