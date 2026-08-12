@@ -1,12 +1,13 @@
 {
   "name": "mona-expert",
   "version": "2.0.0",
-  "description": "mona.expert — merged enterprise monorepo: device agent, control plane, cloud brain. One key (mona.expert), one brain (mona.expert engine).",
+  "description": "mona-agent — cloud-brained AI agent for your device. Open-source client: device daemon, terminal UI, local tools. Connects to the mona.expert cloud (agent.mona.expert).",
   "type": "module",
   "private": true,
   "workspaces": [
-    "packages/*",
-    "apps/*"
+    "packages/engine",
+    "packages/protocol",
+    "apps/desktop"
   ],
   "bin": {
     "mona-agent": "./apps/desktop/bin/mona-agent.js"
@@ -15,13 +16,7 @@
     "start": "node apps/desktop/bin/mona-agent.js start",
     "gui": "node apps/desktop/bin/mona-agent.js gui",
     "login": "node apps/desktop/bin/mona-agent.js login",
-    "gateway": "node apps/gateway/src/index.mjs",
-    "test": "node --test test/*.test.mjs apps/desktop/test/agent.test.mjs apps/desktop/test/control.test.mjs apps/desktop/test/docker-control.test.mjs apps/desktop/test/tui-scroll.test.mjs",
-    "migrate": "node scripts/migrate.mjs",
-    "setup": "node scripts/setup.mjs",
-    "seed": "node scripts/seed.mjs",
-    "keygen": "node scripts/keygen.mjs",
-    "emit:mysql": "node database/migrations/emit-mysql.mjs"
+    "test": "node --test apps/desktop/test/agent.test.mjs apps/desktop/test/control.test.mjs apps/desktop/test/docker-control.test.mjs apps/desktop/test/tui-scroll.test.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -39,8 +34,6 @@
     "device-daemon",
     "cloud-brain",
     "terminal-ui",
-    "control-plane",
-    "enterprise",
     "mona-expert"
   ]
 }

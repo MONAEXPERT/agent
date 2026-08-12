@@ -1,4 +1,4 @@
-import { unavailable, providerError } from '@mona/core';
+import { unavailable, providerError } from './errors.mjs';
 import { estimateTokens, readSse } from './sse.mjs';
 
 /**
