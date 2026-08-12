@@ -20,6 +20,7 @@ const TERMINAL_CLOSE_CODES = new Set([4001, 4003]);
 export class ControlChannel extends EventEmitter {
   #apiKey;
   #agentId;
+  #capabilities;
   #ws = null;
   #queue = [];
   #metricsTimer = null;
@@ -28,10 +29,11 @@ export class ControlChannel extends EventEmitter {
   #closing = false;
   #stopped = false;
 
-  constructor(apiKey, agentId) {
+  constructor(apiKey, agentId, capabilities = null) {
     super();
     this.#apiKey = apiKey;
     this.#agentId = agentId;
+    this.#capabilities = capabilities;
   }
 
   /** Connect (or reconnect) to the cloud. Returns this for chaining. */
@@ -61,6 +63,7 @@ export class ControlChannel extends EventEmitter {
         cpus:     os.cpus().length,
         mem:      os.totalmem(),
         version:  DEFAULTS.version,
+        capabilities: this.#capabilities,
       });
       this.#flush();
       this.#startMetrics();
@@ -109,9 +112,10 @@ export class ControlChannel extends EventEmitter {
     return this;
   }
 
-  /** Send a typed message upstream. */
+  /** Send a typed message upstream. Every envelope carries a protocol version. */
   #send(type, data) {
     const msg = JSON.stringify({
+      v: 1,
       type,
       ts: Date.now(),
       agentId: this.#agentId,

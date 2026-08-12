@@ -42,6 +42,14 @@ const ALLOW = new Set(
 );
 const UNSAFE = process.env.MONA_SHELL_UNSAFE === '1';
 
+/** Shell security posture — advertised to the cloud in `hello` so the
+ *  control plane can enforce agent_permissions without probing. */
+export const security = {
+  allowlist: [...ALLOW].sort(),
+  unsafe: UNSAFE,
+  platform: PLATFORM,
+};
+
 // ── Per-OS command mapping (translate common unix → windows) ──────
 const CMD_MAP_WIN32 = {
   ls: 'dir',

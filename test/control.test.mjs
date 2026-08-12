@@ -15,11 +15,15 @@ const { ControlChannel } = await import('../src/control.js');
 
 let connections = 0;
 let closeCode = null;
+let lastHello = null;
 server.on('connection', (ws) => {
   connections++;
   ws.on('message', (raw) => {
     const msg = JSON.parse(raw.toString());
-    if (msg.type === 'hello') ws.send(JSON.stringify({ type: 'pong', data: {} }));
+    if (msg.type === 'hello') {
+      lastHello = msg;
+      ws.send(JSON.stringify({ type: 'pong', data: {} }));
+    }
   });
   if (closeCode !== null) {
     // 1006 is reserved and can never be sent as a close frame — terminate()
@@ -29,7 +33,7 @@ server.on('connection', (ws) => {
   }
 });
 
-const reset = () => { connections = 0; };
+const reset = () => { connections = 0; lastHello = null; };
 
 // terminate() produces an ECONNRESET on the client — expected in the 1006 test.
 const quiet = (ch) => ch.on('error', () => {});
@@ -118,6 +122,33 @@ describe('control channel', () => {
       }, 50);
     });
     assert.equal(flushed, true);
+    ch.close();
+  });
+
+  it('sends v:1 envelope and announces capabilities in hello', async () => {
+    reset();
+    closeCode = null;
+    const caps = {
+      tools: [{ name: 'sysinfo', description: 'System information' }],
+      shell: { allowlist: ['df', 'uptime'], unsafe: false, platform: 'darwin' },
+    };
+    const ch = new ControlChannel('test-key', 'agent-1', caps);
+    quiet(ch);
+    ch.connect();
+
+    await new Promise((resolve) => {
+      const timer = setInterval(() => {
+        if (lastHello) { clearInterval(timer); resolve(); }
+      }, 25);
+    });
+
+    assert.equal(lastHello.v, 1);
+    assert.equal(lastHello.agentId, 'agent-1');
+    assert.ok(Array.isArray(lastHello.data.capabilities.tools));
+    assert.equal(lastHello.data.capabilities.tools[0].name, 'sysinfo');
+    assert.deepEqual(lastHello.data.capabilities.shell.allowlist, ['df', 'uptime']);
+    assert.ok(lastHello.data.host);
+    assert.ok(lastHello.data.version);
     ch.close();
   });
 });

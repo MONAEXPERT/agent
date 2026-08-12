@@ -7,6 +7,7 @@ import { EventEmitter } from 'node:events';
 import { think } from './cloud.js';
 import { ControlChannel } from './control.js';
 import { tools } from './tools/index.js';
+import { security as shellSecurity } from './tools/shell.js';
 import { log } from './log.js';
 
 export class AgentDaemon extends EventEmitter {
@@ -20,7 +21,10 @@ export class AgentDaemon extends EventEmitter {
     super();
     this.#creds = creds;
 
-    this.#control = new ControlChannel(creds.apiKey, creds.agentId);
+    this.#control = new ControlChannel(creds.apiKey, creds.agentId, {
+      tools: tools.list(),
+      shell: shellSecurity,
+    });
 
     // Forward control events
     this.#control.on('connected',    ()    => this.emit('connected'));
