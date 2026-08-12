@@ -47,6 +47,8 @@ cloud. Your device is a secure, capable pair of hands.
 
 - 🖥 **Remote control with AI** — chat with your computer from anywhere, or
   let the cloud agent act on its own
+- 🔄 **Agentic execution loop** — the brain plans, the device acts:
+  think → act → observe → deliver, streamed live to your dashboard
 - 🔐 **Zero secrets on the device** — no OpenAI/Anthropic/Google keys are
   stored locally; they live in the encrypted cloud vault
 - ⚡ **Terminal-native** — a fast TUI dashboard with live log streaming,

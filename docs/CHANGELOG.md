@@ -4,6 +4,26 @@ All notable changes to the mona-agent client are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com), versioning:
 [SemVer](https://semver.org).
 
+## [2.1.0] — 2026-08-13
+
+### Added
+
+- **Agentic execution loop** — the device is no longer a listener; it's an
+  operator. Tasks from the dashboard flow into a cloud task queue, the
+  device claims them within seconds, and the mona.expert brain plans the
+  work: think → act → observe → deliver. Up to 8 tool steps per task, with
+  every step streamed to the dashboard activity feed in real time.
+- **Cloud task queue (WS-free command channel)** — devices poll for work
+  every 2 s over HTTPS, so command execution works on every hosting
+  setup. No inbound ports, no WebSocket upgrade required.
+- **Tools-on-demand protocol** — one system prompt, four tools
+  (`sysinfo`, `shell`, `files`, `net`). The brain replies in plain text or
+  a single JSON tool call — provider-agnostic by design.
+- **Live execution trace** — `tool.call` / `tool.result` events land in
+  the dashboard feed as they happen.
+- **Persistent conversations** — every task and its answer are stored in
+  the cloud conversation, so chat history survives restarts.
+
 ## [2.0.0] — 2026-08-13
 
 ### Added
@@ -38,4 +58,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning:
 - Control-plane protocol: register, chat RPC, LLM proxy.
 - Docker-platform protocol support (self-hosted control plane).
 
+## Changelog links
+
+[2.1.0]: https://github.com/MONAEXPERT/agent/releases/tag/v2.1.0
 [2.0.0]: https://github.com/MONAEXPERT/agent/releases/tag/v2.0.0

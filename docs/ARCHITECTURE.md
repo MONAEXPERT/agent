@@ -53,13 +53,42 @@ mona-agent is a **headless Node.js daemon** with two jobs:
 3. **Metrics** — every 10 seconds the daemon POSTs a snapshot to
    `/api/v1/agent/stats`: CPU %, load average, memory, disk, uptime, host
    and platform info.
-4. **Commands** — the cloud pushes commands (chat messages, tool calls) over
-   the control channel. The daemon executes them with the tool sandbox and
-   streams results back.
+4. **Commands** — on the Sngine control plane the device **polls the cloud
+   task queue** every 2 s (`GET /api/v1/agent/tasks`, claim, then report
+   via `POST /api/v1/agent/tasks/:id/result`). No inbound port, no
+   WebSocket upgrade required. On the Docker platform, commands arrive
+   over the WebSocket control channel instead.
 5. **Resilience** — metrics streaming is independent of the WebSocket
    channel. If the server cannot upgrade to WebSocket (e.g. shared hosting
    behind LiteSpeed), the daemon transparently falls back to HTTPS polling
    and keeps streaming — no reconnect storm.
+
+## Agentic execution loop
+
+Every task runs the same loop, wherever it came from (dashboard chat,
+CLI, or the cloud queue):
+
+```
+        ┌───────────────────────────────────────────────────┐
+        │                 mona.expert brain                │
+        │  reason → answer in text OR emit one tool call   │
+        └───────────────┬───────────────────────▲──────────┘
+           task (HTTPS) │                       │ tool result
+        ┌───────────────▼───────────────────────┴──────────┐
+        │                   mona-agent                     │
+        │  execute tool locally (sysinfo|shell|files|net)  │
+        └───────────────────────────────────────────────────┘
+```
+
+- Up to **8 tool steps per task** — the loop ends when the brain answers
+  in plain text.
+- Tool protocol is provider-agnostic: the brain replies with a single
+  JSON object `{"tool":"<name>","args":{...}}` or plain text. No
+  provider-specific function-calling plumbing.
+- Every step is reported to the cloud (`tool.call` / `tool.result`) and
+  appears live in the dashboard activity feed.
+- The final answer is stored in the cloud conversation — history survives
+  restarts and is visible from every client.
 
 ## Metrics pipeline (HTTP-first)
 

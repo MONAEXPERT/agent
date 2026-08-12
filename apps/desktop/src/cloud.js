@@ -107,3 +107,22 @@ export async function reportToolResult(apiKey, agentId, tool, result) {
     body: { agentId, tool, result },
   });
 }
+
+// ── Cloud task queue (sngine platform — device polls for work) ────
+export async function pollTasks(apiKey) {
+  const res = await apiFetch('/api/v1/agent/tasks', { apiKey, method: 'GET' });
+  const data = await res.json();
+  return data?.tasks || [];
+}
+
+export async function claimTask(apiKey, id) {
+  return apiFetch('/api/v1/agent/tasks/claim', { apiKey, body: { id } });
+}
+
+export async function taskResult(apiKey, id, { result, steps }) {
+  return apiFetch(`/api/v1/agent/tasks/${id}/result`, { apiKey, body: { result, steps } });
+}
+
+export async function postActivity(apiKey, type, detail, runId, agentId) {
+  return apiFetch('/api/v1/agent/activity', { apiKey, body: { type, detail, runId, agentId } });
+}

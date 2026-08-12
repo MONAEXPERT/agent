@@ -4,12 +4,43 @@
 // and streams everything back.
 
 import { EventEmitter } from 'node:events';
-import { think } from './cloud.js';
+import { think, pollTasks, claimTask, taskResult, postActivity } from './cloud.js';
 import { ControlChannel } from './control.js';
 import { tools } from './tools/index.js';
 import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
+
+const MAX_ITERS = 8;         // max tool steps per task
+const TASK_POLL_MS = 2000;   // sngine platform: poll the cloud task queue
+const TOOL_OUT_MAX = 4000;   // chars of tool output fed back to the brain
+
+function truncate(s, n) {
+  s = String(s ?? '');
+  return s.length > n ? s.slice(0, n) + '…(truncated)' : s;
+}
+
+/** Extract a {tool, args} JSON call from a model reply (plain or fenced). */
+function parseToolCall(text) {
+  if (!text) return null;
+  const candidates = [text];
+  for (const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)) candidates.push(m[1]);
+  for (const c of candidates) {
+    const t = c.trim();
+    try {
+      const obj = JSON.parse(t);
+      if (obj && typeof obj === 'object' && typeof obj.tool === 'string') return obj;
+    } catch { /* try other shapes */ }
+    const m = t.match(/\{[^{}]*"tool"\s*:\s*"[^"]+"[^{}]*\}/);
+    if (m) {
+      try {
+        const obj = JSON.parse(m[0]);
+        if (obj && typeof obj === 'object' && typeof obj.tool === 'string') return obj;
+      } catch { /* keep looking */ }
+    }
+  }
+  return null;
+}
 
 export class AgentDaemon extends EventEmitter {
   #creds;
@@ -17,6 +48,8 @@ export class AgentDaemon extends EventEmitter {
   #messages = [];
   #stats = { tasks: 0, tokens: 0, toolCalls: 0, errors: 0 };
   #currentTask = null;
+  #taskPoll = null;
+  #polling = false;
 
   constructor(creds) {
     super();
@@ -41,6 +74,7 @@ export class AgentDaemon extends EventEmitter {
     log.info(`Agent starting`, { agentId: this.#creds.agentId });
     log.info(`Tools: ${tools.names().join(', ')}`);
     this.#control.connect();
+    this.#startTaskPoll();
     return this;
   }
 
@@ -83,8 +117,32 @@ export class AgentDaemon extends EventEmitter {
     }
   }
 
-  // ── Task execution (cloud reasoning) ────────────────────────────
-  async #runTask(task, runId) {
+  // ── Cloud task queue (sngine platform — no inbound WS) ──────────
+  #startTaskPoll() {
+    if (CLOUD.platform !== 'sngine' || this.#taskPoll) return;
+    this.#taskPoll = setInterval(() => this.#pollTasks(), TASK_POLL_MS);
+    this.#pollTasks();
+  }
+
+  async #pollTasks() {
+    if (this.#polling) return;
+    this.#polling = true;
+    try {
+      const tasks = await pollTasks(this.#creds.apiKey);
+      for (const t of tasks) {
+        if (t.status !== 'pending') continue;
+        try { await claimTask(this.#creds.apiKey, t.id); } catch { /* already claimed */ }
+        await this.#runTask(t.task, t.run_id, t);
+      }
+    } catch (err) {
+      log.debug(`Task poll failed: ${err.message}`);
+    } finally {
+      this.#polling = false;
+    }
+  }
+
+  // ── Task execution (cloud reasoning + local tools) ──────────────
+  async #runTask(task, runId, cloudTask = null) {
     if (!task) {
       this.#control.result(runId, { error: 'No task provided' });
       return;
@@ -95,54 +153,89 @@ export class AgentDaemon extends EventEmitter {
     this.emit('task:start', this.#currentTask);
     log.info(`Task: "${task.slice(0, 100)}"`);
 
-    this.#messages.push({ role: 'user', content: task });
-
-    let answer = '';
+    const steps = [];
+    let final = '';
 
     try {
       if (CLOUD.platform === 'docker') {
-        // Docker platform: LLM call is proxied over the control channel.
-        // The device never names a provider or model — the cloud decides.
+        // Docker platform: single-shot LLM proxy over the control channel.
+        this.#messages.push({ role: 'user', content: task });
         const res = await this.#control.llmRequest({ messages: this.#messages });
-        answer = res.content || '';
+        final = res.content || '';
+        this.#messages.push({ role: 'assistant', content: final });
       } else {
-        answer = await think({
-          apiKey:  this.#creds.apiKey,
-          messages: this.#messages,
-          tools:   tools.list(),
-          onChunk: (delta) => {
-            this.#control.token(delta, runId);
-            this.emit('task:token', delta, runId);
-          },
-          onUsage: (usage) => {
-            this.emit('task:usage', usage);
-          },
-        });
+        // Sngine platform: agentic loop — brain reasons, device executes.
+        const systemPrompt = this.#toolsPrompt();
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: task },
+        ];
+
+        for (let i = 0; i < MAX_ITERS; i++) {
+          const answer = await think({
+            apiKey:  this.#creds.apiKey,
+            messages,
+            tools:   tools.list(),
+            onChunk: (delta) => {
+              this.#control.token(delta, runId);
+              this.emit('task:token', delta, runId);
+            },
+            onUsage: (usage) => this.emit('task:usage', usage),
+          });
+
+          const toolCall = parseToolCall(answer);
+
+          if (!toolCall) { final = answer; break; }
+
+          // Execute the tool locally
+          steps.push({ type: 'tool.call', tool: toolCall.tool, args: toolCall.args });
+          this.#control.step('tool.call', { tool: toolCall.tool });
+          this.emit('tool:start', toolCall.tool, toolCall.args);
+          log.info(`Tool call: ${toolCall.tool}`);
+          await postActivity(this.#creds.apiKey, 'tool.call', { tool: toolCall.tool, args: toolCall.args }, runId, this.#creds.agentId).catch(() => {});
+
+          messages.push({ role: 'assistant', content: answer });
+
+          let result;
+          try {
+            result = await tools.run(toolCall.tool, toolCall.args || {});
+          } catch (err) {
+            result = { error: err.message };
+          }
+          this.#stats.toolCalls++;
+
+          const out = truncate(JSON.stringify(result), TOOL_OUT_MAX);
+          steps.push({ type: 'tool.result', tool: toolCall.tool, output: truncate(out, 400) });
+          await postActivity(this.#creds.apiKey, 'tool.result', { tool: toolCall.tool, output: truncate(out, 200) }, runId, this.#creds.agentId).catch(() => {});
+          log.info(`Tool result (${toolCall.tool}): ${truncate(out, 120)}`);
+
+          messages.push({ role: 'user', content: `TOOL RESULT (${toolCall.tool}):\n${out}` });
+        }
+
+        if (!final) final = 'I ran out of steps — the last tool results are above.';
       }
     } catch (err) {
       this.#stats.errors++;
       this.#currentTask = null;
-      if (CLOUD.platform === 'docker') this.#control.chatResponse(runId, `Error: ${err.message}`);
-      else this.#control.step('task.error', { error: err.message });
-      this.#control.result(runId, { error: err.message });
+      this.#control.step('task.error', { error: err.message });
       this.emit('task:error', err);
       log.error(`Think failed: ${err.message}`);
+      const msg = `Error: ${err.message}`;
+      if (cloudTask) await taskResult(this.#creds.apiKey, cloudTask.id, { result: msg, steps }).catch(() => {});
       return;
     }
 
-    this.#messages.push({ role: 'assistant', content: answer });
     this.#stats.tasks++;
-    this.#stats.tokens += answer.length;
+    this.#stats.tokens += final.length;
 
     this.#currentTask = null;
-    if (CLOUD.platform === 'docker') {
-      this.#control.chatResponse(runId, answer);
-    } else {
-      this.#control.result(runId, { text: answer });
-      this.#control.step('task.done', { runId, tokens: answer.length, chars: answer.length });
+    if (cloudTask) {
+      await taskResult(this.#creds.apiKey, cloudTask.id, { result: final, steps }).catch(() => {});
     }
-    this.emit('task:done', { answer, tokens: answer.length, runId });
-    log.info(`Task complete`, { tokens: answer.length, chars: answer.length });
+    this.#control.result(runId, { text: final });
+    this.#control.step('task.done', { runId, tokens: final.length, chars: final.length });
+    this.emit('task:done', { answer: final, tokens: final.length, runId });
+    log.info(`Task complete`, { tokens: final.length, chars: final.length });
   }
 
   // ── Tool execution ──────────────────────────────────────────────
@@ -169,9 +262,25 @@ export class AgentDaemon extends EventEmitter {
     }
   }
 
+  #toolsPrompt() {
+    const rows = tools.list()
+      .map((t) => `- ${t.name}: ${t.description}${t.args ? ` (args: ${JSON.stringify(t.args)})` : ''}`)
+      .join('\n');
+    return `You are mona-agent — the AI agent controlling this device (${process.platform}). You reason and act: use the local tools below to get real information and take real actions, then give the user a direct, concise answer.
+
+Available tools:
+${rows}
+
+How to use a tool — reply with ONLY one JSON object, nothing else:
+{"tool":"<tool name>","args":{...}}
+
+After each tool use you receive a TOOL RESULT message. Use another tool if needed, then answer in plain text. Never invent data you can read with a tool. Keep answers short and direct.`;
+  }
+
   // ── Lifecycle ───────────────────────────────────────────────────
   close() {
     log.info('Agent shutting down');
+    if (this.#taskPoll) clearInterval(this.#taskPoll);
     this.#control.close();
     this.emit('close');
   }
