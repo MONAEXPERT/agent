@@ -20,23 +20,47 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, n) + '…(truncated)' : s;
 }
 
-/** Extract a {tool, args} JSON call from a model reply (plain or fenced). */
+/** Extract a {tool, args} JSON call from a model reply (plain, fenced, or with prose around it). */
+function extractBalancedJson(s, start) {
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) return s.slice(start, i + 1); }
+  }
+  return null;
+}
+
 function parseToolCall(text) {
   if (!text) return null;
-  const candidates = [text];
-  for (const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)) candidates.push(m[1]);
-  for (const c of candidates) {
-    const t = c.trim();
+  const bodies = [text];
+  for (const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)) bodies.push(m[1]);
+  for (const b of bodies) {
+    const t = b.trim();
     try {
-      const obj = JSON.parse(t);
-      if (obj && typeof obj === 'object' && typeof obj.tool === 'string') return obj;
-    } catch { /* try other shapes */ }
-    const m = t.match(/\{[^{}]*"tool"\s*:\s*"[^"]+"[^{}]*\}/);
-    if (m) {
-      try {
-        const obj = JSON.parse(m[0]);
-        if (obj && typeof obj === 'object' && typeof obj.tool === 'string') return obj;
-      } catch { /* keep looking */ }
+      const o = JSON.parse(t);
+      if (o && typeof o === 'object' && typeof o.tool === 'string') return o;
+    } catch { /* prose around it */ }
+    let idx = 0;
+    while ((idx = t.indexOf('"tool"', idx)) !== -1) {
+      const start = t.lastIndexOf('{', idx);
+      if (start !== -1) {
+        const json = extractBalancedJson(t, start);
+        if (json) {
+          try {
+            const o = JSON.parse(json);
+            if (o && typeof o === 'object' && typeof o.tool === 'string') return o;
+          } catch { /* keep scanning */ }
+        }
+      }
+      idx += 5;
     }
   }
   return null;
