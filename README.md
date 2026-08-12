@@ -134,8 +134,11 @@ More answers: **[docs/FAQ.md](docs/FAQ.md)**
 | [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) | Install, login, first steps, troubleshooting |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Daemon internals, control channel, metrics pipeline |
 | [docs/TOOLS.md](docs/TOOLS.md) | Tool-by-tool reference with examples |
+| [docs/EXAMPLES.md](docs/EXAMPLES.md) | Automation recipes — cron, watchdogs, backups |
+| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Cloud API, scheduling, boot persistence |
 | [docs/FAQ.md](docs/FAQ.md) | Frequently asked questions |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Release history |
+| [examples/](examples) | launchd & systemd units, health check script |
 | [SECURITY.md](SECURITY.md) | Security model & vulnerability reporting |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup, tests, conventions |
 
