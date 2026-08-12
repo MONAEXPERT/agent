@@ -151,4 +151,31 @@ describe('control channel', () => {
     assert.ok(lastHello.data.version);
     ch.close();
   });
+
+  it('streams extended metrics (cpu/mem/disk percent)', async () => {
+    reset();
+    closeCode = null;
+    const ch = new ControlChannel('test-key', 'agent-1', null, { metricsIntervalMs: 120 });
+    quiet(ch);
+    const got = new Promise((resolve) => ch.on('metrics', resolve));
+    ch.connect();
+
+    const m = await Promise.race([
+      got,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('no metrics within 3s')), 3000)),
+    ]);
+
+    assert.equal(typeof m.cpuPercent, 'number');
+    assert.ok(m.cpuPercent >= 0 && m.cpuPercent <= 100);
+    assert.ok(m.mem.percent >= 0 && m.mem.percent <= 100);
+    assert.equal(typeof m.mem.used, 'number');
+    assert.equal(typeof m.diskPercent, 'number');
+    assert.equal(typeof m.uptimeSeconds, 'number');
+    assert.ok(m.cpuModel);
+    // Backward-compatible fields the TUI depends on:
+    assert.equal(typeof m.mem.total, 'number');
+    assert.equal(typeof m.mem.free, 'number');
+    assert.ok(Array.isArray(m.cpuLoad));
+    ch.close();
+  });
 });

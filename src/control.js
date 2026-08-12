@@ -6,6 +6,7 @@
 import { EventEmitter } from 'node:events';
 import { WebSocket } from 'ws';
 import os from 'node:os';
+import { statfsSync } from 'node:fs';
 import { CLOUD, DEFAULTS } from './config.js';
 import { log } from './log.js';
 
@@ -17,6 +18,29 @@ import { log } from './log.js';
  */
 const TERMINAL_CLOSE_CODES = new Set([4001, 4003]);
 
+/** Sampled CPU busy ratio — two os.cpus() readings 100ms apart. */
+async function cpuPercent() {
+  const a = os.cpus();
+  await new Promise((r) => setTimeout(r, 100));
+  const b = os.cpus();
+  let idle = 0, total = 0;
+  for (let i = 0; i < a.length; i++) {
+    const ta = a[i].times, tb = b[i].times;
+    idle += tb.idle - ta.idle;
+    for (const k of Object.keys(tb)) total += tb[k] - ta[k];
+  }
+  return total > 0 ? Math.round((1 - idle / total) * 1000) / 10 : 0;
+}
+
+/** Used disk % on the device's home volume. */
+function diskPercent() {
+  try {
+    const s = statfsSync(os.homedir());
+    const total = s.blocks * s.bsize, free = s.bavail * s.bsize;
+    return total > 0 ? Math.round((1 - free / total) * 1000) / 10 : 0;
+  } catch { return null; }
+}
+
 export class ControlChannel extends EventEmitter {
   #apiKey;
   #agentId;
@@ -24,16 +48,18 @@ export class ControlChannel extends EventEmitter {
   #ws = null;
   #queue = [];
   #metricsTimer = null;
+  #metricsIntervalMs;
   #backoff = DEFAULTS.reconnectMinMs;
   #reconnectTimer = null;
   #closing = false;
   #stopped = false;
 
-  constructor(apiKey, agentId, capabilities = null) {
+  constructor(apiKey, agentId, capabilities = null, { metricsIntervalMs } = {}) {
     super();
     this.#apiKey = apiKey;
     this.#agentId = agentId;
     this.#capabilities = capabilities;
+    this.#metricsIntervalMs = metricsIntervalMs || DEFAULTS.metricsIntervalMs;
   }
 
   /** Connect (or reconnect) to the cloud. Returns this for chaining. */
@@ -152,16 +178,27 @@ export class ControlChannel extends EventEmitter {
 
   // ── Device metrics stream ──────────────────────────────────────
   #startMetrics() {
-    this.#metricsTimer = setInterval(() => {
+    this.#metricsTimer = setInterval(async () => {
+      const totalMem = os.totalmem(), freeMem = os.freemem();
+      const cpus = os.cpus();
       const metrics = {
         cpuLoad: os.loadavg(),
-        mem:     { total: os.totalmem(), free: os.freemem() },
-        uptime:  os.uptime(),
-        cpus:    os.cpus().length,
+        cpuPercent: await cpuPercent(),
+        cpuModel: cpus[0]?.model || 'unknown',
+        mem: {
+          total: totalMem,
+          free: freeMem,
+          used: totalMem - freeMem,
+          percent: Math.round((1 - freeMem / totalMem) * 1000) / 10,
+        },
+        diskPercent: diskPercent(),
+        uptime: os.uptime(),
+        uptimeSeconds: os.uptime(),
+        cpus: cpus.length,
       };
       this.#send('device.metrics', metrics);
       this.emit('metrics', metrics);
-    }, DEFAULTS.metricsIntervalMs);
+    }, this.#metricsIntervalMs);
   }
 
   #stopMetrics() {
