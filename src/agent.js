@@ -8,6 +8,7 @@ import { think } from './cloud.js';
 import { ControlChannel } from './control.js';
 import { tools } from './tools/index.js';
 import { security as shellSecurity } from './tools/shell.js';
+import { CLOUD, DEFAULTS } from './config.js';
 import { log } from './log.js';
 
 export class AgentDaemon extends EventEmitter {
@@ -97,26 +98,35 @@ export class AgentDaemon extends EventEmitter {
     this.#messages.push({ role: 'user', content: task });
 
     let answer = '';
-    let tokenCount = 0;
 
     try {
-      answer = await think({
-        apiKey:  this.#creds.apiKey,
-        messages: this.#messages,
-        tools:   tools.list(),
-        onChunk: (delta) => {
-          tokenCount++;
-          this.#control.token(delta, runId);
-          this.emit('task:token', delta, runId);
-        },
-        onUsage: (usage) => {
-          this.emit('task:usage', usage);
-        },
-      });
+      if (CLOUD.platform === 'docker') {
+        // Docker platform: LLM call is proxied over the control channel.
+        const res = await this.#control.llmRequest({
+          provider: DEFAULTS.llm.provider,
+          model: DEFAULTS.llm.model,
+          messages: this.#messages,
+        });
+        answer = res.content || '';
+      } else {
+        answer = await think({
+          apiKey:  this.#creds.apiKey,
+          messages: this.#messages,
+          tools:   tools.list(),
+          onChunk: (delta) => {
+            this.#control.token(delta, runId);
+            this.emit('task:token', delta, runId);
+          },
+          onUsage: (usage) => {
+            this.emit('task:usage', usage);
+          },
+        });
+      }
     } catch (err) {
       this.#stats.errors++;
       this.#currentTask = null;
-      this.#control.step('task.error', { error: err.message });
+      if (CLOUD.platform === 'docker') this.#control.chatResponse(runId, `Error: ${err.message}`);
+      else this.#control.step('task.error', { error: err.message });
       this.#control.result(runId, { error: err.message });
       this.emit('task:error', err);
       log.error(`Think failed: ${err.message}`);
@@ -125,13 +135,17 @@ export class AgentDaemon extends EventEmitter {
 
     this.#messages.push({ role: 'assistant', content: answer });
     this.#stats.tasks++;
-    this.#stats.tokens += tokenCount;
+    this.#stats.tokens += answer.length;
 
     this.#currentTask = null;
-    this.#control.result(runId, { text: answer });
-    this.#control.step('task.done', { runId, tokens: tokenCount, chars: answer.length });
-    this.emit('task:done', { answer, tokens: tokenCount, runId });
-    log.info(`Task complete`, { tokens: tokenCount, chars: answer.length });
+    if (CLOUD.platform === 'docker') {
+      this.#control.chatResponse(runId, answer);
+    } else {
+      this.#control.result(runId, { text: answer });
+      this.#control.step('task.done', { runId, tokens: answer.length, chars: answer.length });
+    }
+    this.emit('task:done', { answer, tokens: answer.length, runId });
+    log.info(`Task complete`, { tokens: answer.length, chars: answer.length });
   }
 
   // ── Tool execution ──────────────────────────────────────────────

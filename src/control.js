@@ -47,6 +47,7 @@ export class ControlChannel extends EventEmitter {
   #capabilities;
   #ws = null;
   #queue = [];
+  #llmPending = new Map();
   #metricsTimer = null;
   #metricsIntervalMs;
   #backoff = DEFAULTS.reconnectMinMs;
@@ -66,7 +67,11 @@ export class ControlChannel extends EventEmitter {
   connect() {
     if (this.#closing || this.#stopped) return this;
 
-    const url = CLOUD.wsUrl;
+    let url = CLOUD.wsUrl;
+    // Docker platform registers agents by agentId in the query string.
+    if (CLOUD.platform === 'docker') {
+      url += (url.includes('?') ? '&' : '?') + `agentId=${encodeURIComponent(this.#agentId || 'agent-1')}`;
+    }
     log.debug(`Connecting to ${url}`);
 
     this.#ws = new WebSocket(url, {
@@ -81,16 +86,21 @@ export class ControlChannel extends EventEmitter {
       this.#backoff = DEFAULTS.reconnectMinMs;
       log.info(`Connected to ${new URL(url).host}`);
 
-      this.#send('hello', {
-        agentId:  this.#agentId,
-        host:     os.hostname(),
-        platform: os.platform(),
-        arch:     os.arch(),
-        cpus:     os.cpus().length,
-        mem:      os.totalmem(),
-        version:  DEFAULTS.version,
-        capabilities: this.#capabilities,
-      });
+      if (CLOUD.platform === 'docker') {
+        // Docker platform protocol: flat register message, no hello handshake.
+        this.#sendFlat('register', { name: os.hostname(), model: `mona-agent/${DEFAULTS.version}` });
+      } else {
+        this.#send('hello', {
+          agentId:  this.#agentId,
+          host:     os.hostname(),
+          platform: os.platform(),
+          arch:     os.arch(),
+          cpus:     os.cpus().length,
+          mem:      os.totalmem(),
+          version:  DEFAULTS.version,
+          capabilities: this.#capabilities,
+        });
+      }
       this.#flush();
       this.#startMetrics();
       this.emit('connected');
@@ -100,8 +110,13 @@ export class ControlChannel extends EventEmitter {
       let msg;
       try { msg = JSON.parse(raw.toString()); } catch { return; }
 
-      if (msg.type === 'command') {
+      if (msg.type === 'llm:response' || msg.type === 'llm:error') {
+        this.#resolveLlm(msg);
+      } else if (msg.type === 'command') {
         this.emit('command', msg);
+      } else if (CLOUD.platform === 'docker' && msg.type === 'chat') {
+        // Docker dashboard chat → same run flow as a command.
+        this.emit('command', { action: 'run', runId: msg.requestId, payload: { task: msg.message } });
       } else if (msg.type === 'ping') {
         this.#send('pong', {});
       } else {
@@ -154,6 +169,16 @@ export class ControlChannel extends EventEmitter {
     }
   }
 
+  /** Send a flat protocol message (docker platform: fields at top level). */
+  #sendFlat(type, obj) {
+    const msg = JSON.stringify({ type, ts: Date.now(), ...obj });
+    if (this.#ws?.readyState === WebSocket.OPEN) {
+      this.#ws.send(msg);
+    } else {
+      this.#queue.push(msg);
+    }
+  }
+
   #flush() {
     while (this.#queue.length && this.#ws?.readyState === WebSocket.OPEN) {
       this.#ws.send(this.#queue.shift());
@@ -161,10 +186,42 @@ export class ControlChannel extends EventEmitter {
   }
 
   // ── Public emitters (all consumed by the website dashboard) ─────
-  step(name, detail)     { this.#send('agent.step', { name, detail }); }
-  token(delta, runId)    { this.#send('agent.token', { delta, runId }); }
-  result(runId, output)  { this.#send('agent.result', { runId, output }); }
-  log(level, message)    { this.#send('agent.log', { level, message }); }
+  step(name, detail)     { if (CLOUD.platform !== 'docker') this.#send('agent.step', { name, detail }); }
+  token(delta, runId)    { if (CLOUD.platform !== 'docker') this.#send('agent.token', { delta, runId }); }
+  result(runId, output)  { if (CLOUD.platform !== 'docker') this.#send('agent.result', { runId, output }); }
+  log(level, message)    { if (CLOUD.platform !== 'docker') this.#send('agent.log', { level, message }); }
+
+  // ── Docker platform protocol ────────────────────────────────────
+
+  /** Reply to a dashboard chat message (docker platform). */
+  chatResponse(requestId, message) {
+    this.#sendFlat('chat:response', { requestId, message });
+  }
+
+  /**
+   * Proxy an LLM call through the docker platform (request/response RPC).
+   * @returns {Promise<{content:string, usage?:object, model?:string, finishReason?:string}>}
+   */
+  llmRequest({ provider = null, model = null, messages, temperature = 0.7, maxTokens = null }) {
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.#llmPending.delete(requestId);
+        reject(new Error('LLM request timed out after 120s'));
+      }, 120_000);
+      this.#llmPending.set(requestId, { resolve, reject, timeout });
+      this.#sendFlat('llm:request', { requestId, provider, model, messages, temperature, maxTokens });
+    });
+  }
+
+  #resolveLlm(msg) {
+    const p = this.#llmPending.get(msg.requestId);
+    if (!p) return;
+    clearTimeout(p.timeout);
+    this.#llmPending.delete(msg.requestId);
+    if (msg.type === 'llm:error') p.reject(new Error(msg.error));
+    else p.resolve({ content: msg.content, usage: msg.usage, model: msg.model, finishReason: msg.finishReason });
+  }
 
   /** Current connection state. */
   get connected() {
@@ -196,7 +253,12 @@ export class ControlChannel extends EventEmitter {
         uptimeSeconds: os.uptime(),
         cpus: cpus.length,
       };
-      this.#send('device.metrics', metrics);
+      if (CLOUD.platform === 'docker') {
+        // Docker dashboard shows live agent status from these broadcasts.
+        this.#sendFlat('status', { status: 'online', details: metrics });
+      } else {
+        this.#send('device.metrics', metrics);
+      }
       this.emit('metrics', metrics);
     }, this.#metricsIntervalMs);
   }
@@ -213,6 +275,8 @@ export class ControlChannel extends EventEmitter {
     this.#closing = true;
     clearTimeout(this.#reconnectTimer);
     this.#stopMetrics();
+    for (const [, p] of this.#llmPending) { clearTimeout(p.timeout); p.reject(new Error('closed')); }
+    this.#llmPending.clear();
     if (this.#ws) {
       this.#ws.removeAllListeners('close');
       this.#ws.close(1000, 'agent shutdown');

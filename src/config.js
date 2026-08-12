@@ -21,11 +21,11 @@ const baseUrl = process.env.MONA_CLOUD || 'https://agent.mona.expert';
 // Auto-detect platform type from URL
 function detectPlatform(url) {
   try {
-    const host = new URL(url).host;
+    // hostname, not host: host includes the port (127.0.0.1:4300).
+    const host = new URL(url).hostname;
+    // Local control planes (Docker platform, local dev): localhost / 127.0.0.1 / :4300
+    if (host === 'localhost' || host === '127.0.0.1' || url.includes(':4300')) return 'docker';
     // Sngine-based: agent.mona.expert (and subdomains)
-    if (host.includes('mona.expert') && !url.includes(':4300')) return 'sngine';
-    // Docker platform: localhost:4300
-    if (url.includes(':4300')) return 'docker';
     return 'sngine'; // default
   } catch { return 'sngine'; }
 }
@@ -83,6 +83,11 @@ export const DEFAULTS = Object.freeze({
   reconnectMinMs:    1_000,
   reconnectMaxMs:    30_000,
   version:           '1.2.0',
+  // LLM defaults for the docker platform (sngine brain decides its own model).
+  llm: Object.freeze({
+    provider: process.env.MONA_LLM_PROVIDER || 'openai',
+    model:    process.env.MONA_LLM_MODEL || 'gpt-4o-mini',
+  }),
 });
 
 // ── Credential management ─────────────────────────────────────────

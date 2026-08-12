@@ -141,6 +141,8 @@ Without arguments, auto-detects: GUI if terminal, headless otherwise.
 | `MONA_ALLOW_CMDS` | `df,uptime,uname,...` | Shell command allowlist |
 | `MONA_SHELL_UNSAFE` | — | Set to `1` for unrestricted shell |
 | `MONA_WORKSPACE` | `~/.mona-agent/workspace` | File tool sandbox directory |
+| `MONA_LLM_PROVIDER` | `openai` | Docker platform: LLM provider (openai, anthropic, google, deepseek, openrouter) |
+| `MONA_LLM_MODEL` | `gpt-4o-mini` | Docker platform: default model |
 
 ## Project Structure
 
