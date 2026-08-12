@@ -157,6 +157,16 @@ npm run gui         # run the dev build of the TUI
 Requires Node.js ≥ 20. The codebase is plain modern JavaScript (ESM), no
 build step.
 
+## Community
+
+⭐ **Star the repo** if mona-agent is useful to you — it genuinely helps
+others discover the project.
+
+- 💬 [GitHub Discussions](https://github.com/MONAEXPERT/agent/discussions) — ideas, questions, show & tell
+- 🐛 [Issues](https://github.com/MONAEXPERT/agent/issues) — bugs and feature requests
+- 🌐 [agent.mona.expert](https://agent.mona.expert) — the cloud dashboard
+- 📄 [SECURITY.md](SECURITY.md) — responsible disclosure
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Free forever.
