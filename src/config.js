@@ -83,11 +83,6 @@ export const DEFAULTS = Object.freeze({
   reconnectMinMs:    1_000,
   reconnectMaxMs:    30_000,
   version:           '1.2.0',
-  // LLM defaults for the docker platform (sngine brain decides its own model).
-  llm: Object.freeze({
-    provider: process.env.MONA_LLM_PROVIDER || 'openai',
-    model:    process.env.MONA_LLM_MODEL || 'gpt-4o-mini',
-  }),
 });
 
 // ── Credential management ─────────────────────────────────────────

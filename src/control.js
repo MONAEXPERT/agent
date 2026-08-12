@@ -200,9 +200,10 @@ export class ControlChannel extends EventEmitter {
 
   /**
    * Proxy an LLM call through the docker platform (request/response RPC).
+   * No provider or model is named — the control plane decides those.
    * @returns {Promise<{content:string, usage?:object, model?:string, finishReason?:string}>}
    */
-  llmRequest({ provider = null, model = null, messages, temperature = 0.7, maxTokens = null }) {
+  llmRequest({ messages, temperature = 0.7 }) {
     const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -210,7 +211,7 @@ export class ControlChannel extends EventEmitter {
         reject(new Error('LLM request timed out after 120s'));
       }, 120_000);
       this.#llmPending.set(requestId, { resolve, reject, timeout });
-      this.#sendFlat('llm:request', { requestId, provider, model, messages, temperature, maxTokens });
+      this.#sendFlat('llm:request', { requestId, messages, temperature });
     });
   }
 

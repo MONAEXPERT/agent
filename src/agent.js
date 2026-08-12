@@ -8,7 +8,7 @@ import { think } from './cloud.js';
 import { ControlChannel } from './control.js';
 import { tools } from './tools/index.js';
 import { security as shellSecurity } from './tools/shell.js';
-import { CLOUD, DEFAULTS } from './config.js';
+import { CLOUD } from './config.js';
 import { log } from './log.js';
 
 export class AgentDaemon extends EventEmitter {
@@ -102,11 +102,8 @@ export class AgentDaemon extends EventEmitter {
     try {
       if (CLOUD.platform === 'docker') {
         // Docker platform: LLM call is proxied over the control channel.
-        const res = await this.#control.llmRequest({
-          provider: DEFAULTS.llm.provider,
-          model: DEFAULTS.llm.model,
-          messages: this.#messages,
-        });
+        // The device never names a provider or model — the cloud decides.
+        const res = await this.#control.llmRequest({ messages: this.#messages });
         answer = res.content || '';
       } else {
         answer = await think({

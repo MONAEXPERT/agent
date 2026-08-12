@@ -20,7 +20,7 @@ server.on('connection', (ws) => {
     const msg = JSON.parse(raw.toString());
     received.push(msg);
     if (msg.type === 'llm:request') {
-      if (msg.model === 'bad') {
+      if (msg.messages?.[0]?.content === 'boom') {
         ws.send(JSON.stringify({ type: 'llm:error', requestId: msg.requestId, error: 'no key for provider' }));
       } else {
         ws.send(JSON.stringify({
@@ -76,7 +76,7 @@ describe('docker platform protocol', () => {
     ch.on('error', () => {});
     ch.connect();
     await assert.rejects(
-      ch.llmRequest({ model: 'bad', messages: [] }),
+      ch.llmRequest({ messages: [{ role: 'user', content: 'boom' }] }),
       /no key for provider/
     );
     ch.close();
