@@ -9,6 +9,14 @@ import os from 'node:os';
 import { CLOUD, DEFAULTS } from './config.js';
 import { log } from './log.js';
 
+/**
+ * Close codes the cloud uses to say "this credential is no longer valid".
+ * Reconnecting would just fail again — the daemon stops and asks for re-login.
+ *   4001 — unauthorized (bad / expired API key)
+ *   4003 — forbidden (device revoked, agent disabled)
+ */
+const TERMINAL_CLOSE_CODES = new Set([4001, 4003]);
+
 export class ControlChannel extends EventEmitter {
   #apiKey;
   #agentId;
@@ -18,6 +26,7 @@ export class ControlChannel extends EventEmitter {
   #backoff = DEFAULTS.reconnectMinMs;
   #reconnectTimer = null;
   #closing = false;
+  #stopped = false;
 
   constructor(apiKey, agentId) {
     super();
@@ -27,7 +36,7 @@ export class ControlChannel extends EventEmitter {
 
   /** Connect (or reconnect) to the cloud. Returns this for chaining. */
   connect() {
-    if (this.#closing) return this;
+    if (this.#closing || this.#stopped) return this;
 
     const url = CLOUD.wsUrl;
     log.debug(`Connecting to ${url}`);
@@ -74,6 +83,15 @@ export class ControlChannel extends EventEmitter {
     this.#ws.on('close', (code) => {
       this.#stopMetrics();
       if (this.#closing) return;
+      // Terminal close: the credential itself was rejected — do not loop.
+      if (TERMINAL_CLOSE_CODES.has(code)) {
+        this.#stopped = true;
+        clearTimeout(this.#reconnectTimer);
+        log.error(`Cloud rejected credentials (code ${code}) — stopping. Run: mona-agent login`);
+        this.emit('auth-failed', code);
+        this.emit('disconnected', code);
+        return;
+      }
       // Exponential backoff with jitter
       const jitter = Math.random() * this.#backoff * 0.3;
       const wait = Math.min(this.#backoff + jitter, DEFAULTS.reconnectMaxMs);
@@ -121,6 +139,11 @@ export class ControlChannel extends EventEmitter {
   /** Current connection state. */
   get connected() {
     return this.#ws?.readyState === WebSocket.OPEN;
+  }
+
+  /** True once the cloud has rejected this credential — the daemon is done. */
+  get stopped() {
+    return this.#stopped;
   }
 
   // ── Device metrics stream ──────────────────────────────────────

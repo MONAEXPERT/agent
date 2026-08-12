@@ -251,6 +251,11 @@ export class Dashboard {
       this.#log('warn', `Disconnected (code=${code}), reconnecting (attempt ${this.#reconnectAttempts})...`);
     });
 
+    agent.on('auth-failed', () => {
+      this.#state.conn = CONN.offline;
+      this.#log('error', 'Cloud rejected credentials — press l to re-login');
+    });
+
     agent.on('metrics', (m) => {
       this.#state.metrics = m;
     });

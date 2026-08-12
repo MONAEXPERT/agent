@@ -25,6 +25,7 @@ export class AgentDaemon extends EventEmitter {
     // Forward control events
     this.#control.on('connected',    ()    => this.emit('connected'));
     this.#control.on('disconnected', (c)   => this.emit('disconnected', c));
+    this.#control.on('auth-failed',  (c)   => this.emit('auth-failed', c));
     this.#control.on('metrics',      (m)   => this.emit('metrics', m));
     this.#control.on('error',        (err) => this.emit('error', err));
     this.#control.on('command',      (cmd) => this.#onCommand(cmd));

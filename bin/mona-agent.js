@@ -325,6 +325,12 @@ async function start() {
     process.stderr.write(`  ${YELLOW}○ Disconnected (code ${code}), reconnecting...${RESET}\n`);
   });
 
+  daemon.on('auth-failed', () => {
+    process.stderr.write(`  ${RED}✗ Authentication rejected by ${CLOUD.base}${RESET}\n`);
+    process.stderr.write(`  ${YELLOW}  Run ${CYAN}mona-agent login${RESET}${YELLOW} with a valid key, then retry.${RESET}\n`);
+    process.exit(1);
+  });
+
   daemon.on('task:done', (result) => {
     process.stderr.write(`  ${GREEN}✓ Done (${result.tokens} tokens)${RESET}\n`);
   });
