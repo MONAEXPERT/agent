@@ -26,3 +26,8 @@ Thumbs.db
 dist/
 build/
 *.tgz
+
+# control plane
+platform/node_modules/
+platform/data/
+platform/.env

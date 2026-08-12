@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mona.expert — Control Plane</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%237c5cff'/><stop offset='1' stop-color='%2322d3ee'/></linearGradient></defs><rect width='100' height='100' rx='24' fill='url(%23g)'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='-apple-system,sans-serif' font-weight='700'>M</text></svg>">
+</head>
+<body>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+  <div class="bg-grid"></div>
+
+  <div id="app">
+    <!-- Sidebar -->
+    <nav id="sidebar">
+      <div class="logo">
+        <span class="logo-mark">M</span>
+        <span class="logo-text">mona<span class="logo-dot">.</span>expert</span>
+      </div>
+
+      <ul class="nav-items">
+        <li class="nav-item active" data-page="dashboard">
+          <span class="nav-icon">◧</span><span class="nav-label">Dashboard</span>
+        </li>
+        <li class="nav-item" data-page="agents">
+          <span class="nav-icon">✦</span><span class="nav-label">Agents</span>
+        </li>
+        <li class="nav-item" data-page="keys">
+          <span class="nav-icon">🔑</span><span class="nav-label">Provider Keys</span>
+        </li>
+        <li class="nav-item" data-page="audit">
+          <span class="nav-icon">≡</span><span class="nav-label">Audit Log</span>
+        </li>
+        <li class="nav-item" data-page="settings">
+          <span class="nav-icon">⚙</span><span class="nav-label">Settings</span>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Connecting…</span>
+      </div>
+    </nav>
+
+    <!-- Main content -->
+    <main id="content">
+
+      <!-- Dashboard Page -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-head">
+          <div>
+            <h1>Dashboard</h1>
+            <p class="page-sub">Your cloud brain at a glance</p>
+          </div>
+          <span class="live-badge"><span class="live-dot"></span> LIVE</span>
+        </div>
+
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon stat-icon-green">▶</div>
+            <div class="stat-value" id="stat-agents">0</div>
+            <div class="stat-label">Agents Running</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon stat-icon-violet">✦</div>
+            <div class="stat-value" id="stat-total">0</div>
+            <div class="stat-label">Total Agents</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon stat-icon-cyan">🔑</div>
+            <div class="stat-value" id="stat-keys">0</div>
+            <div class="stat-label">Provider Keys</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon stat-icon-amber">◔</div>
+            <div class="stat-value" id="stat-uptime">—</div>
+            <div class="stat-label">Platform Uptime</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Recent Activity</h3>
+            <span class="card-hint" id="activity-count"></span>
+          </div>
+          <div id="recent-activity" class="activity-list">
+            <p class="muted">Loading…</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agents Page -->
+      <div class="page" id="page-agents">
+        <div class="page-head">
+          <div>
+            <h1>Agents</h1>
+            <p class="page-sub">Device agents and their brains</p>
+          </div>
+          <button class="btn btn-primary" onclick="showCreateAgent()">＋ New Agent</button>
+        </div>
+        <div id="agents-list" class="agents-grid">
+          <p class="muted">Loading agents…</p>
+        </div>
+
+        <div class="modal" id="create-agent-modal">
+          <div class="modal-backdrop" onclick="hideCreateAgent()"></div>
+          <div class="modal-content">
+            <div class="modal-head">
+              <h3>Create New Agent</h3>
+              <button class="btn-close" onclick="hideCreateAgent()">✕</button>
+            </div>
+            <form id="create-agent-form">
+              <label>Name</label>
+              <input type="text" name="name" placeholder="My Agent" required>
+
+              <label>Model</label>
+              <select name="model">
+                <option value="openai/gpt-4o">OpenAI GPT-4o</option>
+                <option value="openai/gpt-4.5-preview">OpenAI GPT-4.5</option>
+                <option value="openai/o4-mini">OpenAI o4-mini</option>
+                <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                <option value="anthropic/claude-opus-4-20250514">Claude Opus 4</option>
+                <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
+                <option value="deepseek/deepseek-chat">DeepSeek V4</option>
+              </select>
+
+              <label>System Prompt <span class="opt">optional</span></label>
+              <textarea name="systemPrompt" rows="3" placeholder="You are a helpful AI agent…"></textarea>
+
+              <label>Tools</label>
+              <div class="tools-checkboxes">
+                <label class="checkbox-label"><input type="checkbox" name="tools" value="files" checked> Files</label>
+                <label class="checkbox-label"><input type="checkbox" name="tools" value="web" checked> Web</label>
+                <label class="checkbox-label"><input type="checkbox" name="tools" value="shell" checked> Shell</label>
+              </div>
+
+              <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="hideCreateAgent()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Agent</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Panel -->
+      <div class="chat-panel" id="chat-panel">
+        <div class="chat-header">
+          <div class="chat-title-wrap">
+            <span class="chat-agent-avatar">✦</span>
+            <h3 id="chat-title">Agent Chat</h3>
+          </div>
+          <button class="btn-close" onclick="closeChat()">✕</button>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+          <p class="muted chat-empty">Send a message to start talking with this agent.</p>
+        </div>
+        <div class="chat-input">
+          <input type="text" id="chat-input" placeholder="Type a message…" autocomplete="off"
+                 onkeydown="if(event.key==='Enter')sendChat()">
+          <button class="btn btn-primary send-btn" onclick="sendChat()">Send →</button>
+        </div>
+      </div>
+
+      <!-- Provider Keys Page -->
+      <div class="page" id="page-keys">
+        <div class="page-head">
+          <div>
+            <h1>Provider Keys</h1>
+            <p class="page-sub">Cloud vault — devices never see these</p>
+          </div>
+          <button class="btn btn-primary" onclick="showAddKey()">＋ Add Key</button>
+        </div>
+        <div class="key-note">
+          <span class="key-note-icon">🛡</span>
+          <div>
+            Keys are encrypted at rest and stay in the cloud vault. The platform proxies every LLM call —
+            <strong>the only key a device ever holds is its MONA key.</strong>
+          </div>
+        </div>
+        <div id="keys-list" class="keys-list">
+          <p class="muted">Loading keys…</p>
+        </div>
+
+        <div class="modal" id="add-key-modal">
+          <div class="modal-backdrop" onclick="hideAddKey()"></div>
+          <div class="modal-content">
+            <div class="modal-head">
+              <h3>Add Provider Key</h3>
+              <button class="btn-close" onclick="hideAddKey()">✕</button>
+            </div>
+            <form id="add-key-form">
+              <label>Provider</label>
+              <select name="provider">
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="google">Google</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="openrouter">OpenRouter</option>
+              </select>
+              <label>Label <span class="opt">optional</span></label>
+              <input type="text" name="label" placeholder="My OpenAI key">
+              <label>API Key</label>
+              <input type="password" name="key" placeholder="sk-…" required autocomplete="off">
+              <p class="form-hint">Encrypted before storage. It never leaves the platform.</p>
+              <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="hideAddKey()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Key</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audit Page -->
+      <div class="page" id="page-audit">
+        <div class="page-head">
+          <div>
+            <h1>Audit Log</h1>
+            <p class="page-sub">Every call, proxied or executed</p>
+          </div>
+          <select id="audit-filter-type" class="filter-select" onchange="loadAudit()">
+            <option value="">All Events</option>
+            <option value="llm:call">LLM Calls</option>
+            <option value="llm:proxy">LLM Proxy</option>
+            <option value="agent:create">Agent Created</option>
+            <option value="agent:start">Agent Started</option>
+            <option value="agent:stop">Agent Stopped</option>
+            <option value="tool:executed">Tool Executed</option>
+            <option value="key:create">Key Added</option>
+            <option value="key:delete">Key Removed</option>
+            <option value="agent:log">Agent Log</option>
+            <option value="agent:error">Agent Error</option>
+          </select>
+        </div>
+        <div id="audit-list" class="audit-list">
+          <p class="muted">Loading audit log…</p>
+        </div>
+      </div>
+
+      <!-- Settings Page -->
+      <div class="page" id="page-settings">
+        <div class="page-head">
+          <div>
+            <h1>Settings</h1>
+            <p class="page-sub">Platform configuration</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Platform</h3></div>
+          <div class="setting-row">
+            <span class="setting-label">Docker</span>
+            <span id="setting-docker" class="setting-value">Checking…</span>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Platform URL</span>
+            <span class="setting-value" id="setting-url">—</span>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Data Directory</span>
+            <span class="setting-value" id="setting-data-dir">—</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>About</h3></div>
+          <p>mona.expert control plane v1.0.0</p>
+          <p class="muted">Open-source AI agent platform. MIT licensed.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
