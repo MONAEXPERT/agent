@@ -285,22 +285,24 @@ async function debug() {
 
 // ── gui (terminal dashboard) ──────────────────────────────────────
 async function gui() {
-  const creds = requireCreds();
+  const creds = loadCreds();
   log.quiet(true); // Suppress console output; TUI handles display
 
-  const daemon = new AgentDaemon(creds);
-  const dashboard = new Dashboard(daemon);
+  // No API key yet? Start the dashboard in setup mode — it shows the
+  // connect guide and supports inline login (press l).
+  const daemon = creds ? new AgentDaemon(creds) : null;
+  const dashboard = new Dashboard(daemon, { setup: !creds });
 
   const stop = () => {
     dashboard.stop();
-    daemon.close();
+    daemon?.close();
     process.exit(0);
   };
 
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
 
-  daemon.start();
+  daemon?.start();
   dashboard.start();
 }
 
@@ -379,6 +381,7 @@ function help() {
   ${BOLD}COMMANDS${RESET}
 
     ${CYAN}gui${RESET}               Terminal dashboard with live metrics   ${DIM}(default)${RESET}
+                             (no key saved? press ${CYAN}l${RESET} inside to log in)
     ${CYAN}start${RESET}             Headless daemon (no UI)
     ${CYAN}login${RESET}             Save your agent.mona.expert API key
     ${CYAN}connect${RESET} ${DIM}[url]${RESET}   Test / force connection to control plane

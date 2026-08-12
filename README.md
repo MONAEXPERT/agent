@@ -39,31 +39,61 @@ No LLM provider keys (OpenAI, Anthropic, Google, etc.) are stored on your device
 # Install
 curl -fsSL https://agent.mona.expert/install.sh | bash
 
-# Login to your control plane
-mona-agent login       # paste your API key
+# 1. Login with your agent.mona.expert API key
+mona-agent login        # or press 'l' inside the dashboard
 
-# Run
-mona-agent gui         # terminal dashboard with live metrics
-mona-agent start       # headless daemon (no UI)
+# 2. Verify the connection to the control plane
+mona-agent connect
+
+# 3. Run the terminal dashboard (auto-starts the agent)
+mona-agent gui
 ```
+
+Once connected, send commands to this device from the
+[agent.mona.expert](https://agent.mona.expert) dashboard — tasks, tools
+and results stream live into the terminal.
 
 ## Terminal Dashboard
 
 Built-in TUI — zero extra dependencies. Pure ANSI escape codes.
+Live system metrics, streaming task output, and a color-coded activity log.
 
 ```
-+-- mona-agent v1.0.0 ------------------------- * connected ---+
-| +-- System -------------------+ +-- Activity ---------------+ |
-| | Host     MacBook-Pro        | | 22:54 * Connected         | |
-| | OS       darwin arm64       | | 22:55 > Task: "sys info"  | |
-| | CPUs     10 cores           | | 22:55 ~ Thinking...       | |
-| | Mem      [####    ] 62%     | | 22:56 + Done (142 tok)    | |
-| +-- Task ---------------------+ |                           | |
-| | + Idle                      | |                           | |
-| +-----------------------------+ +---------------------------+ |
-| q quit &middot; c clear &middot; arrows scroll                 |
-+----------------------------------------------------------------+
+┌─ mona-agent v1.2.0 🍎              ● agent-1 │ ● connected ─┐
+┌─ System ─────────────────────┐ ┌─ Activity ────────────────────────┐
+│ Host   MacBook-Air            │ │ 22:54 ● Connected to              │
+│ OS     macOS x64              │ │        agent.mona.expert          │
+│ CPUs   10 cores               │ │ 22:55 ▸ Task: "sys info"          │
+│ Mem    ████████████░░░░ 62%   │ │ 22:55 ⚙ Tool: sysinfo             │
+│        5.3 GB / 8.6 GB        │ │ 22:56 ✓ Complete (142 tok, 3.1s)  │
+│ Load   1.20  0.80  0.50       │ │                                   │
+│ IP     192.168.1.42           │ │                                   │
+│ Up     3h 25m                 │ │                                   │
+├─ Task ────────────────────────┤ │                                   │
+│ ✓ Idle — waiting for commands │ │                                   │
+│ Control this agent from       │ │                                   │
+│ agent.mona.expert             │ │                                   │
+└───────────────────────────────┘ └───────────────────────────────────┘
+├──────────────────────────────────────────────────────────────────────┤
+│ q quit · l login · c clear · r reconnect · d debug · h help  ● online│
+└──────────────────────────────────────────────────────────────────────┘
 ```
+
+### Connect your agent (from the terminal)
+
+| Key | Action |
+|-----|--------|
+| `l` | Login — paste your API key right in the dashboard |
+| `r` | (Re)connect to the cloud |
+| `q` / `Ctrl+C` | Quit |
+| `c` | Clear activity log |
+| `d` | Toggle debug bar (cloud URL, WS URL, creds path) |
+| `h` / `?` | Help overlay with the full connect guide |
+| `↑` / `↓` | Scroll activity log |
+
+No key saved yet? The dashboard opens in setup mode and shows the
+connect steps — press `l` and paste your key, the agent connects
+automatically. Works headless too: `mona-agent start`.
 
 ## Tools
 
@@ -89,11 +119,15 @@ Destructive patterns (`rm -rf /`, `mkfs`, fork bombs) are always blocked.
 ## Commands
 
 ```
-mona-agent gui       Terminal dashboard with live metrics
-mona-agent start     Headless daemon — no UI, log to stderr
-mona-agent login     Save your control-plane API key
-mona-agent status    Show login state and config paths
-mona-agent help      Show all commands and environment vars
+mona-agent gui        Terminal dashboard (auto-starts the agent)
+mona-agent start      Headless daemon — no UI, log to stderr
+mona-agent login      Save your control-plane API key
+mona-agent connect    Test / force connection to the control plane
+mona-agent chat <msg> Send a chat message via the API
+mona-agent exec <t>   Execute a tool directly (sysinfo, shell, files, net)
+mona-agent status     Show login state and config paths
+mona-agent debug      Verbose system + connection info
+mona-agent help       Show all commands and environment vars
 ```
 
 Without arguments, auto-detects: GUI if terminal, headless otherwise.
