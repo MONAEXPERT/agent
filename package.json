@@ -1,7 +1,7 @@
 {
   "name": "mona-expert",
   "version": "2.4.0",
-  "description": "mona-agent — cloud-brained AI agent for your device. Open-source client: device daemon, terminal UI, local tools. Connects to the mona.expert cloud (agent.mona.expert).",
+  "description": "mona-agent — the open-source AI agent for your computer. A secure, sandboxed device daemon and terminal UI to control macOS, Linux and WSL2 from anywhere: run commands, manage files, automate tasks, stream live metrics. Private by design with an AES-256 key vault and egress-only networking.",
   "type": "module",
   "private": true,
   "workspaces": [
@@ -29,11 +29,31 @@
     "type": "git",
     "url": "https://github.com/MONAEXPERT/agent.git"
   },
+  "homepage": "https://agent.mona.expert",
+  "bugs": {
+    "url": "https://github.com/MONAEXPERT/agent/issues"
+  },
   "keywords": [
     "ai-agent",
+    "ai",
+    "agent",
+    "automation",
     "device-daemon",
-    "cloud-brain",
+    "cli",
     "terminal-ui",
+    "remote-control",
+    "computer-use",
+    "macos",
+    "linux",
+    "wsl2",
+    "raspberry-pi",
+    "security",
+    "privacy",
+    "sandbox",
+    "orchestration",
+    "llm",
+    "cloud",
+    "monitoring",
     "mona-expert"
   ]
 }

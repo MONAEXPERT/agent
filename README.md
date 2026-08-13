@@ -16,18 +16,31 @@ language:
 # mona-agent — your computer, with a brain in the cloud 
 
 <p align="center">
-  <strong>The open-source AI agent that lives on your machine.<br/>
-  Talk to it from anywhere. It reads, it runs, it fixes — and it never gives up.</strong>
+  <strong>The open-source AI agent for your computer.<br/>
+  Chat from anywhere. It runs commands, manages files and automates tasks —<br/>
+  private by design, with your AI keys locked in an encrypted cloud vault.</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/MONAEXPERT/agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg" alt="Node.js 20+"></a>
-  <a href="https://github.com/MONAEXPERT/agent/actions"><img src="https://img.shields.io/badge/tests-26%2F26-passing-brightgreen.svg" alt="Tests: 26/26 passing"></a>
+  <a href="https://github.com/MONAEXPERT/agent/actions"><img src="https://github.com/MONAEXPERT/agent/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/MONAEXPERT/agent/blob/main/package.json"><img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 runtime dependency"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-informational.svg" alt="Platforms: macOS, Linux, WSL2">
+  <img src="https://img.shields.io/badge/security-egress--only%20%7C%20sandboxed-brightgreen.svg" alt="Security: egress-only, sandboxed">
+  <img src="https://img.shields.io/badge/privacy-AES--256%20vault-blueviolet.svg" alt="Privacy: AES-256 key vault">
   <a href="https://huggingface.co/aiagentmona/mona-agent"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-aiagentmona%2Fmona-agent-yellow.svg" alt="Hugging Face: aiagentmona/mona-agent"></a>
 </p>
+
+## Contents
+
+- [Private & secure by design](#private--secure-by-design)
+- [What it can do](#what-it-can-do)
+- [Built for](#built-for)
+- [Quickstart — 60 seconds](#quickstart--60-seconds)
+- [How mona-agent compares](#how-mona-agent-compares)
+- [Documentation](#documentation)
+- [Security & compliance](#compliance--trust)
 
 ---
 
@@ -58,6 +71,31 @@ to do. The other just gets it done.
   +-------------------+                +----------------------------+
 ```
 
+## Private & secure by design
+
+Your machine is a trust boundary, not a sandbox afterthought.
+
+- **Zero AI keys on your device.** Provider keys (OpenAI, Anthropic, …) live
+  only in the cloud, encrypted AES-256-GCM. The device holds one revocable
+  token — nothing else worth stealing.
+- **Egress-only networking.** The daemon makes outbound HTTPS connections and
+  listens on localhost only. No open ports, no public exposure — it works
+  behind NAT and firewalls.
+- **Guarded execution.** Commands run through an allowlist; dangerous
+  patterns (`rm -rf /`, fork bombs, silent `sudo`) are blocked *before*
+  execution. File access is confined to safe paths with symlink-escape
+  rejection.
+- **Complete audit trail.** Every action — reasoning → tool call → result →
+  answer → verification — is traced with tokens, cost and latency, and
+  exportable for audits.
+- **Documented, not hand-waved.** A real [threat model (STRIDE)](docs/additional-documents/THREAT-MODEL.md),
+  [data-flow & minimization](docs/additional-documents/DATA-FLOW.md),
+  [security self-audit guide](docs/additional-documents/SECURITY-AUDIT.md)
+  and [EU CRA readiness](docs/additional-documents/CRA-READINESS.md). No fake
+  certifications — "trust me" isn't a security model.
+
+See [SECURITY.md](SECURITY.md) for the full policy and responsible disclosure.
+
 ## What it can do
 
 -  **Operate your computer from anywhere** — ask from your phone: *"how's
@@ -75,6 +113,21 @@ to do. The other just gets it done.
 -  **Terminal-native** — a fast TUI with live logs, or a fully headless
   daemon; one command installs it, one dependency powers it
 -  **Free and open source** — MIT licensed, forever
+
+## Built for
+
+-  **Developers** — delegate test runs, log checks and service restarts to a
+   device you can chat with from your phone.
+-  **Homelab & server ops** — manage headless boxes, Raspberry Pis and NAS
+   without SSH; the device polls the cloud, so no open ports are needed.
+-  **Personal automation** — open apps, check disk, control media, run
+   scripts from any browser.
+-  **Kiosks & presentation machines** — restart demo windows and
+   long-running GUI programs on demand.
+-  **Compliance-heavy teams** — every action traced and exportable; EU CRA /
+   NIS2 / AI Act / GDPR documentation included.
+
+More scenarios: [docs/USE-CASES.md](docs/USE-CASES.md).
 
 ## Quickstart — 60 seconds
 
@@ -123,7 +176,7 @@ The brain picks the tool, the device runs it, you get the result.
 
 Full reference: **[docs/TOOLS.md](docs/TOOLS.md)**
 
-## Why mona-agent is different
+## How mona-agent compares
 
 | | Typical AI chat | mona-agent |
 |---|---|---|
@@ -131,6 +184,7 @@ Full reference: **[docs/TOOLS.md](docs/TOOLS.md)**
 | Can it execute? |  |  sandboxed shell & tools |
 | Does it retry when things fail? |  |  auto-debug + retry loop |
 | Where do your API keys live? | on your disk |  encrypted cloud vault |
+| Is every action audited? |  |  full trace, exportable |
 | Install | app + account | one command, one dependency |
 
 ## FAQ
@@ -179,6 +233,7 @@ boxes, Raspberry Pis, home servers. See
   transparency obligations implemented and documented
 - **[GDPR](docs/GDPR.md)** — data minimisation, Art. 30 record, DPA-ready
 - **[SBOM](docs/SBOM.md)** — CycloneDX 1.5, one runtime dependency
+- **[Security policy](SECURITY.md)** — threat model, disclosure process, supported versions
 
 ## Community
 

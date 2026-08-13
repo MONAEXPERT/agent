@@ -1,6 +1,8 @@
 # mona-agent Documentation
 
-Open-source cloud-brained AI agent for your device — macOS, Linux, WSL2.
+Open-source AI agent for macOS, Linux and WSL2. A secure, sandboxed device
+daemon and terminal UI — run commands, manage files, automate tasks and
+stream live metrics from anywhere.
 
 - [Getting started](GETTING-STARTED.md) — install in 60 seconds
 - [Architecture](ARCHITECTURE.md) — how the daemon works
