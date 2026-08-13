@@ -55,7 +55,8 @@ function b64Body(obj) {
 // Calls the cloud LLM endpoint and streams tokens back via SSE.
 // onChunk(text)  — called per delta token
 // onUsage(usage) — called with final token counts (if provided)
-// Returns the full assembled response text.
+// Returns { text, usage, model, provider } — usage is null when the
+// cloud did not report it (older server or plain JSON without usage).
 export async function think({ apiKey, messages, tools, onChunk, onUsage, signal }) {
   const res = await apiFetch(P.think, {
     apiKey,
@@ -72,6 +73,9 @@ export async function think({ apiKey, messages, tools, onChunk, onUsage, signal 
     const dec = new TextDecoder();
     let buf = '';
     let full = '';
+    let usage = null;
+    let model = null;
+    let provider = null;
 
     try {
       while (true) {
@@ -85,14 +89,18 @@ export async function think({ apiKey, messages, tools, onChunk, onUsage, signal 
         for (const line of lines) {
           if (!line.startsWith('data:')) continue;
           const payload = line.slice(5).trim();
-          if (payload === '[DONE]') return full;
+          if (payload === '[DONE]') {
+            return { text: full, usage, model, provider };
+          }
           try {
             const j = JSON.parse(payload);
             if (j.delta) {
               full += j.delta;
               onChunk?.(j.delta);
             }
-            if (j.usage) onUsage?.(j.usage);
+            if (j.usage) { usage = j.usage; onUsage?.(j.usage); }
+            if (j.model) model = j.model;
+            if (j.provider) provider = j.provider;
           } catch {
             // Skip malformed or keepalive lines
           }
@@ -101,12 +109,17 @@ export async function think({ apiKey, messages, tools, onChunk, onUsage, signal 
     } finally {
       reader.releaseLock();
     }
-    return full;
+    return { text: full, usage, model, provider };
   }
 
   // Plain JSON response
   const data = await res.json();
-  return data.content || data.text || JSON.stringify(data);
+  return {
+    text: data.content || data.text || JSON.stringify(data),
+    usage: data.usage || null,
+    model: data.model || null,
+    provider: data.provider || null,
+  };
 }
 
 // ── Report tool result to cloud ───────────────────────────────────
@@ -134,4 +147,18 @@ export async function taskResult(apiKey, id, { result, steps }) {
 
 export async function postActivity(apiKey, type, detail, runId, agentId) {
   return apiFetch('/api/v1/agent/activity', { apiKey, body: b64Body({ type, detail, runId, agentId }) });
+}
+
+// ── Run trace lifecycle (deep insight: per-step usage, tokens, cost) ──
+// Best-effort: the task loop never depends on these succeeding.
+export async function runStart(apiKey, { runId, agentId, taskId, message }) {
+  return apiFetch('/api/v1/agent/runs', { apiKey, body: b64Body({ runId, agentId, taskId, message }) });
+}
+
+export async function runStep(apiKey, runId, step) {
+  return apiFetch(`/api/v1/agent/runs/${runId}/step`, { apiKey, body: b64Body(step) });
+}
+
+export async function runFinish(apiKey, runId, fin) {
+  return apiFetch(`/api/v1/agent/runs/${runId}/finish`, { apiKey, body: b64Body(fin) });
 }

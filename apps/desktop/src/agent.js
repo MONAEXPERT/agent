@@ -4,7 +4,7 @@
 // and streams everything back.
 
 import { EventEmitter } from 'node:events';
-import { think, pollTasks, claimTask, taskResult, postActivity } from './cloud.js';
+import { think, pollTasks, claimTask, taskResult, postActivity, runStart, runStep, runFinish } from './cloud.js';
 import { ControlChannel } from './control.js';
 import { tools } from './tools/index.js';
 import { security as shellSecurity } from './tools/shell.js';
@@ -49,9 +49,11 @@ function parseToolCall(text) {
   for (const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)) bodies.push(m[1]);
   for (const b of bodies) {
     const t = b.trim();
+    // Single object
     try {
       const o = JSON.parse(t);
-      if (o && typeof o === 'object' && typeof o.tool === 'string') return o;
+      if (o && typeof o === 'object' && !Array.isArray(o) && typeof o.tool === 'string') return [o];
+      if (Array.isArray(o) && o.length && o.every((x) => x && typeof x.tool === 'string')) return o;
     } catch { /* prose around it */ }
     let idx = 0;
     while ((idx = t.indexOf('"tool"', idx)) !== -1) {
@@ -61,7 +63,8 @@ function parseToolCall(text) {
         if (json) {
           try {
             const o = JSON.parse(json);
-            if (o && typeof o === 'object' && typeof o.tool === 'string') return o;
+            if (Array.isArray(o) && o.length && o.every((x) => x && typeof x.tool === 'string')) return o;
+            if (o && typeof o === 'object' && typeof o.tool === 'string') return [o];
           } catch { /* keep scanning */ }
         }
       }
@@ -200,10 +203,10 @@ export class AgentDaemon extends EventEmitter {
   }
 
   /** Report the result with retries so the cloud conversation is never left dangling. */
-  async #reportResult(cloudTask, result, steps) {
+  async #reportResult(cloudTask, result, steps, extra = {}) {
     for (let a = 1; a <= 3; a++) {
       try {
-        await taskResult(this.#creds.apiKey, cloudTask.id, { result, steps });
+        await taskResult(this.#creds.apiKey, cloudTask.id, { result, steps, ...extra });
         return;
       } catch (err) {
         log.warn(`Task result POST attempt ${a} failed: ${err.message}`);
@@ -239,6 +242,42 @@ export class AgentDaemon extends EventEmitter {
 
     const steps = [];
     let final = '';
+    const sngine = CLOUD.platform === 'sngine';
+    const t0 = Date.now();
+    const usageTotals = { input: 0, output: 0, total: 0, reasoning: 0, cacheRead: 0, cacheCreation: 0 };
+    let lastModel = '';
+    let lastProvider = '';
+    let traceStepNo = 0;
+
+    // Best-effort deep-insight reporting — the loop never depends on it.
+    const trace = async (kind, extra) => {
+      if (!sngine || !runId) return;
+      traceStepNo += 1;
+      try {
+        await runStep(this.#creds.apiKey, runId, { stepNo: traceStepNo, kind, ...extra });
+      } catch (err) {
+        log.debug(`runStep ${kind} failed: ${err.message}`);
+      }
+    };
+    const addUsage = (u) => {
+      if (!u) return;
+      usageTotals.input += +u.input || 0;
+      usageTotals.output += +u.output || 0;
+      usageTotals.total += +u.total || 0;
+      usageTotals.reasoning += +u.reasoning || 0;
+      usageTotals.cacheRead += +u.cacheRead || 0;
+      usageTotals.cacheCreation += +u.cacheCreation || 0;
+    };
+
+    if (sngine && runId) {
+      try {
+        await runStart(this.#creds.apiKey, {
+          runId, agentId: this.#creds.agentId, taskId: cloudTask?.id ?? 0, message: task,
+        });
+      } catch (err) {
+        log.debug(`runStart failed: ${err.message}`);
+      }
+    }
 
     try {
       if (CLOUD.platform === 'docker') {
@@ -257,10 +296,26 @@ export class AgentDaemon extends EventEmitter {
 
         let corrections = 0;
         for (let i = 0; i < MAX_ITERS; i++) {
-          const answer = await this.#thinkWithRetry(messages, runId);
-          const toolCall = parseToolCall(answer);
+          const tThink = Date.now();
+          const thinkRes = await this.#thinkWithRetry(messages, runId);
+          const answer = thinkRes.text ?? thinkRes ?? '';
+          const thinkMs = Date.now() - tThink;
+          if (thinkRes.usage) addUsage(thinkRes.usage);
+          if (thinkRes.model) lastModel = thinkRes.model;
+          if (thinkRes.provider) lastProvider = thinkRes.provider;
+          const toolCalls = parseToolCall(answer);
 
-          if (!toolCall) {
+          // Trace: the brain's raw reasoning step
+          await trace('think', {
+            summary: truncate(answer.trim().split('\n')[0] || answer, 500),
+            detail: truncate(answer, 6000),
+            model: thinkRes.model || '',
+            provider: thinkRes.provider || '',
+            usage: thinkRes.usage || null,
+            durationMs: thinkMs,
+          });
+
+          if (!toolCalls || !toolCalls.length) {
             const hasText = answer && answer.trim();
             const looksLikeAttempt = hasText && /"tool"\s*:/.test(answer);
             if (hasText && !looksLikeAttempt) { final = answer; break; }
@@ -275,47 +330,74 @@ export class AgentDaemon extends EventEmitter {
               : 'Your reply was empty. Either answer in plain text or emit ONE JSON tool call.';
             messages.push({ role: 'assistant', content: answer });
             messages.push({ role: 'user', content: hint });
+            await trace('correct', { summary: looksLikeAttempt ? 'malformed reply — corrective nudge' : 'empty reply — corrective nudge' });
             await postActivity(this.#creds.apiKey, 'auto.correct', { reason: looksLikeAttempt ? 'malformed' : 'empty', attempt: corrections }, runId, this.#creds.agentId).catch(() => {});
             continue;
           }
           corrections = 0;
 
-          // Execute the tool locally
-          steps.push({ type: 'tool.call', tool: toolCall.tool, args: toolCall.args });
-          this.#control.step('tool.call', { tool: toolCall.tool });
-          this.emit('tool:start', toolCall.tool, toolCall.args);
-          log.info(`Tool call: ${toolCall.tool}`);
-          await postActivity(this.#creds.apiKey, 'tool.call', { tool: toolCall.tool, args: toolCall.args }, runId, this.#creds.agentId).catch(() => {});
-
           messages.push({ role: 'assistant', content: answer });
 
-          let result;
-          try {
-            result = await tools.run(toolCall.tool, toolCall.args || {});
-          } catch (err) {
-            result = { error: err.message };
+          // Execute every requested tool (JSON arrays = multi-tool steps)
+          const resultLines = [];
+          for (const toolCall of toolCalls) {
+            steps.push({ type: 'tool.call', tool: toolCall.tool, args: toolCall.args });
+            this.#control.step('tool.call', { tool: toolCall.tool });
+            this.emit('tool:start', toolCall.tool, toolCall.args);
+            log.info(`Tool call: ${toolCall.tool}`);
+            await postActivity(this.#creds.apiKey, 'tool.call', { tool: toolCall.tool, args: toolCall.args }, runId, this.#creds.agentId).catch(() => {});
+            await trace('tool.call', { summary: toolCall.tool, detail: JSON.stringify(toolCall.args || {}, null, 2) });
+
+            const tTool = Date.now();
+            let result;
+            try {
+              result = await tools.run(toolCall.tool, toolCall.args || {});
+            } catch (err) {
+              result = { error: err.message };
+            }
+            this.#stats.toolCalls++;
+
+            const out = truncate(JSON.stringify(result), TOOL_OUT_MAX);
+            steps.push({ type: 'tool.result', tool: toolCall.tool, output: truncate(out, 400) });
+            await postActivity(this.#creds.apiKey, 'tool.result', { tool: toolCall.tool, output: truncate(out, 200) }, runId, this.#creds.agentId).catch(() => {});
+            await trace('tool.result', {
+              summary: truncate(out, 500),
+              detail: truncate(out, 4000),
+              durationMs: Date.now() - tTool,
+            });
+            log.info(`Tool result (${toolCall.tool}): ${truncate(out, 120)}`);
+
+            const failed = result && (result.error || result.exitCode);
+            if (failed) await this.#debugSnapshot(runId, `tool ${toolCall.tool} failed`);
+            resultLines.push(`TOOL RESULT (${toolCall.tool}):\n${out}`);
           }
-          this.#stats.toolCalls++;
 
-          const out = truncate(JSON.stringify(result), TOOL_OUT_MAX);
-          steps.push({ type: 'tool.result', tool: toolCall.tool, output: truncate(out, 400) });
-          await postActivity(this.#creds.apiKey, 'tool.result', { tool: toolCall.tool, output: truncate(out, 200) }, runId, this.#creds.agentId).catch(() => {});
-          log.info(`Tool result (${toolCall.tool}): ${truncate(out, 120)}`);
-
-          // Auto-debug: on tool error, give the brain a diagnostic nudge
-          const failed = result && (result.error || result.exitCode);
-          const debugHint = failed
-            ? `\n\nThe tool returned an error. Diagnose it, then either fix the call or use a different tool/approach. Do not give up — verify your fix by running it again.`
+          // Feed all results back together, with a diagnostic nudge on error
+          const anyFailed = resultLines.some((l) => /"error"|exitCode":[1-9]/.test(l));
+          const debugHint = anyFailed
+            ? `\n\nAt least one tool returned an error. Diagnose it, then either fix the call or use a different tool/approach. Do not give up — verify your fix by running it again.`
             : '';
-          messages.push({ role: 'user', content: `TOOL RESULT (${toolCall.tool}):\n${out}${debugHint}` });
-          if (failed) await this.#debugSnapshot(runId, `tool ${toolCall.tool} failed`);
+          messages.push({ role: 'user', content: resultLines.join('\n\n') + debugHint });
         }
 
         // Never give up: one forced plain-text conclusion when steps run out
         if (!final) {
           messages.push({ role: 'user', content: 'You must now answer in plain text. Summarize what you did, what the last tool result showed, and the current state. Do not call tools.' });
           try {
-            final = await this.#thinkWithRetry(messages, runId);
+            const tThink = Date.now();
+            const thinkRes = await this.#thinkWithRetry(messages, runId);
+            final = thinkRes.text ?? thinkRes ?? '';
+            if (thinkRes.usage) addUsage(thinkRes.usage);
+            if (thinkRes.model) lastModel = thinkRes.model;
+            if (thinkRes.provider) lastProvider = thinkRes.provider;
+            await trace('final', {
+              summary: truncate(final, 500),
+              detail: truncate(final, 6000),
+              model: thinkRes.model || '',
+              provider: thinkRes.provider || '',
+              usage: thinkRes.usage || null,
+              durationMs: Date.now() - tThink,
+            });
           } catch {
             final = 'The agent hit its step limit. See the activity feed for the full execution trace.';
           }
@@ -329,7 +411,21 @@ export class AgentDaemon extends EventEmitter {
       log.error(`Think failed: ${err.message}`);
       await this.#debugSnapshot(runId, 'task error: ' + err.message);
       const msg = `I hit an error and could not complete the task: ${err.message}. A debug snapshot was captured — retry the request or check the activity feed.`;
-      if (cloudTask) await this.#reportResult(cloudTask, msg, steps);
+      if (sngine && runId) {
+        try {
+          await runFinish(this.#creds.apiKey, runId, {
+            status: 'failed',
+            error: truncate(err.message, 2000),
+            model: lastModel,
+            provider: lastProvider,
+            usage: usageTotals,
+            durationMs: Date.now() - t0,
+          });
+        } catch (fe) {
+          log.debug(`runFinish failed: ${fe.message}`);
+        }
+      }
+      if (cloudTask) await this.#reportResult(cloudTask, msg, steps, { runId, usage: usageTotals, model: lastModel, provider: lastProvider });
       return;
     }
 
@@ -338,7 +434,20 @@ export class AgentDaemon extends EventEmitter {
 
     this.#currentTask = null;
     if (cloudTask) {
-      await this.#reportResult(cloudTask, final, steps);
+      await this.#reportResult(cloudTask, final, steps, { runId, usage: usageTotals, model: lastModel, provider: lastProvider });
+    }
+    if (sngine && runId) {
+      try {
+        await runFinish(this.#creds.apiKey, runId, {
+          status: 'done',
+          model: lastModel,
+          provider: lastProvider,
+          usage: usageTotals,
+          durationMs: Date.now() - t0,
+        });
+      } catch (fe) {
+        log.debug(`runFinish failed: ${fe.message}`);
+      }
     }
     this.#control.result(runId, { text: final });
     this.#control.step('task.done', { runId, tokens: final.length, chars: final.length });
