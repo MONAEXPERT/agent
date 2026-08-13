@@ -12,8 +12,13 @@ import { CLOUD } from './config.js';
 import { log } from './log.js';
 
 const MAX_ITERS = 8;         // max tool steps per task
+const MAX_RETRIES = 3;       // transient failures (network, 429, 5xx)
+const MAX_CORRECTIONS = 2;   // malformed/empty brain replies per task
 const TASK_POLL_MS = 2000;   // sngine platform: poll the cloud task queue
 const TOOL_OUT_MAX = 4000;   // chars of tool output fed back to the brain
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const RETRIABLE = /429|5\d\d|fetch failed|network|ECONN|ETIMEDOUT|socket|timeout/i;
 
 function truncate(s, n) {
   s = String(s ?? '');
@@ -166,6 +171,61 @@ export class AgentDaemon extends EventEmitter {
   }
 
   // ── Task execution (cloud reasoning + local tools) ──────────────
+  /** think() with auto-retry for transient failures — fail is never allowed. */
+  async #thinkWithRetry(messages, runId) {
+    let lastErr = null;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        return await think({
+          apiKey:  this.#creds.apiKey,
+          messages,
+          tools:   tools.list(),
+          onChunk: (delta) => {
+            this.#control.token(delta, runId);
+            this.emit('task:token', delta, runId);
+          },
+          onUsage: (usage) => this.emit('task:usage', usage),
+        });
+      } catch (err) {
+        lastErr = err;
+        const msg = String(err?.message || err);
+        const retriable = RETRIABLE.test(msg);
+        log.warn(`Think attempt ${attempt}/${MAX_RETRIES} failed: ${msg}`);
+        await postActivity(this.#creds.apiKey, 'auto.retry', { attempt, error: msg.slice(0, 200) }, runId, this.#creds.agentId).catch(() => {});
+        if (!retriable || attempt === MAX_RETRIES) throw err;
+        await sleep(500 * attempt + Math.random() * 400);
+      }
+    }
+    throw lastErr ?? new Error('think failed');
+  }
+
+  /** Report the result with retries so the cloud conversation is never left dangling. */
+  async #reportResult(cloudTask, result, steps) {
+    for (let a = 1; a <= 3; a++) {
+      try {
+        await taskResult(this.#creds.apiKey, cloudTask.id, { result, steps });
+        return;
+      } catch (err) {
+        log.warn(`Task result POST attempt ${a} failed: ${err.message}`);
+        await sleep(800 * a);
+      }
+    }
+    log.error('Could not report task result to cloud');
+  }
+
+  /** Auto-debug: capture a system snapshot when things go wrong. */
+  async #debugSnapshot(runId, why) {
+    try {
+      const info = await tools.run('sysinfo', {});
+      const uname = await tools.run('shell', { cmd: 'uname -a && which node && node -v' });
+      await postActivity(this.#creds.apiKey, 'auto.debug', {
+        why,
+        sysinfo: truncate(JSON.stringify(info), 300),
+        uname: truncate(JSON.stringify(uname), 300),
+      }, runId, this.#creds.agentId).catch(() => {});
+    } catch { /* never break the task for debugging */ }
+  }
+
   async #runTask(task, runId, cloudTask = null) {
     if (!task) {
       this.#control.result(runId, { error: 'No task provided' });
@@ -195,21 +255,30 @@ export class AgentDaemon extends EventEmitter {
           { role: 'user', content: task },
         ];
 
+        let corrections = 0;
         for (let i = 0; i < MAX_ITERS; i++) {
-          const answer = await think({
-            apiKey:  this.#creds.apiKey,
-            messages,
-            tools:   tools.list(),
-            onChunk: (delta) => {
-              this.#control.token(delta, runId);
-              this.emit('task:token', delta, runId);
-            },
-            onUsage: (usage) => this.emit('task:usage', usage),
-          });
-
+          const answer = await this.#thinkWithRetry(messages, runId);
           const toolCall = parseToolCall(answer);
 
-          if (!toolCall) { final = answer; break; }
+          if (!toolCall) {
+            const hasText = answer && answer.trim();
+            const looksLikeAttempt = hasText && /"tool"\s*:/.test(answer);
+            if (hasText && !looksLikeAttempt) { final = answer; break; }
+            // empty or malformed → corrective nudge (auto-reasoning)
+            if (corrections >= MAX_CORRECTIONS) {
+              final = hasText ? answer : 'The brain produced no usable reply. Check the activity feed for the trace.';
+              break;
+            }
+            corrections++;
+            const hint = looksLikeAttempt
+              ? 'Your last message was not valid JSON. Reply with ONLY one JSON object: {"tool":"<tool name>","args":{...}} — or plain text if you are done.'
+              : 'Your reply was empty. Either answer in plain text or emit ONE JSON tool call.';
+            messages.push({ role: 'assistant', content: answer });
+            messages.push({ role: 'user', content: hint });
+            await postActivity(this.#creds.apiKey, 'auto.correct', { reason: looksLikeAttempt ? 'malformed' : 'empty', attempt: corrections }, runId, this.#creds.agentId).catch(() => {});
+            continue;
+          }
+          corrections = 0;
 
           // Execute the tool locally
           steps.push({ type: 'tool.call', tool: toolCall.tool, args: toolCall.args });
@@ -233,10 +302,24 @@ export class AgentDaemon extends EventEmitter {
           await postActivity(this.#creds.apiKey, 'tool.result', { tool: toolCall.tool, output: truncate(out, 200) }, runId, this.#creds.agentId).catch(() => {});
           log.info(`Tool result (${toolCall.tool}): ${truncate(out, 120)}`);
 
-          messages.push({ role: 'user', content: `TOOL RESULT (${toolCall.tool}):\n${out}` });
+          // Auto-debug: on tool error, give the brain a diagnostic nudge
+          const failed = result && (result.error || result.exitCode);
+          const debugHint = failed
+            ? `\n\nThe tool returned an error. Diagnose it, then either fix the call or use a different tool/approach. Do not give up — verify your fix by running it again.`
+            : '';
+          messages.push({ role: 'user', content: `TOOL RESULT (${toolCall.tool}):\n${out}${debugHint}` });
+          if (failed) await this.#debugSnapshot(runId, `tool ${toolCall.tool} failed`);
         }
 
-        if (!final) final = 'I ran out of steps — the last tool results are above.';
+        // Never give up: one forced plain-text conclusion when steps run out
+        if (!final) {
+          messages.push({ role: 'user', content: 'You must now answer in plain text. Summarize what you did, what the last tool result showed, and the current state. Do not call tools.' });
+          try {
+            final = await this.#thinkWithRetry(messages, runId);
+          } catch {
+            final = 'The agent hit its step limit. See the activity feed for the full execution trace.';
+          }
+        }
       }
     } catch (err) {
       this.#stats.errors++;
@@ -244,8 +327,9 @@ export class AgentDaemon extends EventEmitter {
       this.#control.step('task.error', { error: err.message });
       this.emit('task:error', err);
       log.error(`Think failed: ${err.message}`);
-      const msg = `Error: ${err.message}`;
-      if (cloudTask) await taskResult(this.#creds.apiKey, cloudTask.id, { result: msg, steps }).catch(() => {});
+      await this.#debugSnapshot(runId, 'task error: ' + err.message);
+      const msg = `I hit an error and could not complete the task: ${err.message}. A debug snapshot was captured — retry the request or check the activity feed.`;
+      if (cloudTask) await this.#reportResult(cloudTask, msg, steps);
       return;
     }
 
@@ -254,7 +338,7 @@ export class AgentDaemon extends EventEmitter {
 
     this.#currentTask = null;
     if (cloudTask) {
-      await taskResult(this.#creds.apiKey, cloudTask.id, { result: final, steps }).catch(() => {});
+      await this.#reportResult(cloudTask, final, steps);
     }
     this.#control.result(runId, { text: final });
     this.#control.step('task.done', { runId, tokens: final.length, chars: final.length });

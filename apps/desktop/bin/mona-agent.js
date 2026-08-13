@@ -311,6 +311,14 @@ async function gui() {
 
 // ── start (headless) ──────────────────────────────────────────────
 async function start() {
+  // Fail is never allowed: the daemon logs and survives unexpected errors.
+  process.on('uncaughtException', (err) => {
+    process.stderr.write(`  ${YELLOW}⚠ uncaught: ${err?.message || err}${RESET}\n`);
+  });
+  process.on('unhandledRejection', (err) => {
+    process.stderr.write(`  ${YELLOW}⚠ unhandled rejection: ${String(err?.message || err)}${RESET}\n`);
+  });
+
   const creds = requireCreds();
 
   console.log(`\n  ${BOLD}${CYAN}mona-agent${RESET} ${DIM}v${DEFAULTS.version}${RESET}`);
