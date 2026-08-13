@@ -1,8 +1,8 @@
-# mona-agent — the cloud-brained AI agent for your device ⚡
+# mona-agent — your computer, with a brain in the cloud ⚡
 
 <p align="center">
-  <strong>An open-source AI agent that lives on your Mac or Linux machine.<br/>
-  Chat with it, let it run commands, manage files — from any device, anywhere.</strong>
+  <strong>The open-source AI agent that lives on your machine.<br/>
+  Talk to it from anywhere. It reads, it runs, it fixes — and it never gives up.</strong>
 </p>
 
 <p align="center">
@@ -11,151 +11,142 @@
   <a href="https://github.com/MONAEXPERT/agent/actions"><img src="https://img.shields.io/badge/tests-26%2F26-passing-brightgreen.svg" alt="Tests: 26/26 passing"></a>
   <a href="https://github.com/MONAEXPERT/agent/blob/main/package.json"><img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 runtime dependency"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-informational.svg" alt="Platforms: macOS, Linux, WSL2">
-  <img src="https://img.shields.io/badge/cloud-agent.mona.expert-blueviolet.svg" alt="Cloud: agent.mona.expert">
 </p>
 
 ---
 
-## What is mona-agent?
+## The story
 
-**mona-agent** is a lightweight, headless **AI agent daemon** that runs on your
-computer. It connects to the mona.expert cloud, receives commands from your
-dashboard or chat, executes **local tools** (files, shell, network, system
-info), and streams the results back in real time.
+Most AI assistants live in a chat window. They can write you a script — but
+they can't run it. They can explain a crash — but they can't look at your
+logs. They know everything about your code and nothing about your machine.
 
-Think of it as a **smart terminal for your machine** — an AI assistant with
-hands. You can be at the office and ask your Mac at home to check disk space,
-restart a service, or find a file. The agent does it and answers.
+**mona-agent is the other half.** It's a small, fast daemon that lives on
+your computer — macOS, Linux, WSL2 — and connects it to a brain in the
+cloud. You talk to it from your dashboard or your phone; it reasons about
+the task, then *actually does it*: checks disk space, restarts a service,
+finds a file, opens an app, runs a cleanup. And it streams every step back
+so you can watch it think and act in real time.
 
-**No AI API keys ever live on your device.** All reasoning happens in the
-cloud. Your device is a secure, capable pair of hands.
+It's the difference between an advisor and an employee. One tells you what
+to do. The other just gets it done.
 
 ```
-  Your Device                           mona.expert Cloud (SaaS)
+  Your Device                           mona.expert Cloud
   +-------------------+                +----------------------------+
-  |   mona-agent      |                |  Dashboard (agent.mona.expert)
-  |                   |--- HTTPS ----+ |  Agent orchestration
-  |  * Terminal UI    |               |  AI engine (the brain)
-  |  * File tools     |<-- commands --+  Chat & history
-  |  * Shell guard    |               |  API key vault (AES-256)
-  |  * Network tools  |-- metrics --->+  Live device monitoring
-  |  * System info    |-- results --->+  Audit log
+  |   mona-agent      |                |  Dashboard & chat          |
+  |                   |--- HTTPS ----+ |  AI engine (the brain)     |
+  |  * executes tools |<-- commands --+ |  Agent orchestration       |
+  |  * streams metrics|               |  Key vault (AES-256)        |
+  |  * terminal UI    |-- results --->+ |  Live device monitoring    |
   +-------------------+                +----------------------------+
 ```
 
-## Why mona-agent?
+## What it can do
 
-- 🖥 **Remote control with AI** — chat with your computer from anywhere, or
-  let the cloud agent act on its own
-- 🔄 **Agentic execution loop** — the brain plans, the device acts:
-  think → act → observe → deliver, streamed live to your dashboard
-- 🔐 **Zero secrets on the device** — no OpenAI/Anthropic/Google keys are
-  stored locally; they live in the encrypted cloud vault
-- ⚡ **Terminal-native** — a fast TUI dashboard with live log streaming,
-  or a fully headless daemon mode
-- 🛠 **Real tools, real actions** — files, shell commands, network checks,
-  system metrics
-- 📊 **Live device monitoring** — CPU, RAM, disk, load, uptime streamed to
-  your dashboard every 10 seconds
-- 📦 **One command install** — no build step, single runtime dependency
-  (`ws`), works on macOS, Linux and WSL2
-- 🆓 **Free and open source** — MIT licensed
+- 🖥 **Operate your computer from anywhere** — ask from your phone: *"how's
+  the disk looking?"*, *"restart nginx"*, *"open Safari"*
+- 🔄 **Think → act → observe → deliver** — a real agentic loop: the cloud
+  brain plans, the device executes local tools, results flow back, and the
+  answer lands in your chat — up to 8 tool steps per task
+- 🛡 **Fail is never allowed** — transient errors retry automatically,
+  failed commands trigger self-diagnosis and a smarter second attempt,
+  and every task ends with an answer
+- 🔐 **Zero secrets on the device** — no AI provider keys are stored
+  locally; they live in the encrypted cloud vault. One key. One brain.
+- 📊 **Live device monitoring** — CPU, memory, disk, load and uptime
+  streamed to your dashboard every 10 seconds, with history sparklines
+- ⚡ **Terminal-native** — a fast TUI with live logs, or a fully headless
+  daemon; one command installs it, one dependency powers it
+- 🆓 **Free and open source** — MIT licensed, forever
 
-## Quickstart — up and running in 60 seconds
+## Quickstart — 60 seconds
 
 ```bash
-# 1. Install (macOS / Linux / WSL2, needs Node.js 20+)
+# 1. Install (needs Node.js 20+)
 curl -fsSL https://agent.mona.expert/install.sh | bash
 
-# 2. Log in with your mona.expert API key
+# 2. Log in with your mona.expert key
 mona-agent login
 
-# 3. Start the terminal dashboard
+# 3. Start the terminal dashboard — or run headless
 mona-agent gui
-
-# …or run fully headless in the background
 mona-agent start
 ```
 
-Now open **<https://agent.mona.expert/dashboard>** — your device appears
-with live stats, and you can chat with it right from the browser.
+Then open **<https://agent.mona.expert/dashboard>** — your device appears
+with live stats, and you can chat with it from the browser.
 
 ## Usage
 
 ```bash
-mona-agent login                 # store your mona.expert API key
-mona-agent connect               # connect to the cloud control plane
-mona-agent gui                   # terminal dashboard (live log, status)
-mona-agent chat "Check disk usage and free up old logs"   # one-shot command
-mona-agent exec "uptime && df -h"                        # run a command
-mona-agent start                 # daemon mode (background, auto-reconnect)
+mona-agent login            # save your mona.expert key
+mona-agent connect          # test the connection end to end
+mona-agent gui              # terminal dashboard with live log
+mona-agent chat "free up disk space"     # one-shot conversation
+mona-agent exec "uptime && df -h"        # run a guarded command
+mona-agent start            # headless daemon with auto-reconnect
 ```
+
+In the dashboard chat, just talk normally:
+
+> *"Run `df -h` and tell me my disk usage."* ·
+> *"What's the load average?"* ·
+> *"Open Spotify and play some focus music."*
+
+The brain picks the tool, the device runs it, you get the result.
 
 ## Built-in tools
 
-| Tool      | What the agent can do with it                              |
-|-----------|------------------------------------------------------------|
-| `files`   | List, read, write, move, delete — confined to safe paths   |
-| `shell`   | Run commands through a guarded, allowlisted shell          |
-| `net`     | HTTP requests, connectivity checks, DNS lookups            |
-| `sysinfo` | CPU, memory, disk, load, uptime, platform, network info    |
+| Tool | What the agent can do with it |
+|------|-------------------------------|
+| `sysinfo` | CPU, memory, disk, load, uptime, host and platform details |
+| `shell` | Run commands — allowlisted by default, full shell opt-in |
+| `files` | List, read, write, move, delete — confined to safe paths |
+| `net` | HTTP(S) requests, DNS, connectivity checks |
 
 Full reference: **[docs/TOOLS.md](docs/TOOLS.md)**
 
-## How it works
+## Why mona-agent is different
 
-The daemon maintains a **control channel** to the cloud over HTTPS + WebSocket
-(where available). It streams device metrics every 10 seconds, receives
-**commands** from the cloud engine, executes them with the local tool
-sandbox, and streams results back. Read the full walkthrough in
-**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+| | Typical AI chat | mona-agent |
+|---|---|---|
+| Can it see your machine? | ❌ | ✅ live metrics & files |
+| Can it execute? | ❌ | ✅ sandboxed shell & tools |
+| Does it retry when things fail? | ❌ | ✅ auto-debug + retry loop |
+| Where do your API keys live? | on your disk | 🔐 encrypted cloud vault |
+| Install | app + account | one command, one dependency |
 
 ## FAQ
 
-**Is mona-agent free?** — Yes. The client is MIT licensed and free forever.
-The mona.expert cloud has a free tier at
+**Is mona-agent free?** — Yes. The client is MIT licensed and free
+forever; the cloud has a free tier at
 [agent.mona.expert](https://agent.mona.expert).
 
-**Does my API key get stored on the device?** — Only your mona.expert
-device token is stored locally (`~/.mona-agent/credentials.json`). AI
-provider keys live only in the cloud vault, AES-256 encrypted.
+**What data leaves my device?** — Only what the task requires: system
+metrics, and the results of commands you asked the agent to run. Nothing
+is sent to third parties. See **[docs/GDPR.md](docs/GDPR.md)**.
 
-**Can I run it on a server?** — Yes. Any Node.js 20+ machine works,
-including headless Linux servers and Raspberry Pi class devices.
+**Can it damage my machine?** — Commands are allowlisted by default, the
+file tool is confined to safe paths, and every action is recorded in the
+audit log. Full shell execution is an explicit opt-in.
 
-**What data leaves my device?** — Command results and system metrics, only
-to the mona.expert cloud you are logged into. See
-**[SECURITY.md](SECURITY.md)**.
-
-More answers: **[docs/FAQ.md](docs/FAQ.md)**
+**Does it run on servers?** — Any Node.js 20+ machine: headless Linux
+boxes, Raspberry Pis, home servers. See
+**[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)**.
 
 ## Documentation
 
 | Page | Contents |
 |------|----------|
 | [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) | Install, login, first steps, troubleshooting |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Daemon internals, control channel, metrics pipeline |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Daemon internals, agentic loop, metrics pipeline |
 | [docs/TOOLS.md](docs/TOOLS.md) | Tool-by-tool reference with examples |
 | [docs/EXAMPLES.md](docs/EXAMPLES.md) | Automation recipes — cron, watchdogs, backups |
 | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Cloud API, scheduling, boot persistence |
 | [docs/FAQ.md](docs/FAQ.md) | Frequently asked questions |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Release history |
 | [examples/](examples) | launchd & systemd units, health check script |
-| [SECURITY.md](SECURITY.md) | Security model & vulnerability reporting |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup, tests, conventions |
-
-## Development
-
-```bash
-git clone git@github.com:MONAEXPERT/agent.git
-cd agent
-npm install
-npm test            # 26 tests, 9 suites
-npm run gui         # run the dev build of the TUI
-```
-
-Requires Node.js ≥ 20. The codebase is plain modern JavaScript (ESM), no
-build step.
 
 ## Compliance & Trust
 
@@ -167,12 +158,11 @@ build step.
 
 - **[EU Cyber Resilience Act](docs/COMPLIANCE.md)** — SBOM, vulnerability
   handling, secure by design, coordinated disclosure
-- **[NIS2](docs/COMPLIANCE.md)** — TOMs, logging, incident support for
-  essential/important entities
+- **[NIS2](docs/COMPLIANCE.md)** — TOMs, logging, incident support
 - **[EU AI Act](docs/AI-ACT.md)** — limited-risk classification,
   transparency obligations implemented and documented
 - **[GDPR](docs/GDPR.md)** — data minimisation, Art. 30 record, DPA-ready
-- **[SBOM](docs/SBOM.md)** — CycloneDX, one runtime dependency
+- **[SBOM](docs/SBOM.md)** — CycloneDX 1.5, one runtime dependency
 
 ## Community
 
@@ -182,7 +172,20 @@ others discover the project.
 - 💬 [GitHub Discussions](https://github.com/MONAEXPERT/agent/discussions) — ideas, questions, show & tell
 - 🐛 [Issues](https://github.com/MONAEXPERT/agent/issues) — bugs and feature requests
 - 🌐 [agent.mona.expert](https://agent.mona.expert) — the cloud dashboard
-- 📄 [SECURITY.md](SECURITY.md) — responsible disclosure
+- 🔒 [SECURITY.md](SECURITY.md) — responsible disclosure
+
+## Development
+
+```bash
+git clone git@github.com:MONAEXPERT/agent.git
+cd agent
+npm install
+npm test            # 26 tests, 9 suites
+npm run gui         # run the dev build of the TUI
+```
+
+Requires Node.js ≥ 20. Plain modern JavaScript (ESM), no build step,
+one runtime dependency — deliberately small.
 
 ## License
 
