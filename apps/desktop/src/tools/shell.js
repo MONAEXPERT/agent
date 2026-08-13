@@ -3,7 +3,7 @@
 // Only allowlisted commands run by default.
 // Set MONA_ALLOW_CMDS to extend. Use MONA_SHELL_UNSAFE=1 to allow anything.
 
-import { exec } from 'node:child_process';
+import { exec, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import os from 'node:os';
 
@@ -50,7 +50,7 @@ export const security = {
   platform: PLATFORM,
 };
 
-// ── Per-OS command mapping (translate common unix → windows) ──────
+// ── Per-OS command mapping (translate common unix  windows) ──────
 const CMD_MAP_WIN32 = {
   ls: 'dir',
   cat: 'type',
@@ -98,8 +98,8 @@ const EXEC_OPTS = {
 // ── Tool definition ───────────────────────────────────────────────
 export const shell = {
   name: 'shell',
-  description: `Execute a shell command (${PLATFORM}; allowlisted by default; max 15s timeout)`,
-  args: { cmd: 'string — the command to run' },
+  description: `Execute a shell command (${PLATFORM}; allowlisted by default; max 15s timeout; background:true for GUI/long-running processes)`,
+  args: { cmd: 'string — the command to run', background: 'bool — optional, detach and return immediately (for GUI apps, servers, tkinter windows)' },
   platform: PLATFORM,
 
   async run(args) {
@@ -134,6 +134,24 @@ export const shell = {
     }
 
     try {
+      // Background mode: GUI apps / long-running processes (e.g. tkinter
+      // windows) must not block the task or die with the 15s timeout.
+      if (args.background) {
+        const child = spawn(cfg.shell, ['-c', cmd], {
+          detached: true,
+          stdio: 'ignore',
+          env: { ...process.env, PATH: cfg.path || process.env.PATH },
+        });
+        child.unref();
+        return {
+          exitCode: null,
+          pid: child.pid,
+          background: true,
+          note: 'Process started in background and detached from the agent.',
+          platform: PLATFORM,
+        };
+      }
+
       const { stdout, stderr } = await pexec(cmd, EXEC_OPTS);
       return {
         exitCode: 0,

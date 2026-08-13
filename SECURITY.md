@@ -7,8 +7,8 @@ the client-side security model and how to report vulnerabilities.
 
 | Version | Supported |
 |---|---|
-| 2.x (current) | ✅ |
-| < 2.0 | ❌ |
+| 2.x (current) |  |
+| < 2.0 |  |
 
 ## Security model
 

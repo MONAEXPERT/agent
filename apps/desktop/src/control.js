@@ -120,7 +120,7 @@ export class ControlChannel extends EventEmitter {
       } else if (msg.type === 'command') {
         this.emit('command', msg);
       } else if (CLOUD.platform === 'docker' && msg.type === 'chat') {
-        // Docker dashboard chat → same run flow as a command.
+        // Docker dashboard chat  same run flow as a command.
         this.emit('command', { action: 'run', runId: msg.requestId, payload: { task: msg.message } });
       } else if (msg.type === 'ping') {
         this.#send('pong', {});

@@ -15,7 +15,7 @@
 //   r             Force reconnect
 //   c             Clear activity log
 //   d             Toggle debug info
-//   ↑ / ↓         Scroll log
+//    /          Scroll log
 //   g / End        Jump to end of log (auto-follow on)
 //   h / ?         Show help + connect instructions
 
@@ -84,16 +84,16 @@ const ICON = {
   connected:    '●',
   disconnected: '○',
   thinking:     '◈',
-  done:         '✓',
-  error:        '✗',
-  tool:         '⚙',
-  arrow:        '↳',
+  done:         '',
+  error:        '',
+  tool:         '',
+  arrow:        '',
   task:         '▸',
   token:        '·',
   debug:        '…',
 };
 
-const PLATFORM_ICON = { darwin: '🍎', linux: '🐧', win32: '🪟' };
+const PLATFORM_ICON = { darwin: '', linux: '', win32: '' };
 const PLATFORM_LABEL = { darwin: 'macOS', linux: 'Linux', win32: 'Windows' };
 
 // ── Connection states ─────────────────────────────────────────────
@@ -574,7 +574,7 @@ export class Dashboard {
       `  ${ansi.fg.bGreen}c${ansi.reset}             Clear activity log`,
       `  ${ansi.fg.bGreen}d${ansi.reset}             Toggle debug info bar`,
       `  ${ansi.fg.bGreen}h${ansi.reset} / ${ansi.fg.bGreen}?${ansi.reset}      Show this help (any key to dismiss)`,
-      `  ${ansi.fg.bGreen}↑ / ↓${ansi.reset}         Scroll activity log`,
+      `  ${ansi.fg.bGreen} / ${ansi.reset}         Scroll activity log`,
       '',
       `  ${ansi.bold}Environment${ansi.reset}`,
       `  ${ansi.dim}Cloud:${ansi.reset}  ${CLOUD.base}`,
@@ -683,7 +683,7 @@ export class Dashboard {
   #logIcon(type) {
     switch (type) {
       case 'info':  return `${ansi.fg.bCyan}${ICON.connected}${ansi.reset}`;
-      case 'warn':  return `${ansi.fg.bYellow}⚠${ansi.reset}`;
+      case 'warn':  return `${ansi.fg.bYellow}${ansi.reset}`;
       case 'error': return `${ansi.fg.bRed}${ICON.error}${ansi.reset}`;
       case 'task':  return `${ansi.fg.bMagenta}${ICON.task}${ansi.reset}`;
       case 'done':  return `${ansi.fg.bGreen}${ICON.done}${ansi.reset}`;

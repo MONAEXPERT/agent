@@ -66,7 +66,7 @@ async function login() {
     console.log(`    ${CYAN}mona-agent gui${RESET}       ${DIM}# terminal dashboard${RESET}`);
     console.log(`    ${CYAN}mona-agent start${RESET}     ${DIM}# headless daemon${RESET}`);
     console.log(`    ${CYAN}mona-agent connect${RESET}   ${DIM}# test connection${RESET}`);
-    console.log(`\n  ${DIM}Enjoying it? ⭐ Star the repo:${RESET} https://github.com/MONAEXPERT/agent`);
+    console.log(`\n  ${DIM}Enjoying it?  Star the repo:${RESET} https://github.com/MONAEXPERT/agent`);
     console.log();
     rl.close();
   } catch (e) {
@@ -313,10 +313,10 @@ async function gui() {
 async function start() {
   // Fail is never allowed: the daemon logs and survives unexpected errors.
   process.on('uncaughtException', (err) => {
-    process.stderr.write(`  ${YELLOW}⚠ uncaught: ${err?.message || err}${RESET}\n`);
+    process.stderr.write(`  ${YELLOW} uncaught: ${err?.message || err}${RESET}\n`);
   });
   process.on('unhandledRejection', (err) => {
-    process.stderr.write(`  ${YELLOW}⚠ unhandled rejection: ${String(err?.message || err)}${RESET}\n`);
+    process.stderr.write(`  ${YELLOW} unhandled rejection: ${String(err?.message || err)}${RESET}\n`);
   });
 
   const creds = requireCreds();
@@ -324,7 +324,7 @@ async function start() {
   console.log(`\n  ${BOLD}${CYAN}mona-agent${RESET} ${DIM}v${DEFAULTS.version}${RESET}`);
   console.log(`  ${DIM}Headless daemon — controlled from ${CLOUD.base}${RESET}`);
   console.log(`  ${DIM}Log level: ${log.level || 'info'}${RESET}`);
-  console.log(`  ${DIM}⭐ ${RESET}${DIM}Star on GitHub:${RESET} https://github.com/MONAEXPERT/agent`);
+  console.log(`  ${DIM} ${RESET}${DIM}Star on GitHub:${RESET} https://github.com/MONAEXPERT/agent`);
   console.log();
 
   const daemon = new AgentDaemon(creds);
@@ -338,17 +338,17 @@ async function start() {
   });
 
   daemon.on('auth-failed', () => {
-    process.stderr.write(`  ${RED}✗ Authentication rejected by ${CLOUD.base}${RESET}\n`);
+    process.stderr.write(`  ${RED} Authentication rejected by ${CLOUD.base}${RESET}\n`);
     process.stderr.write(`  ${YELLOW}  Run ${CYAN}mona-agent login${RESET}${YELLOW} with a valid key, then retry.${RESET}\n`);
     process.exit(1);
   });
 
   daemon.on('task:done', (result) => {
-    process.stderr.write(`  ${GREEN}✓ Done (${result.tokens} tokens)${RESET}\n`);
+    process.stderr.write(`  ${GREEN} Done (${result.tokens} tokens)${RESET}\n`);
   });
 
   daemon.on('error', (err) => {
-    process.stderr.write(`  ${RED}✗ ${err.message}${RESET}\n`);
+    process.stderr.write(`  ${RED} ${err.message}${RESET}\n`);
   });
 
   const stop = () => {

@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com), versioning:
 - **Agentic execution loop** — the device is no longer a listener; it's an
   operator. Tasks from the dashboard flow into a cloud task queue, the
   device claims them within seconds, and the mona.expert brain plans the
-  work: think → act → observe → deliver. Up to 8 tool steps per task, with
+  work: think  act  observe  deliver. Up to 8 tool steps per task, with
   every step streamed to the dashboard activity feed in real time.
 - **Cloud task queue (WS-free command channel)** — devices poll for work
   every 2 s over HTTPS, so command execution works on every hosting

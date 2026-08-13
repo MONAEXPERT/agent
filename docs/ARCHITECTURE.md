@@ -21,8 +21,8 @@ mona-agent is a **headless Node.js daemon** with two jobs:
 │  │ ControlChannel│◄─►│ tools/     │  │      │  /api/v1/agent/stats        │
 │  │ (HTTPS + WS) │   │  files     │  │      │  /api/v1/agent/chat …        │
 │  │              │   │  shell     │  │      │                              │
-│  │  ↕ metrics   │   │  net       │  │      │  AI engine (the brain)       │
-│  │  ↕ commands  │   │  sysinfo   │  │      │  Dashboard + device overview │
+│  │   metrics   │   │  net       │  │      │  AI engine (the brain)       │
+│  │   commands  │   │  sysinfo   │  │      │  Dashboard + device overview │
 │  └──────────────┘   └────────────┘  │      │  Key vault (AES-256)         │
 │         │                           │      │  Audit log                   │
 │         ▼                           │      └──────────────────────────────┘
@@ -71,7 +71,7 @@ CLI, or the cloud queue):
 ```
         ┌───────────────────────────────────────────────────┐
         │                 mona.expert brain                │
-        │  reason → answer in text OR emit one tool call   │
+        │  reason  answer in text OR emit one tool call   │
         └───────────────┬───────────────────────▲──────────┘
            task (HTTPS) │                       │ tool result
         ┌───────────────▼───────────────────────┴──────────┐

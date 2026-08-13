@@ -1,5 +1,5 @@
 /**
- * mona.expert wire contract — the single source of truth for the device ↔ gateway
+ * mona.expert wire contract — the single source of truth for the device  gateway
  * WebSocket protocol. The daemon (apps/desktop) and the gateway (apps/gateway)
  * implement this; `test/protocol.test.mjs` fails if they drift apart.
  *
@@ -20,22 +20,22 @@ export const CLOSE_CODES = Object.freeze({
 export const isTerminalClose = (code) =>
   code === CLOSE_CODES.UNAUTHORIZED || code === CLOSE_CODES.REVOKED || code === CLOSE_CODES.PROTOCOL;
 
-/** Message types. `device →` frames are sent by the daemon; `gateway →` by the control plane. */
+/** Message types. `device ` frames are sent by the daemon; `gateway ` by the control plane. */
 export const TYPES = Object.freeze({
-  /* handshake (device →) */
+  /* handshake (device ) */
   HELLO: 'hello',
-  HELLO_OK: 'hello.ok',           // gateway → { heartbeatIntervalMs, permissions }
+  HELLO_OK: 'hello.ok',           // gateway  { heartbeatIntervalMs, permissions }
   /* registration */
-  REGISTER: 'register',           // device → device fingerprint / name
-  /* commands (gateway → device → gateway) */
-  COMMAND: 'command',             // gateway → { id, tool, args, timeoutMs, requestId }
-  COMMAND_RESULT: 'command.result', // device → { id, ok, output, error, durationMs }
-  COMMAND_ERROR: 'command.error',   // device → { id, error }
+  REGISTER: 'register',           // device  device fingerprint / name
+  /* commands (gateway  device  gateway) */
+  COMMAND: 'command',             // gateway  { id, tool, args, timeoutMs, requestId }
+  COMMAND_RESULT: 'command.result', // device  { id, ok, output, error, durationMs }
+  COMMAND_ERROR: 'command.error',   // device  { id, error }
   /* reasoning stream (device reports steps the engine asked it to take) */
-  AGENT_STEP: 'agent.step',       // device → { runId, name, detail }
-  AGENT_TOKEN: 'agent.token',     // device → { runId, text }   (kept for TUI streaming)
-  AGENT_RESULT: 'agent.result',   // device → { runId, ok, text, usage, error }
-  /* telemetry (device →) */
+  AGENT_STEP: 'agent.step',       // device  { runId, name, detail }
+  AGENT_TOKEN: 'agent.token',     // device  { runId, text }   (kept for TUI streaming)
+  AGENT_RESULT: 'agent.result',   // device  { runId, ok, text, usage, error }
+  /* telemetry (device ) */
   DEVICE_METRICS: 'device.metrics',
   /* liveness */
   PING: 'ping',

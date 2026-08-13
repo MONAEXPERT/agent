@@ -5,8 +5,8 @@ import { estimateTokens } from './sse.mjs';
  * (assertProductionReady refuses SIMULATED_ENGINE_ENABLED=true in prod).
  *
  * It is NOT a language model. It exercises the full engine loop offline:
- * gateway auth → conversation history → engine call → tool_calls → command →
- * device → tool result → engine continuation → streaming → usage → audit.
+ * gateway auth  conversation history  engine call  tool_calls  command 
+ * device  tool result  engine continuation  streaming  usage  audit.
  *
  * Tool-call trigger: a user message containing `tool: <name>` (e.g. `tool: sysinfo`)
  * issues one tool_call for the named device tool; the tool result is echoed into
@@ -34,7 +34,7 @@ function compose({ messages, system, agentName }) {
   lines.push(`The mona.expert engine would answer here and pick the model itself.`);
   lines.push(`Echo for verification: *${words.slice(0, 12).join(' ')}${words.length > 12 ? '…' : ''}*`);
   if (/hi|hello|hey/i.test(last)) {
-    lines.push('', 'Connected end to end: device → gateway → engine → back. Try `tool: sysinfo` to run a real command on the device.');
+    lines.push('', 'Connected end to end: device  gateway  engine  back. Try `tool: sysinfo` to run a real command on the device.');
   }
   return lines.join('\n');
 }

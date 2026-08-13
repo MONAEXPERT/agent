@@ -14,7 +14,7 @@ cloud has a free tier.
 ## Does mona-agent need an API key?
 
 It needs **one key**: your mona.expert device token (created in the
-dashboard → Settings). AI provider keys (OpenAI, Anthropic, …) live only in
+dashboard  Settings). AI provider keys (OpenAI, Anthropic, …) live only in
 the cloud vault — never on your device.
 
 ## Where is my key stored?

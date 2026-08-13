@@ -1,4 +1,4 @@
-# mona-agent — your computer, with a brain in the cloud ⚡
+# mona-agent — your computer, with a brain in the cloud 
 
 <p align="center">
   <strong>The open-source AI agent that lives on your machine.<br/>
@@ -44,21 +44,21 @@ to do. The other just gets it done.
 
 ## What it can do
 
-- 🖥 **Operate your computer from anywhere** — ask from your phone: *"how's
+-  **Operate your computer from anywhere** — ask from your phone: *"how's
   the disk looking?"*, *"restart nginx"*, *"open Safari"*
-- 🔄 **Think → act → observe → deliver** — a real agentic loop: the cloud
+-  **Think  act  observe  deliver** — a real agentic loop: the cloud
   brain plans, the device executes local tools, results flow back, and the
   answer lands in your chat — up to 8 tool steps per task
-- 🛡 **Fail is never allowed** — transient errors retry automatically,
+-  **Fail is never allowed** — transient errors retry automatically,
   failed commands trigger self-diagnosis and a smarter second attempt,
   and every task ends with an answer
-- 🔐 **Zero secrets on the device** — no AI provider keys are stored
+-  **Zero secrets on the device** — no AI provider keys are stored
   locally; they live in the encrypted cloud vault. One key. One brain.
-- 📊 **Live device monitoring** — CPU, memory, disk, load and uptime
+-  **Live device monitoring** — CPU, memory, disk, load and uptime
   streamed to your dashboard every 10 seconds, with history sparklines
-- ⚡ **Terminal-native** — a fast TUI with live logs, or a fully headless
+-  **Terminal-native** — a fast TUI with live logs, or a fully headless
   daemon; one command installs it, one dependency powers it
-- 🆓 **Free and open source** — MIT licensed, forever
+-  **Free and open source** — MIT licensed, forever
 
 ## Quickstart — 60 seconds
 
@@ -111,10 +111,10 @@ Full reference: **[docs/TOOLS.md](docs/TOOLS.md)**
 
 | | Typical AI chat | mona-agent |
 |---|---|---|
-| Can it see your machine? | ❌ | ✅ live metrics & files |
-| Can it execute? | ❌ | ✅ sandboxed shell & tools |
-| Does it retry when things fail? | ❌ | ✅ auto-debug + retry loop |
-| Where do your API keys live? | on your disk | 🔐 encrypted cloud vault |
+| Can it see your machine? |  |  live metrics & files |
+| Can it execute? |  |  sandboxed shell & tools |
+| Does it retry when things fail? |  |  auto-debug + retry loop |
+| Where do your API keys live? | on your disk |  encrypted cloud vault |
 | Install | app + account | one command, one dependency |
 
 ## FAQ
@@ -166,13 +166,13 @@ boxes, Raspberry Pis, home servers. See
 
 ## Community
 
-⭐ **Star the repo** if mona-agent is useful to you — it genuinely helps
+ **Star the repo** if mona-agent is useful to you — it genuinely helps
 others discover the project.
 
-- 💬 [GitHub Discussions](https://github.com/MONAEXPERT/agent/discussions) — ideas, questions, show & tell
-- 🐛 [Issues](https://github.com/MONAEXPERT/agent/issues) — bugs and feature requests
-- 🌐 [agent.mona.expert](https://agent.mona.expert) — the cloud dashboard
-- 🔒 [SECURITY.md](SECURITY.md) — responsible disclosure
+-  [GitHub Discussions](https://github.com/MONAEXPERT/agent/discussions) — ideas, questions, show & tell
+-  [Issues](https://github.com/MONAEXPERT/agent/issues) — bugs and feature requests
+-  [agent.mona.expert](https://agent.mona.expert) — the cloud dashboard
+-  [SECURITY.md](SECURITY.md) — responsible disclosure
 
 ## Development
 
@@ -194,4 +194,4 @@ MIT — see [LICENSE](LICENSE). Free forever.
 ---
 
 **[mona.expert](https://agent.mona.expert)** — one key, one brain, any
-device. ⚡
+device. 

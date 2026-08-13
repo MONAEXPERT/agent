@@ -41,7 +41,7 @@ describe('dashboard scroll', () => {
     text = await render(out);
     assert.ok(!text.includes('fill29 done'), 'scrolled away from the newest entry');
 
-    // New activity arrives → the view must snap back to the bottom.
+    // New activity arrives  the view must snap back to the bottom.
     agent.emit('tool:done', 'fresh', {});
     text = await render(out);
     assert.ok(text.includes('fresh done'), 'auto-follow pulled the view back to the newest entry');

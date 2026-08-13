@@ -9,7 +9,7 @@ have your machine connected to the cloud in under a minute.
   - macOS: `brew install node`
   - Ubuntu/Debian: `curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install nodejs`
   - Windows: use [WSL2](https://learn.microsoft.com/windows/wsl/install) (native Windows Git Bash works too)
-- An account + **API key** at [agent.mona.expert](https://agent.mona.expert/dashboard) → Settings.
+- An account + **API key** at [agent.mona.expert](https://agent.mona.expert/dashboard)  Settings.
 
 ## 2. Install
 
@@ -54,7 +54,7 @@ CPU, memory, disk and load — and a chat window connected to the cloud brain.
 | `mona-agent: command not found` | Re-open your terminal, or run `export PATH="$HOME/.local/bin:$PATH"` |
 | `Node.js 20+ required` | Upgrade Node (`brew upgrade node` / nodesource) |
 | Agent connects but dashboard shows no device | Confirm you ran `mona-agent login` with the key from your account |
-| Metrics stream, chat replies "No API key configured" | Add an AI provider key in the dashboard → Settings (the cloud brain needs one) |
+| Metrics stream, chat replies "No API key configured" | Add an AI provider key in the dashboard  Settings (the cloud brain needs one) |
 | Firewall / corporate proxy | Set `MONA_CLOUD=https://agent.mona.expert` and check HTTPS egress |
 
 ## Uninstall

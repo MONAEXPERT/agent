@@ -34,7 +34,7 @@ export class EngineClient {
 
   async authenticate(keyOverride) {
     const key = keyOverride || this.key;
-    if (!key) return { ok: false, detail: 'No mona.expert key is stored. Add it under Settings → Engine key.' };
+    if (!key) return { ok: false, detail: 'No mona.expert key is stored. Add it under Settings  Engine key.' };
     try {
       await this.request('/v1/health', { key, timeoutMs: 10000 });
       return { ok: true, detail: 'Engine reachable.' };

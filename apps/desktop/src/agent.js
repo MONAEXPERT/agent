@@ -264,7 +264,7 @@ export class AgentDaemon extends EventEmitter {
             const hasText = answer && answer.trim();
             const looksLikeAttempt = hasText && /"tool"\s*:/.test(answer);
             if (hasText && !looksLikeAttempt) { final = answer; break; }
-            // empty or malformed → corrective nudge (auto-reasoning)
+            // empty or malformed  corrective nudge (auto-reasoning)
             if (corrections >= MAX_CORRECTIONS) {
               final = hasText ? answer : 'The brain produced no usable reply. Check the activity feed for the trace.';
               break;
@@ -382,7 +382,11 @@ ${rows}
 How to use a tool — reply with ONLY one JSON object, nothing else:
 {"tool":"<tool name>","args":{...}}
 
-After each tool use you receive a TOOL RESULT message. Use another tool if needed, then answer in plain text. Never invent data you can read with a tool. Keep answers short and direct.`;
+Rules:
+- GUI apps, servers, and long-running programs (e.g. a Python tkinter window) MUST use the shell tool with "background":true so they keep running.
+- To create a Python GUI window, generate a tkinter script and run it with "python3 -c '...'" in the background.
+- Never invent data you can read with a tool. Keep answers short and direct.
+- If a command fails, diagnose and retry differently — never give up.`;
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────

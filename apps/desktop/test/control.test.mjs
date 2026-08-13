@@ -114,7 +114,7 @@ describe('control channel', () => {
     let flushed = false;
     quiet(ch);
     ch.connect();
-    ch.step('test', { n: 1 }); // sent before open → queued
+    ch.step('test', { n: 1 }); // sent before open  queued
 
     await new Promise((resolve) => {
       const timer = setInterval(() => {

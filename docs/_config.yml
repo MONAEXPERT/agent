@@ -1,5 +1,5 @@
 # GitHub Pages config for the docs site (optional)
-# Enable in repo Settings → Pages → Source: main /docs to publish
+# Enable in repo Settings  Pages  Source: main /docs to publish
 # at https://monaexpert.github.io/agent/
 title: mona-agent — cloud-brained AI agent for your device
 description: >-

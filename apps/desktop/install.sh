@@ -19,7 +19,7 @@ RED='\033[31m'
 RESET='\033[0m'
 
 echo ""
-echo -e "  ${BOLD}${CYAN}⚡ mona-agent${RESET} installer"
+echo -e "  ${BOLD}${CYAN} mona-agent${RESET} installer"
 echo -e "  ───────────────────────"
 echo ""
 
@@ -36,25 +36,25 @@ echo -e "  Platform: ${BOLD}$PLATFORM${RESET} ($ARCH)"
 
 # ── Prerequisites ───────────────────────────────────────────────
 command -v node >/dev/null 2>&1 || {
-  echo -e "  ${RED}✗${RESET} Node.js 20+ required — install from https://nodejs.org"
+  echo -e "  ${RED}${RESET} Node.js 20+ required — install from https://nodejs.org"
   exit 1
 }
 NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]")"
 if [ "$NODE_MAJOR" -lt 20 ]; then
-  echo -e "  ${RED}✗${RESET} Node.js 20+ required (found $(node -v))"
+  echo -e "  ${RED}${RESET} Node.js 20+ required (found $(node -v))"
   exit 1
 fi
-echo -e "  ${GREEN}✓${RESET} Node.js $(node -v)  |  npm $(npm -v)"
+echo -e "  ${GREEN}${RESET} Node.js $(node -v)  |  npm $(npm -v)"
 
 # ── Download ────────────────────────────────────────────────────
-echo -e "  ${DIM}→ Downloading ${REPO}@${BRANCH} from GitHub${RESET}"
+echo -e "  ${DIM} Downloading ${REPO}@${BRANCH} from GitHub${RESET}"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 curl -fsSL "https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz" \
   | tar xz -C "$TMP_DIR" --strip-components=1
 
 # ── Dependencies ────────────────────────────────────────────────
-echo -e "  ${DIM}→ Installing dependencies${RESET}"
+echo -e "  ${DIM} Installing dependencies${RESET}"
 ( cd "$TMP_DIR" && npm install --omit=dev --no-audit --no-fund --silent )
 
 # ── Copy into place (clean replace; config lives outside agent/) ─
@@ -98,9 +98,9 @@ if [ -z "$rc_touched" ] && [ ! -f "$HOME/.zshrc" ] && [ ! -f "$HOME/.bashrc" ] &
 fi
 
 echo ""
-echo -e "  ${GREEN}✅ mona-agent installed!${RESET}"
+echo -e "  ${GREEN} mona-agent installed!${RESET}"
 echo ""
-echo -e "  ${BOLD}Enjoying mona-agent?${RESET} ⭐ Star us on GitHub:"
+echo -e "  ${BOLD}Enjoying mona-agent?${RESET}  Star us on GitHub:"
 echo -e "  ${CYAN}https://github.com/MONAEXPERT/agent${RESET}"
 echo ""
 echo -e "  ${BOLD}Next steps:${RESET}"

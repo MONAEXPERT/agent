@@ -7,8 +7,10 @@ import { sysinfo } from './sysinfo.js';
 import { shell } from './shell.js';
 import { files } from './files.js';
 import { net } from './net.js';
+import { apps } from './apps.js';
+import { browser } from './browser.js';
 
-const BUILTIN = [sysinfo, shell, files, net];
+const BUILTIN = [sysinfo, shell, files, net, apps, browser];
 const TIMEOUT_MS = 30_000;
 
 class ToolRegistry {

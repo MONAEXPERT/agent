@@ -8,7 +8,7 @@ import { EventEmitter } from 'node:events';
 const LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 const COLORS = { debug: '\x1b[90m', info: '\x1b[36m', warn: '\x1b[33m', error: '\x1b[31m' };
 const RESET = '\x1b[0m';
-const ICONS = { debug: '·', info: '●', warn: '⚠', error: '✗' };
+const ICONS = { debug: '·', info: '●', warn: '', error: '' };
 
 class Logger extends EventEmitter {
   #level = LEVELS.info;
