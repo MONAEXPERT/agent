@@ -131,6 +131,33 @@ describe('tools/registry', () => {
 
 // ── Brain reply parser (reasoning protocol) ──────────────────────
 
+describe('persistent memory context', () => {
+  let loadMemoryContext;
+  before(async () => {
+    ({ loadMemoryContext } = await import('../src/agent.js'));
+  });
+
+  it('returns empty for a missing directory', () => {
+    assert.equal(loadMemoryContext('/nonexistent-dir-xyz'), '');
+  });
+
+  it('injects existing notes and caps length', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'mona-mem-test-'));
+    try {
+      writeFileSync(join(dir, 'prefs.md'), 'The user prefers German answers.');
+      const ctx = loadMemoryContext(dir, 500);
+      assert.ok(ctx.includes('prefs.md'));
+      assert.ok(ctx.includes('German'));
+      assert.ok(ctx.length <= 500 + 200);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('brain reply parser', () => {
   let parseBrainReply, parseToolCall, lenientStringField;
   before(async () => {

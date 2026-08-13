@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.3.0
+
+- Persistent memory injection — the brain loads your memory notes at every
+  task start and keeps them updated, so the agent gets smarter with each task
+- Few-shot exemplars in the system prompt — the reasoning protocol is shown
+  by example, improving JSON compliance and reasoning quality (~150 tokens)
+- Actor-critic verification — every final answer is checked by the strongest
+  available model, no matter which model did the actual work
+- Uncertainty rule — unverifiable facts are reported honestly instead of
+  guessed
+
 
 ## v2.2.0
 

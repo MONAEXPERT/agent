@@ -1,6 +1,6 @@
 {
   "name": "mona-expert",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "mona-agent — cloud-brained AI agent for your device. Open-source client: device daemon, terminal UI, local tools. Connects to the mona.expert cloud (agent.mona.expert).",
   "type": "module",
   "private": true,

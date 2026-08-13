@@ -4,6 +4,9 @@
 // and streams everything back.
 
 import { EventEmitter } from 'node:events';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { think, pollTasks, claimTask, taskResult, postActivity, runStart, runStep, runFinish } from './cloud.js';
 import { ControlChannel } from './control.js';
 import { tools } from './tools/index.js';
@@ -18,6 +21,28 @@ const TASK_POLL_MS = 2000;   // sngine platform: poll the cloud task queue
 const TOOL_OUT_MAX = 4000;   // chars of tool output fed back to the brain
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Load the persistent memory directory into a compact context block the
+ * brain sees at task start — facts, preferences and lessons accumulate
+ * across tasks and restarts. Capped to keep the prompt lean.
+ */
+export function loadMemoryContext(dir = process.env.MONA_MEMORY_DIR || join(homedir(), '.mona-agent', 'memory'), maxChars = 3000) {
+  try {
+    if (!existsSync(dir)) return '';
+    const files = readdirSync(dir).filter((f) => f.endsWith('.md')).sort();
+    if (!files.length) return '';
+    const parts = files.map((f) => {
+      try {
+        const raw = readFileSync(join(dir, f), 'utf8').trim();
+        return raw ? `[${f}] ${raw.slice(0, 800)}` : '';
+      } catch { return ''; }
+    }).filter(Boolean);
+    if (!parts.length) return '';
+    const ctx = parts.join('\n').slice(0, maxChars);
+    return `\n\n## Known context (persistent memory)\n${ctx}\n(Keep this up to date with the memory tool: save user preferences and important facts.)`;
+  } catch { return ''; }
+}
 const RETRIABLE = /429|5\d\d|fetch failed|network|ECONN|ETIMEDOUT|socket|timeout/i;
 
 function truncate(s, n) {
@@ -430,7 +455,8 @@ export class AgentDaemon extends EventEmitter {
       } else {
         // Sngine platform: agentic loop — brain reasons deeply:
         // plan → act (tools) → observe → reflect → answer → verify.
-        const systemPrompt = this.#toolsPrompt(cloudTask, brain);
+        const memoryCtx = loadMemoryContext();
+        const systemPrompt = this.#toolsPrompt(cloudTask, brain, memoryCtx);
         const messages = [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: task },
@@ -581,7 +607,7 @@ export class AgentDaemon extends EventEmitter {
             messages.push({ role: 'assistant', content: final });
             messages.push({ role: 'user', content: 'VERIFY: You are about to send this answer to the user. Check it against the tool results above: is every claim factual, complete and direct? If something is wrong or missing, fix it. Reply {"reasoning":"what you checked","answer":"<corrected or unchanged answer>"}.' });
             const tThink = Date.now();
-            const vRes = await this.#thinkWithRetry(messages, runId, { temperature: brain.temperature, profile: brain.profile });
+            const vRes = await this.#thinkWithRetry(messages, runId, { temperature: brain.temperature, profile: 'complex' });
             const vr = parseBrainReply(vRes.text ?? '');
             if (vr && vr.kind === 'answer' && vr.answer.trim()) final = vr.answer;
             else if (vr && vr.kind === 'text' && (vRes.text ?? '').trim()) final = vRes.text;
@@ -677,7 +703,7 @@ export class AgentDaemon extends EventEmitter {
     }
   }
 
-  #toolsPrompt(taskRow, brain = this.#brain) {
+  #toolsPrompt(taskRow, brain = this.#brain, memoryCtx = '') {
     const rows = tools.list()
       .map((t) => `- ${t.name}: ${t.description}${t.args ? ` (args: ${JSON.stringify(t.args)})` : ''}`)
       .join('\n');
@@ -691,8 +717,16 @@ Think before you act: what does the user actually want, what do you already know
 {"reasoning":"<why the goal is now satisfied>","answer":"<the final answer for the user>"}
 - Plain text is also accepted as a final answer. Never mix prose with JSON.
 
+## Examples (follow this format exactly)
+Task: "What is the uptime of this machine?"
+Reply: {"reasoning":"The user wants the current uptime. sysinfo provides it directly in one call.","tool":"sysinfo","args":{}}
+
+Task: "Say hello."
+Reply: {"reasoning":"No tools are needed — a direct answer satisfies the goal.","answer":"Hello! I am your agent on this machine."}
+
 ## Answer quality
 - Base every claim on actual tool results — never invent data you could have read.
+- If you cannot verify a fact with a tool, say so plainly instead of guessing.
 - Be direct and concise. State what you did and what you found.
 - If something failed, say what failed and what you tried instead.
 - If the goal is already satisfied, stop and answer instead of calling more tools.
@@ -708,6 +742,7 @@ Rules:
 - To create a Python GUI window, generate a tkinter script and run it with "python3 -c '...'" in the background.
 - Never invent data you can read with a tool. Keep answers short and direct.
 - If a command fails, diagnose and retry differently — never give up.`;
+    if (memoryCtx) p += memoryCtx;
     if (taskRow?.system_prompt) {
       p += `\n\n## Your role (set by the owner)\n${taskRow.system_prompt}`;
     }
