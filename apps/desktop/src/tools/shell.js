@@ -6,6 +6,8 @@
 import { exec, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import os from 'node:os';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const pexec = promisify(exec);
 
@@ -137,17 +139,22 @@ export const shell = {
       // Background mode: GUI apps / long-running processes (e.g. tkinter
       // windows) must not block the task or die with the 15s timeout.
       if (args.background) {
+        const logFile = path.join(os.homedir(), '.mona-agent', `bg-${Date.now()}.log`);
+        fs.mkdirSync(path.dirname(logFile), { recursive: true });
+        const out = fs.openSync(logFile, 'a');
         const child = spawn(cfg.shell, ['-c', cmd], {
           detached: true,
-          stdio: 'ignore',
+          stdio: ['ignore', out, out],
           env: { ...process.env, PATH: cfg.path || process.env.PATH },
         });
         child.unref();
+        fs.closeSync(out);
         return {
           exitCode: null,
           pid: child.pid,
           background: true,
-          note: 'Process started in background and detached from the agent.',
+          log: logFile,
+          note: 'Process started in background and detached from the agent. Output: ' + logFile,
           platform: PLATFORM,
         };
       }
