@@ -299,6 +299,7 @@ export class AgentDaemon extends EventEmitter {
     if (Number.isFinite(+brain.temperature)) this.#brain.temperature = Math.min(1, Math.max(0, +brain.temperature));
     if (typeof brain.extraRules === 'string') this.#brain.extraRules = brain.extraRules.slice(0, 2000);
     if (typeof brain.verify === 'boolean') this.#brain.verify = brain.verify;
+    if (typeof brain.mode === 'string') this.#brain.mode = brain.mode;
   }
 
   // ── Task execution (cloud reasoning + local tools) ──────────────
@@ -312,6 +313,7 @@ export class AgentDaemon extends EventEmitter {
           messages,
           tools:   tools.list(),
           temperature: opts.temperature ?? this.#brain.temperature,
+          profile: opts.profile ?? null,
           onChunk: (delta) => {
             this.#control.token(delta, runId);
             this.emit('task:token', delta, runId);
@@ -372,6 +374,16 @@ export class AgentDaemon extends EventEmitter {
     const steps = [];
     let final = '';
     const sngine = CLOUD.platform === 'sngine';
+    // Per-task brain: the cloud decides mode-aware settings for each task
+    // (auto = best of smart & cheap, computed server-side per task).
+    const brain = {
+      maxSteps: this.#brain.maxSteps,
+      temperature: this.#brain.temperature,
+      verify: this.#brain.verify,
+      extraRules: this.#brain.extraRules,
+      profile: null,
+      ...(cloudTask?.brain || {}),
+    };
     const t0 = Date.now();
     const usageTotals = { input: 0, output: 0, total: 0, reasoning: 0, cacheRead: 0, cacheCreation: 0 };
     let lastModel = '';
@@ -418,16 +430,16 @@ export class AgentDaemon extends EventEmitter {
       } else {
         // Sngine platform: agentic loop — brain reasons deeply:
         // plan → act (tools) → observe → reflect → answer → verify.
-        const systemPrompt = this.#toolsPrompt(cloudTask);
+        const systemPrompt = this.#toolsPrompt(cloudTask, brain);
         const messages = [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: task },
         ];
 
         let corrections = 0;
-        for (let i = 0; i < this.#brain.maxSteps; i++) {
+        for (let i = 0; i < brain.maxSteps; i++) {
           const tThink = Date.now();
-          const thinkRes = await this.#thinkWithRetry(messages, runId);
+          const thinkRes = await this.#thinkWithRetry(messages, runId, { temperature: brain.temperature, profile: brain.profile });
           const answer = thinkRes.text ?? thinkRes ?? '';
           const thinkMs = Date.now() - tThink;
           if (thinkRes.usage) addUsage(thinkRes.usage);
@@ -541,7 +553,7 @@ export class AgentDaemon extends EventEmitter {
           messages.push({ role: 'user', content: 'Step limit reached. Reply {"reasoning":"brief summary of what you did","answer":"..."} — or plain text. No more tools.' });
           try {
             const tThink = Date.now();
-            const thinkRes = await this.#thinkWithRetry(messages, runId);
+            const thinkRes = await this.#thinkWithRetry(messages, runId, { temperature: brain.temperature, profile: brain.profile });
             const r2 = parseBrainReply(thinkRes.text ?? '');
             if (r2 && r2.kind === 'answer') final = r2.answer;
             else if (r2 && r2.kind === 'text') final = r2.text;
@@ -564,12 +576,12 @@ export class AgentDaemon extends EventEmitter {
 
         // Self-verification pass: the brain re-checks its own answer against
         // the evidence before it reaches the user (fixes premature or sloppy answers).
-        if (final && this.#brain.verify) {
+        if (final && brain.verify) {
           try {
             messages.push({ role: 'assistant', content: final });
             messages.push({ role: 'user', content: 'VERIFY: You are about to send this answer to the user. Check it against the tool results above: is every claim factual, complete and direct? If something is wrong or missing, fix it. Reply {"reasoning":"what you checked","answer":"<corrected or unchanged answer>"}.' });
             const tThink = Date.now();
-            const vRes = await this.#thinkWithRetry(messages, runId);
+            const vRes = await this.#thinkWithRetry(messages, runId, { temperature: brain.temperature, profile: brain.profile });
             const vr = parseBrainReply(vRes.text ?? '');
             if (vr && vr.kind === 'answer' && vr.answer.trim()) final = vr.answer;
             else if (vr && vr.kind === 'text' && (vRes.text ?? '').trim()) final = vRes.text;
@@ -665,11 +677,10 @@ export class AgentDaemon extends EventEmitter {
     }
   }
 
-  #toolsPrompt(taskRow) {
+  #toolsPrompt(taskRow, brain = this.#brain) {
     const rows = tools.list()
       .map((t) => `- ${t.name}: ${t.description}${t.args ? ` (args: ${JSON.stringify(t.args)})` : ''}`)
       .join('\n');
-    const brain = this.#brain;
     let p = `You are mona-agent — the AI agent controlling this device (${process.platform}). You reason deeply and act precisely: plan, act, observe, reflect, then answer.
 
 ## Reasoning protocol

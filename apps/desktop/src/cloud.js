@@ -57,10 +57,10 @@ function b64Body(obj) {
 // onUsage(usage) — called with final token counts (if provided)
 // Returns { text, usage, model, provider } — usage is null when the
 // cloud did not report it (older server or plain JSON without usage).
-export async function think({ apiKey, messages, tools, onChunk, onUsage, signal, temperature }) {
+export async function think({ apiKey, messages, tools, onChunk, onUsage, signal, temperature, profile }) {
   const res = await apiFetch(P.think, {
     apiKey,
-    body: b64Body({ messages, tools, stream: true, temperature }),
+    body: b64Body({ messages, tools, stream: true, temperature, profile }),
     signal,
   });
 
