@@ -57,10 +57,10 @@ function b64Body(obj) {
 // onUsage(usage) — called with final token counts (if provided)
 // Returns { text, usage, model, provider } — usage is null when the
 // cloud did not report it (older server or plain JSON without usage).
-export async function think({ apiKey, messages, tools, onChunk, onUsage, signal }) {
+export async function think({ apiKey, messages, tools, onChunk, onUsage, signal, temperature }) {
   const res = await apiFetch(P.think, {
     apiKey,
-    body: b64Body({ messages, tools, stream: true }),
+    body: b64Body({ messages, tools, stream: true, temperature }),
     signal,
   });
 
@@ -131,10 +131,12 @@ export async function reportToolResult(apiKey, agentId, tool, result) {
 }
 
 // ── Cloud task queue (sngine platform — device polls for work) ────
+// The response carries the task rows plus the owner's brain config
+// (step budget, temperature, extra rules) so the loop can tune itself.
 export async function pollTasks(apiKey) {
   const res = await apiFetch('/api/v1/agent/tasks', { apiKey, method: 'GET' });
   const data = await res.json();
-  return data?.tasks || [];
+  return data || { tasks: [] };
 }
 
 export async function claimTask(apiKey, id) {

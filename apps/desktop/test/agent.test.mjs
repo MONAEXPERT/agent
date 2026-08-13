@@ -129,6 +129,66 @@ describe('tools/registry', () => {
   });
 });
 
+// ── Brain reply parser (reasoning protocol) ──────────────────────
+
+describe('brain reply parser', () => {
+  let parseBrainReply, parseToolCall;
+  before(async () => {
+    ({ parseBrainReply, parseToolCall } = await import('../src/agent.js'));
+  });
+
+  it('parses a plain tool call (legacy)', () => {
+    const calls = parseToolCall('{"tool":"shell","args":{"cmd":"uptime"}}');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].tool, 'shell');
+  });
+
+  it('parses fenced + prose-wrapped tool calls (legacy)', () => {
+    assert.equal(parseToolCall('Sure!\n```json\n{"tool":"sysinfo","args":{}}\n```').length, 1);
+    assert.equal(parseToolCall('I will run: {"tool":"shell","args":{"cmd":"df -h"}} now').length, 1);
+  });
+
+  it('parses multi-tool arrays (legacy)', () => {
+    const calls = parseToolCall('[{"tool":"sysinfo","args":{}},{"tool":"shell","args":{"cmd":"uptime"}}]');
+    assert.equal(calls.length, 2);
+  });
+
+  it('parses the reasoning protocol: tool with reasoning', () => {
+    const r = parseBrainReply('{"reasoning":"Need disk state first","tool":"shell","args":{"cmd":"df -h"}}');
+    assert.equal(r.kind, 'tools');
+    assert.equal(r.calls[0].tool, 'shell');
+    assert.equal(r.calls[0].reasoning, 'Need disk state first');
+  });
+
+  it('parses the reasoning protocol: final answer', () => {
+    const r = parseBrainReply('{"reasoning":"All facts collected","answer":"Disk is 40% full."}');
+    assert.equal(r.kind, 'answer');
+    assert.equal(r.answer, 'Disk is 40% full.');
+  });
+
+  it('treats plain text as a final answer', () => {
+    const r = parseBrainReply('Everything looks good.');
+    assert.equal(r.kind, 'text');
+    assert.equal(r.text, 'Everything looks good.');
+  });
+
+  it('rejects valid JSON with the wrong shape (→ corrective nudge)', () => {
+    assert.equal(parseBrainReply('{"foo":123}'), null);
+    assert.equal(parseBrainReply('[]'), null);
+  });
+
+  it('finds embedded answer objects in prose', () => {
+    const r = parseBrainReply('Done. Here you go: {"reasoning":"verified","answer":"Hi Mona"}.');
+    assert.equal(r.kind, 'answer');
+    assert.equal(r.answer, 'Hi Mona');
+  });
+
+  it('handles empty input', () => {
+    assert.equal(parseBrainReply(''), null);
+    assert.equal(parseBrainReply(null), null);
+  });
+});
+
 // ── Config tests ──────────────────────────────────────────────────
 
 describe('config', () => {

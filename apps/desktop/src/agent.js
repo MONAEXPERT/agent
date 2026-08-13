@@ -26,7 +26,7 @@ function truncate(s, n) {
 }
 
 /** Extract a {tool, args} JSON call from a model reply (plain, fenced, or with prose around it). */
-function extractBalancedJson(s, start) {
+export function extractBalancedJson(s, start) {
   let depth = 0, inStr = false, esc = false;
   for (let i = start; i < s.length; i++) {
     const c = s[i];
@@ -43,7 +43,8 @@ function extractBalancedJson(s, start) {
   return null;
 }
 
-function parseToolCall(text) {
+/** Legacy parser: extract tool calls from a model reply. */
+export function parseToolCall(text) {
   if (!text) return null;
   const bodies = [text];
   for (const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)) bodies.push(m[1]);
@@ -74,6 +75,78 @@ function parseToolCall(text) {
   return null;
 }
 
+/**
+ * Reasoning-protocol parser: the brain answers in one of three shapes:
+ *   {reasoning, tool, args}      → {kind:'tools',  calls:[...]}
+ *   {reasoning, answer}          → {kind:'answer', answer, reasoning}
+ *   plain text                   → {kind:'text',   text}
+ *   valid JSON, wrong shape      → null (malformed → corrective nudge)
+ *   prose wrapping any of those  → detected via balanced-brace extraction
+ */
+export function parseBrainReply(text) {
+  if (!text) return null;
+  const bodies = [text];
+  for (const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)) bodies.push(m[1]);
+
+  const classify = (o) => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+    if (Array.isArray(o.tool) && o.tool.length && o.tool.every((x) => x && typeof x.tool === 'string')) {
+      return { kind: 'tools', calls: o.tool };
+    }
+    if (typeof o.tool === 'string') return { kind: 'tools', calls: [o] };
+    if (typeof o.answer === 'string') {
+      return { kind: 'answer', answer: o.answer, reasoning: typeof o.reasoning === 'string' ? o.reasoning : '' };
+    }
+    return null;
+  };
+
+  for (const b of bodies) {
+    const t = b.trim();
+    // Whole body is JSON
+    try {
+      const o = JSON.parse(t);
+      if (o && typeof o === 'object' && !Array.isArray(o)) {
+        const c = classify(o);
+        if (c) return c;
+        return null; // valid JSON but not tool/answer shaped → malformed
+      }
+      if (Array.isArray(o)) return null; // a bare JSON array is never a valid reply
+    } catch { /* scan for embedded JSON */ }
+
+    // Scan for embedded tool objects
+    let idx = 0;
+    while ((idx = t.indexOf('"tool"', idx)) !== -1) {
+      const start = t.lastIndexOf('{', idx);
+      if (start !== -1) {
+        const json = extractBalancedJson(t, start);
+        if (json) {
+          try {
+            const c = classify(JSON.parse(json));
+            if (c) return c;
+          } catch { /* keep scanning */ }
+        }
+      }
+      idx += 5;
+    }
+    // Scan for embedded answer objects
+    let ai = 0;
+    while ((ai = t.indexOf('"answer"', ai)) !== -1) {
+      const start = t.lastIndexOf('{', ai);
+      if (start !== -1) {
+        const json = extractBalancedJson(t, start);
+        if (json) {
+          try {
+            const c = classify(JSON.parse(json));
+            if (c) return c;
+          } catch { /* keep scanning */ }
+        }
+      }
+      ai += 6;
+    }
+  }
+  return { kind: 'text', text };
+}
+
 export class AgentDaemon extends EventEmitter {
   #creds;
   #control;
@@ -82,6 +155,8 @@ export class AgentDaemon extends EventEmitter {
   #currentTask = null;
   #taskPoll = null;
   #polling = false;
+  // Owner-configurable reasoning profile (set from the cloud per poll).
+  #brain = { maxSteps: 8, temperature: 0.4, extraRules: '', verify: true };
 
   constructor(creds) {
     super();
@@ -160,7 +235,9 @@ export class AgentDaemon extends EventEmitter {
     if (this.#polling) return;
     this.#polling = true;
     try {
-      const tasks = await pollTasks(this.#creds.apiKey);
+      const data = await pollTasks(this.#creds.apiKey);
+      this.#mergeBrain(data.brain);
+      const tasks = data.tasks || [];
       for (const t of tasks) {
         if (t.status !== 'pending') continue;
         try { await claimTask(this.#creds.apiKey, t.id); } catch { /* already claimed */ }
@@ -173,9 +250,18 @@ export class AgentDaemon extends EventEmitter {
     }
   }
 
+  /** Merge the owner's brain config from the cloud (clamped, safe defaults). */
+  #mergeBrain(brain) {
+    if (!brain || typeof brain !== 'object') return;
+    if (Number.isFinite(+brain.maxSteps)) this.#brain.maxSteps = Math.min(16, Math.max(2, +brain.maxSteps));
+    if (Number.isFinite(+brain.temperature)) this.#brain.temperature = Math.min(1, Math.max(0, +brain.temperature));
+    if (typeof brain.extraRules === 'string') this.#brain.extraRules = brain.extraRules.slice(0, 2000);
+    if (typeof brain.verify === 'boolean') this.#brain.verify = brain.verify;
+  }
+
   // ── Task execution (cloud reasoning + local tools) ──────────────
   /** think() with auto-retry for transient failures — fail is never allowed. */
-  async #thinkWithRetry(messages, runId) {
+  async #thinkWithRetry(messages, runId, opts = {}) {
     let lastErr = null;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -183,6 +269,7 @@ export class AgentDaemon extends EventEmitter {
           apiKey:  this.#creds.apiKey,
           messages,
           tools:   tools.list(),
+          temperature: opts.temperature ?? this.#brain.temperature,
           onChunk: (delta) => {
             this.#control.token(delta, runId);
             this.emit('task:token', delta, runId);
@@ -287,15 +374,16 @@ export class AgentDaemon extends EventEmitter {
         final = res.content || '';
         this.#messages.push({ role: 'assistant', content: final });
       } else {
-        // Sngine platform: agentic loop — brain reasons, device executes.
-        const systemPrompt = this.#toolsPrompt();
+        // Sngine platform: agentic loop — brain reasons deeply:
+        // plan → act (tools) → observe → reflect → answer → verify.
+        const systemPrompt = this.#toolsPrompt(cloudTask);
         const messages = [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: task },
         ];
 
         let corrections = 0;
-        for (let i = 0; i < MAX_ITERS; i++) {
+        for (let i = 0; i < this.#brain.maxSteps; i++) {
           const tThink = Date.now();
           const thinkRes = await this.#thinkWithRetry(messages, runId);
           const answer = thinkRes.text ?? thinkRes ?? '';
@@ -303,90 +391,119 @@ export class AgentDaemon extends EventEmitter {
           if (thinkRes.usage) addUsage(thinkRes.usage);
           if (thinkRes.model) lastModel = thinkRes.model;
           if (thinkRes.provider) lastProvider = thinkRes.provider;
-          const toolCalls = parseToolCall(answer);
+          const reply = parseBrainReply(answer);
 
-          // Trace: the brain's raw reasoning step
-          await trace('think', {
-            summary: truncate(answer.trim().split('\n')[0] || answer, 500),
-            detail: truncate(answer, 6000),
-            model: thinkRes.model || '',
-            provider: thinkRes.provider || '',
-            usage: thinkRes.usage || null,
-            durationMs: thinkMs,
-          });
+          // Direct final answer (protocol shape)
+          if (reply && reply.kind === 'answer') {
+            final = reply.answer;
+            await trace('answer', {
+              summary: truncate(reply.reasoning || reply.answer, 500),
+              detail: truncate(answer, 6000),
+              model: thinkRes.model || '',
+              provider: thinkRes.provider || '',
+              usage: thinkRes.usage || null,
+              durationMs: thinkMs,
+            });
+            break;
+          }
+          // Plain-text final answer
+          if (reply && reply.kind === 'text') {
+            final = reply.text;
+            await trace('answer', {
+              summary: truncate(reply.text, 500),
+              detail: truncate(reply.text, 6000),
+              model: thinkRes.model || '',
+              provider: thinkRes.provider || '',
+              usage: thinkRes.usage || null,
+              durationMs: thinkMs,
+            });
+            break;
+          }
 
-          if (!toolCalls || !toolCalls.length) {
-            const hasText = answer && answer.trim();
-            const looksLikeAttempt = hasText && /"tool"\s*:/.test(answer);
-            if (hasText && !looksLikeAttempt) { final = answer; break; }
-            // empty or malformed  corrective nudge (auto-reasoning)
-            if (corrections >= MAX_CORRECTIONS) {
-              final = hasText ? answer : 'The brain produced no usable reply. Check the activity feed for the trace.';
-              break;
-            }
-            corrections++;
-            const hint = looksLikeAttempt
-              ? 'Your last message was not valid JSON. Reply with ONLY one JSON object: {"tool":"<tool name>","args":{...}} — or plain text if you are done.'
-              : 'Your reply was empty. Either answer in plain text or emit ONE JSON tool call.';
+          // Tool calls
+          if (reply && reply.kind === 'tools') {
+            corrections = 0;
+            await trace('think', {
+              summary: truncate(reply.calls[0]?.reasoning || `${reply.calls.length} tool call(s)`, 500),
+              detail: truncate(answer, 6000),
+              model: thinkRes.model || '',
+              provider: thinkRes.provider || '',
+              usage: thinkRes.usage || null,
+              durationMs: thinkMs,
+            });
             messages.push({ role: 'assistant', content: answer });
-            messages.push({ role: 'user', content: hint });
-            await trace('correct', { summary: looksLikeAttempt ? 'malformed reply — corrective nudge' : 'empty reply — corrective nudge' });
-            await postActivity(this.#creds.apiKey, 'auto.correct', { reason: looksLikeAttempt ? 'malformed' : 'empty', attempt: corrections }, runId, this.#creds.agentId).catch(() => {});
+
+            // Execute every requested tool (JSON arrays = multi-tool steps)
+            const resultLines = [];
+            for (const toolCall of reply.calls) {
+              steps.push({ type: 'tool.call', tool: toolCall.tool, args: toolCall.args });
+              this.#control.step('tool.call', { tool: toolCall.tool });
+              this.emit('tool:start', toolCall.tool, toolCall.args);
+              log.info(`Tool call: ${toolCall.tool}`);
+              await postActivity(this.#creds.apiKey, 'tool.call', { tool: toolCall.tool, args: toolCall.args }, runId, this.#creds.agentId).catch(() => {});
+              await trace('tool.call', { summary: toolCall.tool, detail: JSON.stringify(toolCall.args || {}, null, 2) });
+
+              const tTool = Date.now();
+              let result;
+              try {
+                result = await tools.run(toolCall.tool, toolCall.args || {});
+              } catch (err) {
+                result = { error: err.message };
+              }
+              this.#stats.toolCalls++;
+
+              const out = truncate(JSON.stringify(result), TOOL_OUT_MAX);
+              steps.push({ type: 'tool.result', tool: toolCall.tool, output: truncate(out, 400) });
+              await postActivity(this.#creds.apiKey, 'tool.result', { tool: toolCall.tool, output: truncate(out, 200) }, runId, this.#creds.agentId).catch(() => {});
+              await trace('tool.result', {
+                summary: truncate(out, 500),
+                detail: truncate(out, 4000),
+                durationMs: Date.now() - tTool,
+              });
+              log.info(`Tool result (${toolCall.tool}): ${truncate(out, 120)}`);
+
+              const failed = result && (result.error || result.exitCode);
+              if (failed) await this.#debugSnapshot(runId, `tool ${toolCall.tool} failed`);
+              resultLines.push(`TOOL RESULT (${toolCall.tool}):\n${out}`);
+            }
+
+            // Reflect phase: force a deliberate decision — done, or next action?
+            const anyFailed = resultLines.some((l) => /"error"|exitCode":[1-9]/.test(l));
+            const debugHint = anyFailed
+              ? `\n\nAt least one tool returned an error. Diagnose it, then either fix the call or use a different tool/approach. Do not give up — verify your fix by running it again.`
+              : '';
+            messages.push({ role: 'user', content: resultLines.join('\n\n') + debugHint +
+              `\n\nREFLECT: check the tool results against the user's goal. If the goal is now satisfied, answer immediately. If something is missing or failed, state your reasoning and take the next action.` });
             continue;
           }
-          corrections = 0;
 
-          messages.push({ role: 'assistant', content: answer });
-
-          // Execute every requested tool (JSON arrays = multi-tool steps)
-          const resultLines = [];
-          for (const toolCall of toolCalls) {
-            steps.push({ type: 'tool.call', tool: toolCall.tool, args: toolCall.args });
-            this.#control.step('tool.call', { tool: toolCall.tool });
-            this.emit('tool:start', toolCall.tool, toolCall.args);
-            log.info(`Tool call: ${toolCall.tool}`);
-            await postActivity(this.#creds.apiKey, 'tool.call', { tool: toolCall.tool, args: toolCall.args }, runId, this.#creds.agentId).catch(() => {});
-            await trace('tool.call', { summary: toolCall.tool, detail: JSON.stringify(toolCall.args || {}, null, 2) });
-
-            const tTool = Date.now();
-            let result;
-            try {
-              result = await tools.run(toolCall.tool, toolCall.args || {});
-            } catch (err) {
-              result = { error: err.message };
-            }
-            this.#stats.toolCalls++;
-
-            const out = truncate(JSON.stringify(result), TOOL_OUT_MAX);
-            steps.push({ type: 'tool.result', tool: toolCall.tool, output: truncate(out, 400) });
-            await postActivity(this.#creds.apiKey, 'tool.result', { tool: toolCall.tool, output: truncate(out, 200) }, runId, this.#creds.agentId).catch(() => {});
-            await trace('tool.result', {
-              summary: truncate(out, 500),
-              detail: truncate(out, 4000),
-              durationMs: Date.now() - tTool,
-            });
-            log.info(`Tool result (${toolCall.tool}): ${truncate(out, 120)}`);
-
-            const failed = result && (result.error || result.exitCode);
-            if (failed) await this.#debugSnapshot(runId, `tool ${toolCall.tool} failed`);
-            resultLines.push(`TOOL RESULT (${toolCall.tool}):\n${out}`);
+          // Empty or malformed reply → corrective nudge (auto-reasoning)
+          const hasText = answer && answer.trim();
+          const looksLikeAttempt = hasText && /"(tool|answer)"\s*:/.test(answer);
+          if (corrections >= MAX_CORRECTIONS) {
+            final = hasText ? answer : 'The brain produced no usable reply. Check the activity feed for the trace.';
+            break;
           }
-
-          // Feed all results back together, with a diagnostic nudge on error
-          const anyFailed = resultLines.some((l) => /"error"|exitCode":[1-9]/.test(l));
-          const debugHint = anyFailed
-            ? `\n\nAt least one tool returned an error. Diagnose it, then either fix the call or use a different tool/approach. Do not give up — verify your fix by running it again.`
-            : '';
-          messages.push({ role: 'user', content: resultLines.join('\n\n') + debugHint });
+          corrections++;
+          const hint = looksLikeAttempt
+            ? 'Your last message was not valid JSON. Reply with ONLY one JSON object: {"reasoning":"...","tool":"<tool name>","args":{...}} — or {"reasoning":"...","answer":"..."} when done, or plain text.'
+            : 'Your reply was empty or not actionable. Either give the final answer in plain text, or emit ONE JSON object with "tool" or "answer".';
+          messages.push({ role: 'assistant', content: answer });
+          messages.push({ role: 'user', content: hint });
+          await trace('correct', { summary: looksLikeAttempt ? 'malformed reply — corrective nudge' : 'empty reply — corrective nudge' });
+          await postActivity(this.#creds.apiKey, 'auto.correct', { reason: looksLikeAttempt ? 'malformed' : 'empty', attempt: corrections }, runId, this.#creds.agentId).catch(() => {});
         }
 
-        // Never give up: one forced plain-text conclusion when steps run out
+        // Never give up: one forced conclusion when steps run out
         if (!final) {
-          messages.push({ role: 'user', content: 'You must now answer in plain text. Summarize what you did, what the last tool result showed, and the current state. Do not call tools.' });
+          messages.push({ role: 'user', content: 'Step limit reached. Reply {"reasoning":"brief summary of what you did","answer":"..."} — or plain text. No more tools.' });
           try {
             const tThink = Date.now();
             const thinkRes = await this.#thinkWithRetry(messages, runId);
-            final = thinkRes.text ?? thinkRes ?? '';
+            const r2 = parseBrainReply(thinkRes.text ?? '');
+            if (r2 && r2.kind === 'answer') final = r2.answer;
+            else if (r2 && r2.kind === 'text') final = r2.text;
+            else final = (thinkRes.text ?? '').trim() || 'The agent hit its step limit. See the activity feed for the full execution trace.';
             if (thinkRes.usage) addUsage(thinkRes.usage);
             if (thinkRes.model) lastModel = thinkRes.model;
             if (thinkRes.provider) lastProvider = thinkRes.provider;
@@ -400,6 +517,33 @@ export class AgentDaemon extends EventEmitter {
             });
           } catch {
             final = 'The agent hit its step limit. See the activity feed for the full execution trace.';
+          }
+        }
+
+        // Self-verification pass: the brain re-checks its own answer against
+        // the evidence before it reaches the user (fixes premature or sloppy answers).
+        if (final && this.#brain.verify) {
+          try {
+            messages.push({ role: 'assistant', content: final });
+            messages.push({ role: 'user', content: 'VERIFY: You are about to send this answer to the user. Check it against the tool results above: is every claim factual, complete and direct? If something is wrong or missing, fix it. Reply {"reasoning":"what you checked","answer":"<corrected or unchanged answer>"}.' });
+            const tThink = Date.now();
+            const vRes = await this.#thinkWithRetry(messages, runId);
+            const vr = parseBrainReply(vRes.text ?? '');
+            if (vr && vr.kind === 'answer' && vr.answer.trim()) final = vr.answer;
+            else if (vr && vr.kind === 'text' && (vRes.text ?? '').trim()) final = vRes.text;
+            if (vRes.usage) addUsage(vRes.usage);
+            if (vRes.model) lastModel = vRes.model;
+            if (vRes.provider) lastProvider = vRes.provider;
+            await trace('verify', {
+              summary: truncate((vr && vr.reasoning) || 'answer re-checked against tool results', 500),
+              detail: truncate(vRes.text ?? '', 6000),
+              model: vRes.model || '',
+              provider: vRes.provider || '',
+              usage: vRes.usage || null,
+              durationMs: Date.now() - tThink,
+            });
+          } catch {
+            // verification is best-effort — keep the original answer
           }
         }
       }
@@ -479,23 +623,45 @@ export class AgentDaemon extends EventEmitter {
     }
   }
 
-  #toolsPrompt() {
+  #toolsPrompt(taskRow) {
     const rows = tools.list()
       .map((t) => `- ${t.name}: ${t.description}${t.args ? ` (args: ${JSON.stringify(t.args)})` : ''}`)
       .join('\n');
-    return `You are mona-agent — the AI agent controlling this device (${process.platform}). You reason and act: use the local tools below to get real information and take real actions, then give the user a direct, concise answer.
+    const brain = this.#brain;
+    let p = `You are mona-agent — the AI agent controlling this device (${process.platform}). You reason deeply and act precisely: plan, act, observe, reflect, then answer.
+
+## Reasoning protocol
+Think before you act: what does the user actually want, what do you already know, what do you still need, and what is the safest way to get it.
+- When you need information or need to change something on this device, reply with ONLY one JSON object:
+{"reasoning":"<your concise thinking: goal, what you know, what you plan and why>","tool":"<tool name>","args":{...}}
+- When you have everything you need, reply with ONLY:
+{"reasoning":"<why the goal is now satisfied>","answer":"<the final answer for the user>"}
+- Plain text is also accepted as a final answer. Never mix prose with JSON.
+
+## Answer quality
+- Base every claim on actual tool results — never invent data you could have read.
+- Be direct and concise. State what you did and what you found.
+- If something failed, say what failed and what you tried instead.
+- If the goal is already satisfied, stop and answer instead of calling more tools.
+
+## Memory
+You have a persistent memory tool. Read it at the start of relevant tasks, and save user preferences and important facts so they survive across tasks.
 
 Available tools:
 ${rows}
-
-How to use a tool — reply with ONLY one JSON object, nothing else:
-{"tool":"<tool name>","args":{...}}
 
 Rules:
 - GUI apps, servers, and long-running programs (e.g. a Python tkinter window) MUST use the shell tool with "background":true so they keep running.
 - To create a Python GUI window, generate a tkinter script and run it with "python3 -c '...'" in the background.
 - Never invent data you can read with a tool. Keep answers short and direct.
 - If a command fails, diagnose and retry differently — never give up.`;
+    if (taskRow?.system_prompt) {
+      p += `\n\n## Your role (set by the owner)\n${taskRow.system_prompt}`;
+    }
+    if (brain.extraRules) {
+      p += `\n\n## Owner's rules (always follow)\n${brain.extraRules}`;
+    }
+    return p;
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────
