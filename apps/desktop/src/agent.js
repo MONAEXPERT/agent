@@ -307,7 +307,16 @@ export class AgentDaemon extends EventEmitter {
       const tasks = data.tasks || [];
       for (const t of tasks) {
         if (t.status !== 'pending') continue;
-        try { await claimTask(this.#creds.apiKey, t.id); } catch { /* already claimed */ }
+        // Multi-device claim: only the device that actually wins the claim runs
+        // the task — the server answers claimed:false for everyone else.
+        const claimRes = await claimTask(this.#creds.apiKey, t.id).catch(() => null);
+        if (!claimRes) continue;
+        let claim = null;
+        try { claim = await claimRes.json(); } catch { /* non-JSON — treat as claimed */ }
+        if (claim && claim.claimed === false) {
+          log.info(`Task ${t.id} claimed by another device — skipping`);
+          continue;
+        }
         await this.#runTask(t.task, t.run_id, t);
       }
     } catch (err) {

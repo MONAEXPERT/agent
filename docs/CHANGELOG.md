@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.4.0
+
+- Multi-device platform — devices register as first-class entities (name,
+  platform, metrics, online status), agents are assigned to devices, and the
+  dashboard groups agents by device with per-device telemetry
+- Device-aware task routing — a device only sees tasks for agents assigned to
+  it; unassigned agents run on any online device
+- Atomic task claims — the claim response now tells the device whether it
+  actually won the task (claimed true/false), so multiple devices can never
+  execute the same task twice
+- Run traces now record the executing device and keep the real agent identity
+
+
 ## v2.3.0
 
 - Persistent memory injection — the brain loads your memory notes at every
