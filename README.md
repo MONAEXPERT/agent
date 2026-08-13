@@ -195,3 +195,16 @@ MIT — see [LICENSE](LICENSE). Free forever.
 
 **[mona.expert](https://agent.mona.expert)** — one key, one brain, any
 device. 
+
+
+## Compliance & standards
+
+Enterprise-ready documentation: [EU CRA readiness](docs/additional-documents/CRA-READINESS.md),
+[ISO/IEC 27001 mapping](docs/additional-documents/ISO-27001-MAPPING.md),
+[IEC 62443 alignment](docs/additional-documents/IEC-62443.md),
+[threat model](docs/additional-documents/THREAT-MODEL.md),
+[data flow & minimization](docs/additional-documents/DATA-FLOW.md),
+[deployment guide](docs/additional-documents/DEPLOYMENT-GUIDE.md),
+[enterprise FAQ](docs/additional-documents/ENTERPRISE-FAQ.md) and
+[SBOM](docs/additional-documents/SBOM.md).
+See [SECURITY.md](SECURITY.md) for vulnerability reporting.

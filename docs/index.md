@@ -19,3 +19,23 @@ Open-source cloud-brained AI agent for your device — macOS, Linux, WSL2.
 
 **Cloud:** [agent.mona.expert](https://agent.mona.expert) ·
 **Repo:** [MONAEXPERT/agent](https://github.com/MONAEXPERT/agent)
+
+
+## Additional Documents
+
+Enterprise and compliance documentation (ISO, IEC, CRA, GDPR):
+
+- [Compliance overview](additional-documents/COMPLIANCE.md)
+- [EU Cyber Resilience Act readiness](additional-documents/CRA-READINESS.md)
+- [ISO/IEC 27001 control mapping](additional-documents/ISO-27001-MAPPING.md)
+- [IEC 62443 alignment](additional-documents/IEC-62443.md)
+- [Threat model (STRIDE)](additional-documents/THREAT-MODEL.md)
+- [Data flow & minimization](additional-documents/DATA-FLOW.md)
+- [Security self-audit guide](additional-documents/SECURITY-AUDIT.md)
+- [Enterprise deployment guide](additional-documents/DEPLOYMENT-GUIDE.md)
+- [Enterprise FAQ](additional-documents/ENTERPRISE-FAQ.md)
+- [Software bill of materials](additional-documents/SBOM.md)
+
+More content:
+
+- [Use cases](USE-CASES.md)

@@ -1,5 +1,18 @@
 # Changelog
 
+
+## v2.2.0
+
+- Deep reasoning engine: plan → act → reflect → verify loop with visible
+  reasoning at every step
+- Auto brain mode: per-task smart/cheap balancing (step budget, verification,
+  provider routing) — simple tasks stay cheap, complex tasks go deep
+- Live debug log, per-run traces with tokens/cost/latency, insights graphs
+- Training export (JSONL) with human feedback ratings
+- Premium plans via the Sngine package framework (limits, plan-aware brains)
+- Compliance documentation suite (CRA, ISO 27001, IEC 62443, GDPR, SBOM)
+
+
 All notable changes to the mona-agent client are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com), versioning:
 [SemVer](https://semver.org).
