@@ -1,3 +1,18 @@
+---
+license: mit
+tags:
+- ai-agent
+- agent
+- automation
+- cli
+- daemon
+- terminal
+- macos
+- linux
+language:
+- en
+---
+
 # mona-agent — your computer, with a brain in the cloud 
 
 <p align="center">
@@ -11,6 +26,7 @@
   <a href="https://github.com/MONAEXPERT/agent/actions"><img src="https://img.shields.io/badge/tests-26%2F26-passing-brightgreen.svg" alt="Tests: 26/26 passing"></a>
   <a href="https://github.com/MONAEXPERT/agent/blob/main/package.json"><img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 runtime dependency"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-informational.svg" alt="Platforms: macOS, Linux, WSL2">
+  <a href="https://huggingface.co/aiagentmona/mona-agent"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-aiagentmona%2Fmona-agent-yellow.svg" alt="Hugging Face: aiagentmona/mona-agent"></a>
 </p>
 
 ---
@@ -171,6 +187,7 @@ others discover the project.
 
 -  [GitHub Discussions](https://github.com/MONAEXPERT/agent/discussions) — ideas, questions, show & tell
 -  [Issues](https://github.com/MONAEXPERT/agent/issues) — bugs and feature requests
+-  [Hugging Face](https://huggingface.co/aiagentmona/mona-agent) — mirror of this repo
 -  [agent.mona.expert](https://agent.mona.expert) — the cloud dashboard
 -  [SECURITY.md](SECURITY.md) — responsible disclosure
 
