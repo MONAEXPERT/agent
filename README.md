@@ -50,12 +50,14 @@ Most AI assistants live in a chat window. They can write you a script — but
 they can't run it. They can explain a crash — but they can't look at your
 logs. They know everything about your code and nothing about your machine.
 
-**mona-agent is the other half.** It's a small, fast daemon that lives on
-your computer — macOS, Linux, WSL2 — and connects it to a brain in the
-cloud. You talk to it from your dashboard or your phone; it reasons about
-the task, then *actually does it*: checks disk space, restarts a service,
-finds a file, opens an app, runs a cleanup. And it streams every step back
-so you can watch it think and act in real time.
+**mona-agent is the other half.** It's a small, open-source app you install
+on your own computer — macOS, Linux, WSL2 — that connects it to a brain in
+the cloud. You talk to it from your dashboard or your phone; it reasons
+about the task, then *actually does it*: checks disk space, restarts a
+service, finds a file, opens an app, runs a cleanup. It streams every step
+back so you can watch it think and act in real time — and because it's open
+source, sandboxed and egress-only, you can read every line, see every
+command it runs, and revoke its access with one click.
 
 It's the difference between an advisor and an employee. One tells you what
 to do. The other just gets it done.
@@ -78,7 +80,7 @@ Your machine is a trust boundary, not a sandbox afterthought.
 - **Zero AI keys on your device.** Provider keys (OpenAI, Anthropic, …) live
   only in the cloud, encrypted AES-256-GCM. The device holds one revocable
   token — nothing else worth stealing.
-- **Egress-only networking.** The daemon makes outbound HTTPS connections and
+- **Egress-only networking.** The agent makes outbound HTTPS connections and
   listens on localhost only. No open ports, no public exposure — it works
   behind NAT and firewalls.
 - **Guarded execution.** Commands run through an allowlist; dangerous
@@ -110,8 +112,8 @@ See [SECURITY.md](SECURITY.md) for the full policy and responsible disclosure.
   locally; they live in the encrypted cloud vault. One key. One brain.
 -  **Live device monitoring** — CPU, memory, disk, load and uptime
   streamed to your dashboard every 10 seconds, with history sparklines
--  **Terminal-native** — a fast TUI with live logs, or a fully headless
-  daemon; one command installs it, one dependency powers it
+-  **Terminal-native** — a fast TUI with live logs, or a quiet headless
+  background service; one command installs it, one dependency powers it
 -  **Free and open source** — MIT licensed, forever
 
 ## Built for
@@ -154,7 +156,7 @@ mona-agent connect          # test the connection end to end
 mona-agent gui              # terminal dashboard with live log
 mona-agent chat "free up disk space"     # one-shot conversation
 mona-agent exec "uptime && df -h"        # run a guarded command
-mona-agent start            # headless daemon with auto-reconnect
+mona-agent start            # headless background service with auto-reconnect
 ```
 
 In the dashboard chat, just talk normally:

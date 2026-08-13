@@ -1,6 +1,6 @@
 # Getting Started with mona-agent
 
-Install the mona-agent device daemon, log in with your mona.expert key, and
+Install the mona-agent app on your device, log in with your mona.expert key, and
 have your machine connected to the cloud in under a minute.
 
 ## 1. Prerequisites
@@ -21,7 +21,7 @@ The installer:
 
 - Downloads the agent from GitHub (`MONAEXPERT/agent`)
 - Installs dependencies (`ws` only)
-- Places the daemon in `~/.mona-agent/agent`
+- Places the app in `~/.mona-agent/agent`
 - Adds `mona-agent` to your PATH (via `~/.local/bin`, persisted in your shell rc)
 
 ## 3. Log in
@@ -39,7 +39,7 @@ Paste your mona.expert API key when prompted. The key is stored in
 mona-agent gui                    # terminal dashboard with live log
 mona-agent chat "free disk space" # one-shot conversation
 mona-agent exec "uptime"          # run a single command
-mona-agent start                  # headless daemon (auto-reconnect)
+mona-agent start                  # headless background service (auto-reconnect)
 ```
 
 ## 5. See it in the browser
@@ -67,6 +67,6 @@ rm -rf ~/.mona-agent ~/.local/bin/mona-agent
 ## Next steps
 
 - [TOOLS.md](TOOLS.md) — what the agent can do on your device
-- [ARCHITECTURE.md](ARCHITECTURE.md) — how the daemon works under the hood
+- [ARCHITECTURE.md](ARCHITECTURE.md) — how the agent works under the hood
 - [FAQ.md](FAQ.md) — common questions
 - [SECURITY.md](../SECURITY.md) — security model & responsible disclosure

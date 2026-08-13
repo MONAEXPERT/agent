@@ -2,7 +2,7 @@
 
 ## What is mona-agent?
 
-An open-source AI agent daemon for macOS, Linux and WSL2. It connects your
+An open-source AI agent that runs on your own machine — macOS, Linux and WSL2. It connects your
 machine to the mona.expert cloud, executes local tools on your behalf, and
 streams live metrics to your dashboard.
 
@@ -34,7 +34,7 @@ Nothing is sent to third parties. Full details: [SECURITY.md](../SECURITY.md).
 
 ## Does the device need a public IP or open ports?
 
-No. The daemon opens **outbound** connections only. It works behind NAT,
+No. The agent opens **outbound** connections only. It works behind NAT,
 firewalls and CGNAT. It listens on localhost only (for the local dashboard).
 
 ## Can I run mona-agent on a server / Raspberry Pi?
