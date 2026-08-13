@@ -76,12 +76,45 @@ export function parseToolCall(text) {
 }
 
 /**
+ * Lenient salvage: LLMs often emit a JSON answer with an unescaped quote
+ * inside the string (e.g. German quotes), breaking strict parsing. Extract
+ * the string value of `key` by scanning with escape awareness. Returns the
+ * decoded string, or null when the field cannot be found.
+ */
+export function lenientStringField(text, key) {
+  const re = new RegExp('"' + key + '"\\s*:\\s*"');
+  const m = re.exec(String(text || ''));
+  if (!m) return null;
+  let i = m.index + m[0].length;
+  let out = '';
+  while (i < text.length) {
+    const c = text[i];
+    if (c === '\\') {
+      const n = text[i + 1];
+      if (n === 'n') out += '\n';
+      else if (n === 't') out += '\t';
+      else if (n === 'r') out += '\r';
+      else if (n === '\\') out += '\\';
+      else if (n === '"') out += '"';
+      else out += (n ?? '');
+      i += 2;
+      continue;
+    }
+    if (c === '"') return out;
+    out += c;
+    i++;
+  }
+  return out !== '' ? out : null;
+}
+
+/**
  * Reasoning-protocol parser: the brain answers in one of three shapes:
  *   {reasoning, tool, args}      → {kind:'tools',  calls:[...]}
  *   {reasoning, answer}          → {kind:'answer', answer, reasoning}
  *   plain text                   → {kind:'text',   text}
  *   valid JSON, wrong shape      → null (malformed → corrective nudge)
  *   prose wrapping any of those  → detected via balanced-brace extraction
+ *   broken JSON with an answer   → salvaged leniently (no raw JSON leaks)
  */
 export function parseBrainReply(text) {
   if (!text) return null;
@@ -142,6 +175,15 @@ export function parseBrainReply(text) {
         }
       }
       ai += 6;
+    }
+  }
+  // Lenient salvage: broken JSON (unescaped quotes etc.) but a readable
+  // answer field — deliver the answer instead of leaking raw JSON.
+  if (text.trim().startsWith('{')) {
+    const answer = lenientStringField(text, 'answer');
+    if (answer !== null && answer.trim() !== '') {
+      const reasoning = lenientStringField(text, 'reasoning');
+      return { kind: 'answer', answer, reasoning: reasoning ?? '' };
     }
   }
   return { kind: 'text', text };
