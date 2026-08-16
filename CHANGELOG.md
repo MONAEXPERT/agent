@@ -4,6 +4,37 @@ All notable changes to mona-agent are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Vector indexing (dependency-free, local).** New engine module
+  `packages/engine/src/vector.js`: a deterministic hashing-trick embedding
+  (256-dim signed feature vectors, djb2 + fnv1a), cosine similarity scoring,
+  persistent JSON index (0600), TTL, dedupe-by-merge. No API keys, no
+  network, no npm dependencies.
+- **`vector` tool** (`apps/desktop/src/tools/vector.js`): `remember` notes,
+  `index` workspace files (chunked, binary-safe, workspace-confined),
+  `search` in natural language, `list` / `stats` / `forget`.
+- **Vector recall in prompts**: `MemoryStore.recall` now scores by hybrid
+  vector + recency + hit boost (legacy entries embedded lazily), and the
+  daemon injects vector-searched context into every task's system prompt.
+- **Serial task queue** (`apps/desktop/src/taskqueue.js`): tasks run one at
+  a time in arrival order; waiting tasks report their position; steps from
+  different tasks can never interleave.
+- **Context compaction** in the engine loop: when a task's message history
+  exceeds a character budget, old tool results are compressed (head + recent
+  tail always survive verbatim) — long tasks no longer risk blowing the
+  brain's context window. Visible via `task.compact` step + audit entry.
+- **Local task audit**: every task event (start / think / tool / result /
+  denied / compact / verify / answer / error) is written to the same
+  hash-chained `~/.mona-agent/audit.jsonl` used for policy decisions —
+  `mona-agent audit tail|verify` now covers the full task trail.
+
+### Changed
+- `MemoryStore` recall is vector-based while keeping the same on-disk format
+  and public API — existing memory files work untouched.
+- Tools list now advertises `vector` to the cloud brain.
+
 ## [2.8.3] — 2026-08-16
 
 ### Added

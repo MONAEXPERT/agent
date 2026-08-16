@@ -94,6 +94,7 @@ with one click.
 | Launch apps | open/quit desktop applications |
 | Browser | open URLs / run searches in your default browser |
 | Persistent memory | remembers across tasks and restarts |
+| Vector memory + file index | dependency-free local vector index — notes and workspace files are searched by meaning (cosine over hashed embeddings), and the closest hits are injected into every task's prompt |
 | Notifications | desktop alerts (macOS / Linux / Windows) |
 | Schedule runs | cron-style tasks from the dashboard |
 | Multi-device | agents claim tasks per device — never executed twice |

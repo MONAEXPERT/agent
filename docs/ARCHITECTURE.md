@@ -41,7 +41,8 @@ mona-agent is a **headless Node.js daemon** with two jobs:
 | `src/control.js` | Control channel: versioned envelopes, command dispatch, metrics streaming |
 | `src/api.js` | Local HTTP API + WebSocket (used by the local dashboard / desktop UI) |
 | `src/agent.js` | Wires the engine core to the cloud brain, tools and trace reporting |
-| `src/tools/*` | The tool sandbox: `files`, `shell`, `net`, `sysinfo`, `apps`, `browser`, `web`, `memory`, `notify` |
+| `src/taskqueue.js` | Serial task queue — tasks run one at a time, in order, never interleaving steps |
+| `src/tools/*` | The tool sandbox: `files`, `shell`, `net`, `sysinfo`, `apps`, `browser`, `web`, `memory`, `notify`, `vector` |
 | `src/tui.js` | Terminal dashboard — live log, scrollback, status bar |
 | `src/log.js` | Structured logging (quiet in daemon mode) |
 
@@ -118,6 +119,54 @@ CLI, or the cloud queue):
 - Finished tasks are folded into the engine's **structured memory** (dedupe,
   TTL, scored recall) and recalled into future prompts, so the agent
   remembers what it already did.
+
+### Serial execution
+
+All tasks — from the cloud task queue, the control channel or the CLI —
+pass through one **serial task queue** (`src/taskqueue.js`). A task arriving
+while another is running waits and reports its position (`task.queued`), so
+steps from different tasks can never interleave on the dashboard or in the
+audit trail.
+
+### Vector indexing (semantic retrieval)
+
+A dependency-free local vector index (`packages/engine/src/vector.js`)
+gives the agent real retrieval over everything it has seen:
+
+- **Embedding** — the hashing trick: tokens (stopwords dropped) map to
+  signed features in a fixed 256-dimension vector (djb2 + fnv1a), L2
+  normalized. Deterministic across processes, so an index built once
+  returns the same results after a restart. No API keys, no network calls.
+- **Scoring** — cosine similarity over the hashed feature vectors, with
+  optional recency weighting and TTL expiry.
+- **Three consumers**:
+  1. `MemoryStore.recall` scores by **hybrid vector + recency + hit-boost**
+     instead of keyword overlap — "how do I restart the web server" now
+     finds the note about nginx.
+  2. The **`vector` tool** — `remember` notes and `index` workspace files
+     (chunked, binary-safe, workspace-confined), then `search` them in
+     natural language.
+  3. **Per-task prompt context** — before each task the daemon vector-searches
+     the index with the task text and injects the closest hits into the
+     brain's system prompt, so it starts with the knowledge that matters.
+- Persisted to `~/.mona-agent/vector-index.json` (0600).
+
+### Context compaction
+
+Long tasks are guarded against context-window blowout: when the message
+list exceeds a character budget (default 60k), old tool results and
+reasoning in the middle of the conversation are compressed and, if needed,
+dropped — the system prompt, the original task and the recent turns always
+survive verbatim. Compaction is visible (`task.compact` step, audit entry,
+log line), never silent.
+
+### Local audit trail
+
+Every task event — start, think, tool call, tool result, denials,
+corrections, verify, answer, error — is written to the same tamper-evident,
+hash-chained `~/.mona-agent/audit.jsonl` used for policy decisions, so the
+device keeps its own verifiable copy of everything the agent did
+(`mona-agent audit tail` / `verify`).
 
 ## Metrics pipeline (HTTP-first)
 

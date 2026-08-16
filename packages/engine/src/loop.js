@@ -148,6 +148,52 @@ export function parseBrainReply(text) {
   return { kind: 'text', text: t };
 }
 
+/**
+ * Compact a message list that has grown past a character budget, so long
+ * tasks never silently exceed the context window. The head (system + first
+ * user task) and the tail (recent turns) always survive verbatim; the middle
+ * tool results are digested and over-long messages shortened, and if the list
+ * is still over budget the middle is dropped entirely.
+ *
+ * @returns {{messages: Array, compressed: boolean, before: number, after: number, shortened: number, dropped: number}}
+ */
+export function compactMessages(messages, { maxChars = 40000, keepHead = 2, keepTail = 6, maxLen = 500 } = {}) {
+  const size = (m) => String(m?.content ?? '').length;
+  const before = messages.reduce((n, m) => n + size(m), 0);
+  if (before <= maxChars) return { messages, compressed: false, before, after: before, shortened: 0, dropped: 0 };
+
+  const head = messages.slice(0, keepHead);
+  const tail = messages.slice(Math.max(keepHead, messages.length - keepTail));
+  const middle = messages.slice(keepHead, Math.max(keepHead, messages.length - keepTail));
+
+  let shortened = 0;
+  let mid = middle.map((m) => {
+    const c = String(m.content ?? '');
+    if (m.role === 'user' && c.startsWith('TOOL RESULT')) {
+      shortened++;
+      return { role: m.role, content: `[tool result compressed] ${c.slice(0, 120).replace(/\s+/g, ' ')}` };
+    }
+    if (c.length > maxLen) {
+      shortened++;
+      return { role: m.role, content: `${c.slice(0, maxLen)} …[compressed]` };
+    }
+    return m;
+  });
+
+  let merged = [...head, ...mid, ...tail];
+  let after = merged.reduce((n, m) => n + size(m), 0);
+
+  // Still over budget — head + tail always survive, drop the middle.
+  let dropped = 0;
+  if (after > maxChars) {
+    dropped = mid.length;
+    merged = [...head, ...tail];
+    after = merged.reduce((n, m) => n + size(m), 0);
+  }
+
+  return { messages: merged, compressed: true, before, after, shortened, dropped };
+}
+
 export class TaskLoop extends EventEmitter {
   constructor({ think, runTool, policy, budget, maxSteps = 8, temperature = 0.4 } = {}) {
     super();
@@ -175,12 +221,15 @@ export class TaskLoop extends EventEmitter {
    * @param {string} [opts.system]   system prompt prepended to the messages
    * @param {string} [opts.profile]  reasoning profile ('standard' | 'cheap' | 'complex')
    * @param {number} [opts.maxSteps] step budget for this run (clamped by constructor max)
+   * @param {number} [opts.maxChars] context budget — when the message list
+   *                                 exceeds it, old tool results are compressed
+   *                                 (emits 'compact'); disables compaction when 0
    * @param {Function} [opts.conclude] async (messages) => finalText — called when the
    *                                 step budget runs out so the caller can force one
    *                                 last brain call ("never give up"); falls back to a
    *                                 static conclusion when absent or failing.
    */
-  async run(task, { system, profile = 'standard', maxSteps, conclude } = {}) {
+  async run(task, { system, profile = 'standard', maxSteps, maxChars = 40000, conclude } = {}) {
     const steps = Math.min(this.maxSteps, Number(maxSteps) || this.maxSteps);
     const usage = { input: 0, output: 0, total: 0, costUsd: 0 };
     const trace = [];
@@ -200,6 +249,23 @@ export class TaskLoop extends EventEmitter {
 
     for (let i = 0; i < steps; i++) {
       this.emit('step', i + 1, steps);
+
+      // Context guard: long tasks keep tool results and old reasoning from
+      // silently blowing the context window. Old middle turns are compressed
+      // before the next think; the head and recent tail stay verbatim.
+      if (maxChars > 0 && i > 0) {
+        const compacted = compactMessages(messages, { maxChars });
+        if (compacted.compressed) {
+          this.emit('compact', {
+            before: compacted.before,
+            after: compacted.after,
+            saved: compacted.before - compacted.after,
+            shortened: compacted.shortened,
+            dropped: compacted.dropped,
+          });
+          messages = compacted.messages;
+        }
+      }
 
       const prof = this.#profile(profile);
       if (prof.reason) this.emit('profile', prof);

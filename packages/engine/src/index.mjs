@@ -6,7 +6,8 @@
 export { Policy, PRESETS, auditWrite, auditVerify } from './policy.js';
 export { Budget } from './budget.js';
 export { MemoryStore } from './memory.js';
-export { TaskLoop, parseBrainReply } from './loop.js';
+export { TaskLoop, parseBrainReply, compactMessages } from './loop.js';
+export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
 
 /**
  * One-call engine wiring with sensible defaults.
