@@ -19,7 +19,8 @@
     "test": "node --test apps/desktop/test/agent.test.mjs apps/desktop/test/control.test.mjs apps/desktop/test/docker-control.test.mjs apps/desktop/test/skills.test.mjs apps/desktop/test/tools-new.test.mjs apps/desktop/test/tui-scroll.test.mjs apps/desktop/test/security.test.mjs packages/engine/test/engine.test.mjs packages/protocol/test/protocol.test.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "npm": ">=9"
   },
   "dependencies": {
     "ws": "^8.18.0"
@@ -55,5 +56,19 @@
     "cloud",
     "monitoring",
     "mona-expert"
+  ],
+  "publishConfig": {
+    "provenance": true,
+    "access": "public"
+  },
+  "files": [
+    "apps/desktop/bin",
+    "apps/desktop/src",
+    "packages/engine/src",
+    "packages/protocol/src",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "docs/"
   ]
 }

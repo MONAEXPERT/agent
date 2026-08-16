@@ -1,0 +1,67 @@
+# Changelog
+
+All notable changes to mona-agent are documented here. The format is
+based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/).
+
+## [2.8.3] — 2026-08-16
+
+### Added
+- Dashboard-driven version lifecycle: `!cmd version|update|status` system
+  commands handled locally on the device (zero tokens, never reach the
+  brain). Server `GET /agents` now surfaces `version`, `last_seen`,
+  `online`; `POST /agents/:id/update` queues a self-update; agents UI shows
+  the agent version + live badge + Update button.
+
+### Fixed
+- `mona-agent update` now verifies the extracted archive version matches
+  the requested tag (guards against stale GitHub CDN archives).
+- Pre-existing broken `open` allowlist test (duplicate block + wrong
+  export) — suite green again.
+
+## [2.8.2] — 2026-08-16
+
+### Added
+- Version lifecycle foundation: single source of truth (`src/version.js`
+  reads root `package.json`), `mona-agent version`, `mona-agent update
+  [check]` (GitHub release feed with tag fallback, self-update with
+  rollback on failure, lifecycle record `~/.mona-agent/update.json`).
+- Dashboard `update` + `version` commands over the control channel.
+
+## [2.8.1] — 2026-08-16
+
+### Fixed
+- Shell allowlist: `open` added to the macOS default allowlist — the agent
+  can launch apps/URLs (`open -a Calendar`) out of the box.
+
+## [2.8.0] — 2026-08-16
+
+### Security
+- argv shell: quote-aware parsing, `execFile/spawn shell:false`, realpath
+  allowlist per segment, scrubbed child env, process-group kill on timeout,
+  redirects/`$()`/backticks rejected. `MONA_SHELL_UNSAFE` env var
+  deprecated → policy `shell.unsafe` (audited).
+- net: DNS resolved by agent, every address CIDR-checked, connect-to-IP +
+  Host/SNI, redirect revalidation (max 5), metadata endpoints blocked,
+  bounded body reads.
+- files: O_NOFOLLOW + fstat TOCTOU guard, special-file refusal, trash-based
+  delete, try/catch contract.
+- policy v2: hash-chained append-only audit log (`mona-agent audit
+  tail|verify`), per-tool rate limits, strict/standard/permissive presets,
+  `explain()`, registry-wide policy choke point.
+
+### Added
+- CLI: `policy status|explain|preset`, `audit tail|verify`.
+- CI: Node 20/22/24 × ubuntu/macos, npm audit job, dependabot, SHA-pinned
+  actions.
+- Tests: 162 green incl. 58-case red-team suite.
+
+## [2.7.0] — 2026-08-16
+
+### Added
+- Wire engine + protocol into the daemon — one core, one wire contract.
+
+## Earlier
+
+- v2.0.0–v2.6.x: initial releases (control plane, device daemon, TUI,
+  skills, policy v1, hash-chained audit, mTLS identity, sandboxing).
