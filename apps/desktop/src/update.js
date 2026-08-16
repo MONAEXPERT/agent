@@ -143,6 +143,18 @@ export async function applyUpdate() {
     if (!inner) return { ok: false, error: 'Release archive had no content.' };
     const newTree = join(extracted, inner);
 
+    // 2b) Integrity: the extracted tree must actually carry the requested
+    // version (guards against stale CDN archives for re-pointed tags).
+    try {
+      const pkg = JSON.parse(readFileSync(join(newTree, 'package.json'), 'utf8'));
+      const actual = String(pkg.version || '').replace(/^v/, '');
+      if (actual !== latest) {
+        return { ok: false, error: `Release integrity check failed: tag says v${latest}, archive contains v${actual}. Try again in a minute (CDN cache).` };
+      }
+    } catch (e) {
+      return { ok: false, error: `Release integrity check failed: ${e.message}` };
+    }
+
     // 3) Preserve the user's local state, swap the tree
     const backup = join(homedir(), '.mona-agent', `.agent.bak-${VERSION}`);
     rmSync(backup, { recursive: true, force: true });
