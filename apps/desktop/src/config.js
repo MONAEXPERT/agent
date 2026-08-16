@@ -10,6 +10,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { VERSION } from './version.js';
 
 const DIR = join(homedir(), '.mona-agent');
 const CRED_FILE = join(DIR, 'credentials.json');
@@ -82,7 +83,7 @@ export const DEFAULTS = Object.freeze({
   metricsIntervalMs: 10_000,
   reconnectMinMs:    1_000,
   reconnectMaxMs:    30_000,
-  version:           '1.8.1',
+  version:           VERSION,
 });
 
 // ── Credential management ─────────────────────────────────────────

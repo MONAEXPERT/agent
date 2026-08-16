@@ -17,6 +17,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { loadCreds, saveCreds, requireCreds, CLOUD, DEFAULTS, PATHS } from '../src/config.js';
+import { VERSION, isUpdateAvailable } from '../src/version.js';
+import { checkForUpdates, applyUpdate } from '../src/update.js';
 import { verifyKey } from '../src/cloud.js';
 import { testConnection, sendChat } from '../src/api.js';
 import { tools } from '../src/tools/index.js';
@@ -641,6 +643,47 @@ async function skillsCmd() {
   process.exit(2);
 }
 
+// ── update ────────────────────────────────────────────────────────
+async function updateCmd() {
+  const sub = args[0];
+
+  if (sub === 'check' || sub === 'status') {
+    const r = await checkForUpdates();
+    console.log(`\n  ${BOLD}mona-agent update check${RESET}`);
+    console.log(`  ${DIM}Installed:${RESET}  v${r.installed}`);
+    console.log(`  ${DIM}Latest:${RESET}     ${r.latest ? 'v' + r.latest : '(unreachable)'}`);
+    if (r.available) console.log(`  ${GREEN}→ Update available. Run: mona-agent update${RESET}`);
+    else if (r.latest) console.log(`  ${DIM}→ You're on the latest release.${RESET}`);
+    else console.log(`  ${YELLOW}→ Could not reach the release feed (offline or rate-limited).${RESET}`);
+    console.log();
+    return;
+  }
+
+  if (sub === 'version' || sub === '-v' || sub === '--version') {
+    console.log(`v${VERSION}`);
+    return;
+  }
+
+  // default: apply the update
+  console.log(`\n  Checking for updates...`);
+  const r = await applyUpdate();
+  if (!r.ok) {
+    console.error(`  ${RED}Update failed: ${r.error}${RESET}\n`);
+    process.exit(1);
+  }
+  if (r.upToDate) {
+    console.log(`  ${DIM}Already on the latest release (v${r.version}).${RESET}\n`);
+    return;
+  }
+  console.log(`  ${GREEN}Updated ${r.from} → v${r.version}.${RESET}`);
+  console.log(`  ${DIM}Restart the daemon to pick it up: mona-agent daemon status → start${RESET}\n`);
+}
+
+// ── version ───────────────────────────────────────────────────────
+function versionCmd() {
+  console.log(`v${VERSION}`);
+}
+
 // ── status ────────────────────────────────────────────────────────
 function status() {
   const c = loadCreds();
@@ -653,6 +696,7 @@ function status() {
   }
 
   console.log(`  ${DIM}Agent:${RESET}   ${c.agentId || '(pending)'}`);
+  console.log(`  ${DIM}Version:${RESET} v${VERSION}`);
   console.log(`  ${DIM}Cloud:${RESET}   ${CLOUD.base}`);
   console.log(`  ${DIM}WS URL:${RESET}  ${CLOUD.wsUrl}`);
   console.log(`  ${DIM}Creds:${RESET}   ${PATHS.creds}`);
@@ -688,6 +732,8 @@ function help() {
     ${CYAN}mode${RESET}              Set the capability dial: minimal · standard · full
     ${CYAN}daemon${RESET}            Install / manage auto-start background service
     ${CYAN}skills${RESET}            List / install / enable / disable skills
+    ${CYAN}update${RESET}            Check for updates / self-update
+    ${CYAN}version${RESET}           Print the installed version
     ${CYAN}debug${RESET}             Debug mode — verbose system + connection info
     ${CYAN}status${RESET}            Show login and connection info
     ${CYAN}help${RESET}              Show this help
@@ -729,6 +775,11 @@ function help() {
     mona-agent daemon install
     mona-agent daemon uninstall
 
+    ${DIM}# Version lifecycle${RESET}
+    mona-agent version          ${DIM}# installed version${RESET}
+    mona-agent update check     ${DIM}# latest available?${RESET}
+    mona-agent update           ${DIM}# self-update from GitHub${RESET}
+
   ${BOLD}ENVIRONMENT${RESET}
 
     MONA_CLOUD        Cloud base URL     ${DIM}(default: ${CLOUD.base})${RESET}
@@ -768,6 +819,8 @@ switch (cmd) {
   case 'mode':                await modeCmd(); break;
   case 'daemon':              await daemonCmd(); break;
   case 'skills':              await skillsCmd(); break;
+  case 'update':              await updateCmd(); break;
+  case 'version':             versionCmd(); break;
   case undefined:
     // Default: GUI if TTY, headless otherwise
     if (process.stdout.isTTY) await gui();

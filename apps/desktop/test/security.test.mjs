@@ -21,7 +21,7 @@ const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-sec-'));
 process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 
-const { shell } = await import('../src/tools/shell.js');
+const { shell, security: shellSecurity } = await import('../src/tools/shell.js');
 const { files } = await import('../src/tools/files.js');
 const { net, _internals } = await import('../src/tools/net.js');
 const { Policy, auditVerify } = await import('@mona/engine');
@@ -508,13 +508,6 @@ after(() => {
 describe('security/shell — macOS app launcher', () => {
   it('allows `open` in the default allowlist on macOS', () => {
     if (os.platform() !== 'darwin') return;
-    assert.ok(shell.security.allowlist.includes('open'), 'open must be allowlisted');
-  });
-});
-
-describe('security/shell — macOS app launcher', () => {
-  it('allows `open` in the default allowlist on macOS', () => {
-    if (os.platform() !== 'darwin') return;
-    assert.ok(shell.security.allowlist.includes('open'), 'open must be allowlisted');
+    assert.ok(shellSecurity.allowlist.includes('open'), 'open must be allowlisted');
   });
 });
