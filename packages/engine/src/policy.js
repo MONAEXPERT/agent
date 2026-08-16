@@ -53,7 +53,7 @@ const BASE_DENY = [
 ];
 
 const KNOWN_TOOLS = new Set([
-  'sysinfo', 'shell', 'files', 'net', 'apps', 'browser', 'web', 'memory', 'notify',
+  'sysinfo', 'shell', 'files', 'net', 'apps', 'browser', 'web', 'memory', 'notify', 'vector',
 ]);
 
 const VALID_TIERS = new Set(['allow', 'deny', 'confirm', 'prompt']);
@@ -313,6 +313,7 @@ export const PRESETS = {
     audit: true,
     tools: {
       sysinfo: 'allow', files: 'allow', memory: 'allow', notify: 'allow',
+      vector: 'allow',
       shell: 'deny', net: 'deny', web: 'deny', browser: 'deny', apps: 'deny',
     },
   },
@@ -323,6 +324,7 @@ export const PRESETS = {
     audit: true,
     tools: {
       sysinfo: 'allow', files: 'allow', memory: 'allow', notify: 'allow',
+      vector: 'allow',
       shell: 'confirm', net: 'allow', web: 'allow', browser: 'confirm', apps: 'confirm',
     },
     rateLimits: {
@@ -338,6 +340,7 @@ export const PRESETS = {
     tools: {
       sysinfo: 'allow', shell: 'allow', files: 'allow', net: 'allow',
       web: 'allow', browser: 'allow', apps: 'allow', memory: 'allow', notify: 'allow',
+      vector: 'allow',
     },
   },
 };

@@ -21,7 +21,8 @@ import { setAgentRoots } from './tools/files.js';
 import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
-import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply } from '@mona/engine';
+import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite } from '@mona/engine';
+import { TaskQueue } from './taskqueue.js';
 import { writePid, clearPid, alreadyRunning } from './daemon.js';
 import { VERSION } from './version.js';
 import { checkForUpdates, applyUpdate } from './update.js';
@@ -58,6 +59,26 @@ export function loadMemoryContext(dir = process.env.MONA_MEMORY_DIR || join(home
   } catch { return ''; }
 }
 const RETRIABLE = /429|5\d\d|fetch failed|network|ECONN|ETIMEDOUT|socket|timeout/i;
+
+/**
+ * Semantic context: vector-search the local index (notes + indexed workspace
+ * files) with the task text, and return the closest hits as a context block.
+ * This is the "smart retrieval" layer — the brain starts each task with the
+ * most relevant knowledge, not just everything ever written.
+ */
+export function loadVectorContext(task, { limit = 4, threshold = 0.08, store = null } = {}) {
+  try {
+    const vs = store || new VectorStore({});
+    if (!vs.stats().entries) return '';
+    const hits = vs.search(String(task || ''), { limit, threshold });
+    if (!hits.length) return '';
+    const parts = hits.map((h) => {
+      const src = h.meta?.file || h.meta?.source || 'note';
+      return `[${src}] ${h.text.slice(0, 300)}`;
+    });
+    return `\n\n## Vector recall (semantically related to this task)\n${parts.join('\n')}\n(From the local vector index: notes and workspace files. Re-read full files with the files tool when you need details.)`;
+  } catch { return ''; }
+}
 
 function truncate(s, n) {
   s = String(s ?? '');
@@ -97,6 +118,14 @@ export class AgentDaemon extends EventEmitter {
   #policy;
   #budget;
   #memory;
+  // Shared vector index (loaded lazily once) — notes + workspace files
+  // searched semantically; feeds the per-task vector recall context.
+  #vectorStore = null;
+  // Serial task queue: tasks run one at a time so steps never interleave.
+  #tasks;
+  // Recent task ids (runId) — guards against double-enqueuing a task the
+  // server still lists as pending after we claimed it.
+  #recentTasks = new Map();
   // Owner-configurable reasoning profile (set from the cloud per poll).
   #brain = { maxSteps: 8, temperature: 0.4, extraRules: '', verify: true };
 
@@ -112,6 +141,15 @@ export class AgentDaemon extends EventEmitter {
       dailyCostUsd: this.#policy.dailyCostUsd,
     });
     this.#memory = new MemoryStore({});
+
+    // Tasks run strictly one at a time. A task that arrives while another is
+    // running waits in the queue and reports its position to the dashboard.
+    this.#tasks = new TaskQueue();
+    this.#tasks.on('queued', ({ runId, position }) => {
+      if (position > 1) this.#control.step('task.queued', { runId, position });
+      auditWrite({ kind: 'task', event: 'queued', runId, position });
+    });
+    this.#tasks.on('error', (err) => this.emit('error', err));
 
     this.#control = new ControlChannel(creds.apiKey, creds.agentId, {
       tools: tools.list(),
@@ -142,17 +180,51 @@ export class AgentDaemon extends EventEmitter {
     return this;
   }
 
-  get stats() { return { ...this.#stats, budget: this.#budget.summary(), memory: this.#memory.stats() }; }
+  get stats() { return { ...this.#stats, budget: this.#budget.summary(), memory: this.#memory.stats(), vector: this.#vectorStore?.stats() ?? null, queue: { size: this.#tasks.size, running: this.#tasks.running } }; }
   get currentTask() { return this.#currentTask; }
   get connected() { return this.#control.connected; }
 
+  /** Shared vector index, loaded once and kept warm for all tasks. */
+  #getVectorStore() {
+    if (!this.#vectorStore) this.#vectorStore = new VectorStore({});
+    return this.#vectorStore;
+  }
+
   // ── Command dispatcher ──────────────────────────────────────────
+  /**
+   * Enqueue a task once. The same runId arriving again within 60 s (e.g. the
+   * server still listing a claimed task as pending) is ignored, so a task can
+   * never run twice on this device.
+   */
+  #enqueueTask(runId, task, cloudTask = null) {
+    if (!runId) runId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const now = Date.now();
+    const seen = this.#recentTasks.get(runId);
+    if (seen && now - seen < 60_000) {
+      log.debug(`Task ${runId} already queued/running — skipping duplicate`);
+      return;
+    }
+    this.#recentTasks.set(runId, now);
+    if (this.#recentTasks.size > 200) {
+      for (const [id, ts] of this.#recentTasks) {
+        if (now - ts > 60_000) this.#recentTasks.delete(id);
+      }
+    }
+    this.#tasks.enqueue({
+      runId,
+      task,
+      cloudTask,
+      run: (job) => this.#runTask(job.task, job.runId, job.cloudTask || null),
+    });
+  }
+
   async #onCommand(cmd) {
     const { runId, action, payload } = cmd;
     try {
       switch (action) {
         case 'run':
-          await this.#runTask(payload?.task, runId);
+          // Serialized: runs after any task already in flight, never beside it.
+          this.#enqueueTask(runId, payload?.task, null);
           break;
 
         case 'tool':
@@ -218,7 +290,10 @@ export class AgentDaemon extends EventEmitter {
           log.info(`Task ${t.id} claimed by another device — skipping`);
           continue;
         }
-        await this.#runTask(t.task, t.run_id, t);
+        // Serialized + deduped: waits for the running task, executes in order,
+        // and is never enqueued twice (even if the server lists it pending
+        // again before our claim is reflected).
+        this.#enqueueTask(t.run_id, t.task, t);
       }
     } catch (err) {
       log.debug(`Task poll failed: ${err.message}`);
@@ -394,6 +469,7 @@ export class AgentDaemon extends EventEmitter {
     this.#control.step('task.start', { task, runId });
     this.emit('task:start', { ...this.#currentTask, locked: this.#locked });
     log.info(`Task: "${task.slice(0, 100)}"`);
+    auditWrite({ kind: 'task', event: 'start', runId, task: truncate(String(task), 400) });
 
     const steps = [];
     let final = '';
@@ -483,9 +559,12 @@ export class AgentDaemon extends EventEmitter {
         // and the trace plumbing — every step stays visible.
         const memoryCtx = loadMemoryContext();
         const recalled = this.#memory.recall(task, { limit: 5 }).map((e) => e.text).join('\n');
-        const systemPrompt = this.#toolsPrompt(cloudTask, brain, memoryCtx, recalled);
+        const vectorCtx = loadVectorContext(task, { store: this.#getVectorStore() });
+        const systemPrompt = this.#toolsPrompt(cloudTask, brain, memoryCtx, recalled, vectorCtx);
 
-        // Loop events → dashboard + audit trace (never silent).
+        // Loop events → dashboard + audit trace (never silent). Every event is
+        // also written to the local hash-chained audit log (mona-agent audit),
+        // so the device keeps its own tamper-evident copy of what was done.
         const wireLoop = (loop) => {
           loop.on('step', (i, m) => this.emit('task:step', i, m));
           loop.on('profile', (prof) => {
@@ -494,6 +573,12 @@ export class AgentDaemon extends EventEmitter {
           });
           loop.on('think', (text) => {
             trace('think', { summary: truncate(String(text).slice(0, 500), 500), detail: truncate(String(text), 6000) });
+            auditWrite({ kind: 'task', event: 'think', runId, summary: truncate(String(text).slice(0, 300), 300) });
+          });
+          loop.on('compact', (info) => {
+            log.info(`Context compacted: ${info.before} → ${info.after} chars (${info.shortened} shortened, ${info.dropped} dropped)`);
+            this.#control.step('task.compact', { runId, ...info });
+            auditWrite({ kind: 'task', event: 'compact', runId, ...info });
           });
           loop.on('tool', (name, args) => {
             steps.push({ type: 'tool.call', tool: name, args });
@@ -502,6 +587,7 @@ export class AgentDaemon extends EventEmitter {
             log.info(`Tool call: ${name}`);
             postActivity(this.#creds.apiKey, 'tool.call', { tool: name, args }, runId, this.#creds.agentId).catch(() => {});
             trace('tool.call', { summary: name, detail: JSON.stringify(args || {}, null, 2) });
+            auditWrite({ kind: 'task', event: 'tool', runId, tool: name, args: truncate(JSON.stringify(args || {}), 500) });
           });
           loop.on('tool:result', (name, out) => {
             this.#stats.toolCalls++;
@@ -509,6 +595,7 @@ export class AgentDaemon extends EventEmitter {
             steps.push({ type: 'tool.result', tool: name, output: truncate(outStr, 400) });
             postActivity(this.#creds.apiKey, 'tool.result', { tool: name, output: truncate(outStr, 200) }, runId, this.#creds.agentId).catch(() => {});
             trace('tool.result', { summary: truncate(outStr, 500), detail: truncate(outStr, 4000) });
+            auditWrite({ kind: 'task', event: 'tool:result', runId, tool: name, output: truncate(outStr, 500) });
             log.info(`Tool result (${name}): ${truncate(outStr, 120)}`);
             if (out && (out.error || out.exitCode)) this.#debugSnapshot(runId, `tool ${name} failed`);
           });
@@ -516,6 +603,7 @@ export class AgentDaemon extends EventEmitter {
             log.warn(`Tool denied by policy: ${name} (${verdict.reason})`);
             postActivity(this.#creds.apiKey, 'auto.denied', { tool: name, reason: verdict.reason, tier: verdict.tier }, runId, this.#creds.agentId).catch(() => {});
             trace('denied', { summary: `${name}: ${verdict.reason}` });
+            auditWrite({ kind: 'task', event: 'denied', runId, tool: name, reason: verdict.reason });
           });
           loop.on('nudge', (why) => {
             postActivity(this.#creds.apiKey, 'auto.correct', { reason: why }, runId, this.#creds.agentId).catch(() => {});
@@ -527,6 +615,7 @@ export class AgentDaemon extends EventEmitter {
           });
           loop.on('answer', (text) => {
             trace('answer', { summary: truncate(String(text).slice(0, 500), 500), detail: truncate(String(text), 6000) });
+            auditWrite({ kind: 'task', event: 'answer', runId, answer: truncate(String(text), 500) });
           });
           loop.on('error', (err) => log.warn(`Loop error: ${err.message}`));
         };
@@ -567,6 +656,9 @@ export class AgentDaemon extends EventEmitter {
         const res = await loop.run(task, {
           system: systemPrompt,
           profile: brain.profile ?? 'standard',
+          // Context guard: long tasks compress old tool results instead of
+          // silently exceeding the brain's context window.
+          maxChars: 60000,
           conclude: async (messages) => {
             // Never give up: one forced conclusion when steps run out.
             messages.push({ role: 'user', content: 'Step limit reached. Reply {"reasoning":"brief summary of what you did","answer":"..."} — or plain text. No more tools.' });
@@ -634,6 +726,7 @@ export class AgentDaemon extends EventEmitter {
       this.#control.step('task.error', { error: err.message });
       this.emit('task:error', err);
       log.error(`Think failed: ${err.message}`);
+      auditWrite({ kind: 'task', event: 'error', runId, error: truncate(err.message, 500) });
       await this.#debugSnapshot(runId, 'task error: ' + err.message);
       const msg = `I hit an error and could not complete the task: ${err.message}. A debug snapshot was captured — retry the request or check the activity feed.`;
       if (sngine && runId) {
@@ -683,6 +776,7 @@ export class AgentDaemon extends EventEmitter {
     this.#control.result(runId, { text: final });
     this.#control.step('task.done', { runId, tokens: final.length, chars: final.length });
     this.emit('task:done', { answer: final, tokens: final.length, runId });
+    auditWrite({ kind: 'task', event: 'done', runId, answer: truncate(final, 500), model: lastModel, provider: lastProvider, usage: usageTotals, durationMs: Date.now() - t0 });
     log.info(`Task complete`, { tokens: final.length, chars: final.length });
   }
 
@@ -727,7 +821,7 @@ export class AgentDaemon extends EventEmitter {
     }
   }
 
-  #toolsPrompt(taskRow, brain = this.#brain, memoryCtx = '', agentMemory = '') {
+  #toolsPrompt(taskRow, brain = this.#brain, memoryCtx = '', agentMemory = '', vectorCtx = '') {
     const toolList = this.#activeTools || tools.list();
     const rows = toolList
       .map((t) => `- ${t.name}: ${t.description}${t.args ? ` (args: ${JSON.stringify(t.args)})` : ''}`)
@@ -780,6 +874,7 @@ Rules:
 - Never invent data you can read with a tool. Keep answers short and direct.
 - If a command fails, diagnose and retry differently — never give up.`;
     if (memoryCtx) p += memoryCtx;
+    if (vectorCtx) p += vectorCtx;
     if (agentMemory) {
       p += `\n\n## Agent memory (auto-remembered from past tasks)\n${agentMemory}\n(Recall this before repeating work that may already be done.)`;
     }

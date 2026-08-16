@@ -102,6 +102,34 @@ Persistent memory across tasks and restarts — plain markdown files under
 The cloud brain loads these notes at task start (persistent memory injection)
 and can update them, so the agent gets smarter with each task.
 
+## vector
+
+Semantic memory + file index — a dependency-free local vector store
+(`~/.mona-agent/vector-index.json`, override with `MONA_VECTOR_STORE`).
+Notes and workspace files are embedded with a deterministic hashing-trick
+embedding (256-dim signed feature vectors) and searched by **meaning**
+(cosine similarity), not just literal keywords.
+
+| Action | Behaviour |
+|---|---|
+| `remember` | Adds a note (`text`) to the index; near-duplicates merge |
+| `search` | Natural-language query (`query`); returns scored hits with source |
+| `index` | Indexes a file or directory under the workspace (`path`, default `.`) — chunked, binary-safe, size-capped, path-traversal denied |
+| `list` | Lists recent index entries |
+| `stats` | Index size, dimension, path |
+| `forget` | Removes an entry by `id` |
+
+The same index feeds the per-task **vector recall** context block: before a
+task starts, the daemon embeds the task text, retrieves the closest notes
+and workspace chunks, and injects them into the brain's prompt — so the
+agent starts every task already knowing what it has seen before.
+
+Example the agent might run:
+
+```json
+{"tool":"vector","args":{"action":"search","query":"how do I restart the web server"}}
+```
+
 ## security
 
 The shell's security posture, advertised to the cloud in the `hello` handshake
@@ -289,5 +317,8 @@ in the device stats.
 
 Alongside the markdown memory tool, the engine keeps a structured store
 (`~/.mona-agent/memory-store.json`): deduplicated near-identical entries,
-TTL expiry (30 days default), capped at 500 entries, and scored recall. The
-daemon auto-remembers finished tasks and recalls them into future prompts.
+TTL expiry (30 days default), capped at 500 entries, and scored recall —
+now **hybrid vector recall**: cosine similarity over hashed feature vectors
+(0.7) + recency decay (0.2) + hit boost (0.1). The daemon auto-remembers
+finished tasks and recalls them into future prompts; legacy entries without
+stored vectors are embedded lazily on first recall.

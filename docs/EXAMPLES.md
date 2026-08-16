@@ -2,6 +2,20 @@
 
 Real things people do with mona-agent. Copy, adapt, enjoy.
 
+## Teach the agent your environment (vector memory)
+
+Index a folder of notes/configs in the workspace once, then ask questions in
+plain language — the agent retrieves the closest chunks by meaning:
+
+```bash
+mona-agent exec vector action=index path="."
+mona-agent exec vector action=remember text="deploy server ssh is on port REDACTED_PORT"
+mona-agent exec vector action=search query="how do I restart the web server"
+```
+
+Every new task automatically receives the closest vector hits as context, so
+"restart nginx" works even when the notes say "brew services restart nginx".
+
 ## Check on your machine from your phone
 
 1. `mona-agent start` on the machine (or install the launchd/systemd unit
