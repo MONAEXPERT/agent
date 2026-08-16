@@ -9,7 +9,8 @@ The mona-agent client ships with an SBOM in CycloneDX format:
   transitive runtime dependencies.
 - **Zero build step** — the client runs directly from source on
   Node.js ≥ 20.
-- **Dev dependencies** — none beyond the Node.js test runner.
+- **Dev dependencies** — none beyond the Node.js test runner (162 tests,
+  including the 58-case security red-team suite).
 
 ## Regeneration
 

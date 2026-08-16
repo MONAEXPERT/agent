@@ -37,7 +37,9 @@ recipes). One-liners:
 
 ```bash
 mona-agent chat "…"   # ask the cloud brain, answer in dashboard history
-mona-agent exec "…"   # run a guarded command, stream the output
+mona-agent exec shell cmd="df -h"   # run an allowlisted command, stream output
+mona-agent policy preset standard    # require approval for shell/browser
+mona-agent audit verify              # verify the tamper-evident audit chain
 ```
 
 ## Health checks

@@ -29,15 +29,21 @@ npm test
 ```
 
 The suite covers the control channel (against a fake in-process server),
-the agent loop, tool behavior and the TUI scrollback. Please keep it green
-and add tests for new behavior.
+the agent loop, tool behavior, the TUI scrollback, and the security
+red-team suite (`apps/desktop/test/security.test.mjs` — injection,
+traversal, symlink/TOCTOU escapes, SSRF, audit-chain integrity, rate
+limits). Please keep it green and add tests for new behavior — security
+behavior in particular needs a test that proves it.
 
 ## Conventions
 
 - Plain modern JavaScript, ES modules, no build step.
 - Keep the runtime dependency count at **one** (`ws`). Prefer Node built-ins.
-- Commands executed by `tools/shell` must pass the guard allowlist — never
-  weaken the guard to make a test pass.
+- `tools/shell` executes argv arrays against the allowlist — never weaken
+  the guard to make a test pass, never reintroduce string-to-shell
+  execution.
+- Policy files, audit logs and presets are documented in `docs/TOOLS.md`
+  and `docs/GETTING-STARTED.md` — keep them in sync when behaviour changes.
 - Commits: `type(scope): summary` (feat, fix, docs, refactor, test).
 - The public repo contains **client code only**. Server-side code must not
   be committed here (SaaS boundary).

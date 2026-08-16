@@ -32,11 +32,13 @@ the product; "operator" means the adopting organization provides it.
   think → act → observe → reflect → answer → verify).
 - **A.12.4 Logging and monitoring** — full audit log (messages, brain steps,
   tool calls, token usage, cost, latency), live event stream, trace endpoint
-  per run.
+  per run; device-side hash-chained policy-decision log with integrity
+  verification (`mona-agent audit verify`).
 - **A.12.5 Control of operational software** — versioned, tagged releases;
   update via daemon restart; changelog maintained.
 - **A.12.6 Technical vulnerability management** — SECURITY.md disclosure
-  process; dependency reviews; coordinated disclosure.
+  process; dependency reviews; coordinated disclosure; automated red-team
+  suite in CI (`apps/desktop/test/security.test.mjs`).
 
 ## A.13 — Communications security
 - **A.13.1 Network security management** — devices initiate all connections

@@ -33,8 +33,13 @@ problems (the cloud keeps the conversation context):
 ## Nightly log cleanup
 
 ```cron
-10 3 * * *  $HOME/.local/bin/mona-agent exec "find ~/logs -name '*.log' -mtime +14 -delete && echo cleaned"
+10 3 * * *  $HOME/.local/bin/mona-agent exec shell cmd="ls -la ~/logs | tail -20"
 ```
+
+`exec` runs one tool with `key=value` arguments — the command still passes
+through the shell allowlist and policy. To let the agent run your own
+scripts, extend the allowlist or set `{"shell": {"unsafe": true}}` in
+`~/.mona-agent/policy.json` (audited, tamper-evident).
 
 ## Health check from any shell
 
@@ -47,16 +52,32 @@ ideal for install verification and support tickets.
 
 ## Drive a script from the dashboard
 
-Anything you can put in a script, the agent can run it for you:
+Anything you put in an allowlisted command, the agent can run it for you.
+To run arbitrary scripts, grant them explicitly:
 
 ```bash
+# 1. Let the agent run your own commands (comma-separated)
+export MONA_ALLOW_CMDS="df,uptime,uname,whoami,date,hostname,free,ps,top,cat,head,tail,wc,ls,pwd,echo,env,which,backup.sh"
+
+# 2. backup.sh — called from the dashboard chat
 #!/usr/bin/env bash
-# backup.sh — daily offsite backup, called from the dashboard chat
 tar czf - ~/projects | gpg -c --batch --passphrase-file ~/.backup-pass -o /mnt/backup/projects.tgz.gpg
 ```
 
 Say *"run backup.sh"* in the chat; the guarded shell executes it and
-streams the result back to your browser.
+streams the result back to your browser. Every run lands in the audit log.
+
+## Lock it down (security recipes)
+
+```bash
+mona-agent policy preset strict      # read-only agent: no shell, no network
+mona-agent policy explain shell      # see exactly which rule governs shell
+mona-agent audit tail                # last 20 policy decisions
+mona-agent audit verify              # prove the audit chain is untampered
+```
+
+Ideal for unattended machines and compliance reviews: the policy file is
+local and authoritative — the control plane can never widen it.
 
 ## Headless Raspberry Pi companion
 

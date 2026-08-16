@@ -18,12 +18,12 @@ obligations below are documented so operators can show readiness end-to-end.
 | CRA requirement | Implementation |
 |---|---|
 | Security by design & default | No inbound ports, least-privilege tools, secure defaults, no credentials on devices |
-| No known exploitable vulnerabilities at release | Automated test suite, lint, dependency review; patched releases published on GitHub |
-| Secure default configuration | Allowlist-based shell, workspace-confined file access, URL scheme validation |
+| No known exploitable vulnerabilities at release | Automated test suite (unit + 58-case red-team suite), dependency audit in CI; patched releases published on GitHub |
+| Secure default configuration | Allowlist-based argv shell execution (no string-to-shell), workspace-confined file access with TOCTOU guards, SSRF-safe networking, local policy with safe defaults |
 | Protection against unauthorized access | Device key authentication (revocable per device), TLS 1.2+, AES-256-GCM encrypted keys |
 | Data minimization | Only task text, tool results and device metrics leave the device; provider keys never reach devices |
 | Resilience & availability | Self-healing agent loop, retry with backoff, stale-task expiry, metrics-driven health checks |
-| Logging & monitoring | Complete audit trail (messages, brain steps, tool calls, tokens, cost, latency); live event stream |
+| Logging & monitoring | Complete audit trail (messages, brain steps, tool calls, tokens, cost, latency); live event stream; device-side hash-chained audit log |
 | Secure updates | Versioned releases on GitHub; daemon restart applies updates; update notes in CHANGELOG |
 
 ## Manufacturer obligations — operational mapping

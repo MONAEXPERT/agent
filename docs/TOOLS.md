@@ -198,28 +198,59 @@ tools become callable through the same registry as the built-ins.
 
 ## Policy (engine)
 
-The engine checks every tool call against a policy before executing it.
-Defaults are safe (all built-in tools allowed, destructive shell patterns
-blocked); an optional `~/.mona-agent/policy.json` (or `MONA_POLICY`) tunes
-it:
+The engine checks every tool call against a policy before executing it —
+and the tool registry enforces the same policy for direct commands
+(`mona-agent exec`, dashboard tool calls). Defaults are safe (all built-in
+tools allowed, destructive shell patterns blocked); an optional
+`~/.mona-agent/policy.json` (or `MONA_POLICY`) tunes it:
 
 ```json
 {
-  "tools":    { "shell": "confirm", "web": "deny" },
-  "shell":    { "deny": ["git\s+push"] },
-  "approval": { "patterns": ["sudo"] },
-  "budget":   { "dailyTokens": 500000, "dailyCostUsd": 2 },
-  "maxSteps": 12
+  "version": 1,
+  "tools":     { "shell": "confirm", "web": "deny" },
+  "shell":     { "deny": ["git\\s+push"], "unsafe": false },
+  "rateLimits": { "shell": { "perMinute": 20 }, "*": { "perMinute": 300 } },
+  "budget":    { "dailyTokens": 500000, "dailyCostUsd": 2 },
+  "maxSteps":  12,
+  "audit":     true
 }
 ```
 
 - `tools`: per-tool tier — `allow` | `deny` | `confirm` (unknown tools are
-default-denied)
-- `shell.deny` / `approval.patterns`: extra regex patterns (blocked vs
-need-approval)
+  default-denied)
+- `shell.deny`: extra regex patterns (blocked); `shell.unsafe: true`
+  enables unrestricted argv execution (audited — replaces the deprecated
+  `MONA_SHELL_UNSAFE=1` env flag); legacy `approval.patterns` still works
+- `rateLimits`: per-tool sliding per-minute window (`*` = default for all)
 - `budget`: daily caps; `0` = unlimited. Levels degrade automatically:
   normal → eco (cheap profile) → critical (minimal) → exhausted (no tasks)
 - `maxSteps`: 2–16 (default 8)
+- `audit`: `false` disables the decision log (not recommended)
+
+Presets (write one to `~/.mona-agent/policy.json`):
+
+```bash
+mona-agent policy preset strict      # read-only: shell/net/browser/apps denied
+mona-agent policy preset standard    # shell & browser need approval, rate limits
+mona-agent policy preset permissive  # everything allowed (default behaviour)
+mona-agent policy status             # show the active policy + tool tiers
+mona-agent policy explain <tool>     # show which rule decides a call
+```
+
+The policy file is **local and authoritative** — it loads from disk at
+startup and the control plane can never modify or widen it.
+
+## Audit log (engine)
+
+Every policy decision (tool call, shell check, rate-limit denial) is
+appended to `~/.mona-agent/audit.jsonl` (0600) as a hash-chained,
+append-only JSONL stream — `h_n = sha256(h_{n-1} || entry)`. Tampering
+breaks the chain:
+
+```bash
+mona-agent audit tail      # last 20 decisions
+mona-agent audit verify    # verify the whole chain (exit 1 on tampering)
+```
 
 ## Budget (engine)
 

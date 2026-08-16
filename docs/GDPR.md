@@ -35,8 +35,12 @@ minimises it. This document supports both end-user transparency
 - AES-256-GCM encryption at rest for all key material
 - HTTPS/TLS for all traffic
 - Per-user bearer tokens + session auth + CSRF protection
-- Least-privilege tool sandbox, allowlisted shell
-- Full audit trail of every action
+- Least-privilege tool sandbox: argv-based allowlisted shell, SSRF-safe
+  networking, workspace-confined file tool with TOCTOU guards and
+  trash-based deletes
+- Local policy is authoritative — the control plane can never widen it
+- Full audit trail of every action (cloud) + hash-chained, tamper-evident
+  local decision log on each device (`mona-agent audit verify`)
 
 ## Data subject rights
 
