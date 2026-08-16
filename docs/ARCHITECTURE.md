@@ -38,11 +38,27 @@ mona-agent is a **headless Node.js daemon** with two jobs:
 | `bin/mona-agent.js` | CLI entrypoint — `gui`, `start`, `login`, `connect`, `chat`, `exec` |
 | `src/config.js` | Credentials, cloud endpoint resolution, platform detection |
 | `src/cloud.js` | REST client for the control plane API (Bearer-auth) |
-| `src/control.js` | Control channel: registration, command dispatch, metrics streaming |
+| `src/control.js` | Control channel: versioned envelopes, command dispatch, metrics streaming |
 | `src/api.js` | Local HTTP API + WebSocket (used by the local dashboard / desktop UI) |
-| `src/tools/*` | The tool sandbox: `files`, `shell`, `net`, `sysinfo` |
+| `src/agent.js` | Wires the engine core to the cloud brain, tools and trace reporting |
+| `src/tools/*` | The tool sandbox: `files`, `shell`, `net`, `sysinfo`, `apps`, `browser`, `web`, `memory`, `notify` |
 | `src/tui.js` | Terminal dashboard — live log, scrollback, status bar |
 | `src/log.js` | Structured logging (quiet in daemon mode) |
+
+## Workspaces
+
+The repo is an npm monorepo with three packages:
+
+| Package | Purpose |
+|---|---|
+| `packages/engine` (`@mona/engine`) | The agent core — policy-as-code, budget governor, structured memory, the bounded TaskLoop. Zero runtime dependencies; fully testable offline. |
+| `packages/protocol` (`@mona/protocol`) | The wire contract — versioned envelopes, message types, close codes. The daemon and the gateway both implement it, so they can never drift apart. |
+| `apps/desktop` (`mona-agent`) | The device daemon — consumes both packages; the only credential it holds is the mona.expert key. |
+
+The daemon is intentionally thin: it supplies the brain (cloud `think`), the
+tools and the trace plumbing — all loop behavior (policy checks, budget
+steering, corrective nudges, forced conclusion) is engine code that is
+tested once and shared with every future client.
 
 ## Control channel lifecycle
 
@@ -80,15 +96,28 @@ CLI, or the cloud queue):
         └───────────────────────────────────────────────────┘
 ```
 
-- Up to **8 tool steps per task** — the loop ends when the brain answers
-  in plain text.
+- Up to **N tool steps per task** (default 8, owner-configurable 2–16 via the
+  cloud brain settings) — the loop ends when the brain answers in plain text.
 - Tool protocol is provider-agnostic: the brain replies with a single
   JSON object `{"tool":"<name>","args":{...}}` or plain text. No
   provider-specific function-calling plumbing.
-- Every step is reported to the cloud (`tool.call` / `tool.result`) and
+- Every tool call is **policy-checked before execution** (engine Policy):
+  unknown tools are denied, shell commands run the base + policy deny lists,
+  `confirm`-tier tools require approval.
+- **Budget steering** — when the daily token/cost caps approach their limit,
+  the engine degrades the reasoning profile (`eco` → `cheap` profile, fewer
+  steps; `critical` → minimal profile; `exhausted` → no new tasks).
+- Every step is reported to the cloud (`tool.call` / `tool.result`,
+  plus `think`, `profile`, `denied`, `correct`, `verify` entries) and
   appears live in the dashboard activity feed.
+- **Never loops silently** — each iteration emits `step i/N`; a malformed
+  reply gets at most 3 corrective nudges; when the step budget runs out the
+  engine forces one final conclusion (`conclude`) instead of hanging.
 - The final answer is stored in the cloud conversation — history survives
   restarts and is visible from every client.
+- Finished tasks are folded into the engine's **structured memory** (dedupe,
+  TTL, scored recall) and recalled into future prompts, so the agent
+  remembers what it already did.
 
 ## Metrics pipeline (HTTP-first)
 
@@ -106,8 +135,11 @@ upgrade**:
 - **No AI provider keys on the device.** Only a mona.expert device token is
   stored (`~/.mona-agent/credentials.json`, mode 0600).
 - **Guarded shell** — commands run through an allowlist; dangerous patterns
-  are blocked before execution.
+  are blocked before execution (shell tool AND engine policy).
 - **Confined files tool** — reads/writes are limited to safe, allowed paths.
+- **Policy-as-code** — `~/.mona-agent/policy.json` (or `MONA_POLICY`) can
+  deny or gate any tool, block shell patterns, and set daily budget caps;
+  the defaults are safe.
 - **Egress-only** — the daemon opens outbound connections only; it listens
   on localhost only (for the local dashboard).
 

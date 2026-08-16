@@ -1,16 +1,22 @@
-export * from './sse.mjs';
-export * from './engine.mjs';
-export * from './simulated.mjs';
+// mona engine — the lightweight agent core.
+//
+// Policy-as-code, budget governor, structured memory, bounded task loop.
+// Zero runtime dependencies; every piece is unit-testable offline.
 
-import { EngineClient } from './engine.mjs';
-import { SimulatedEngine } from './simulated.mjs';
+export { Policy } from './policy.js';
+export { Budget } from './budget.js';
+export { MemoryStore } from './memory.js';
+export { TaskLoop, parseBrainReply } from './loop.js';
 
 /**
- * Engine factory. One brain, two modes:
- *   simulated — offline dev/CI (never allowed in production)
- *   remote    — the real mona.expert engine (one key: the mona.expert key)
+ * One-call engine wiring with sensible defaults.
+ * think(messages, {profile, temperature}) is provided by the caller
+ * (any provider/brain); runTool(name, args) executes sandboxed tools.
  */
-export function createEngine(cfg, { log = null } = {}) {
-  if (cfg.engine.mode === 'simulated') return new SimulatedEngine({ log });
-  return new EngineClient({ url: cfg.engine.url, key: cfg.engine.key, timeoutMs: cfg.engine.timeoutMs, log });
+export function createEngine({ think, runTool, policyPath, storePath, budget } = {}) {
+  const policy = policyPath ? Policy.load(policyPath) : new Policy(null);
+  const b = budget instanceof Budget ? budget : new Budget(budget || {});
+  const memory = new MemoryStore({ storePath });
+  const loop = new TaskLoop({ think, runTool, policy, budget: b });
+  return { policy, budget: b, memory, loop };
 }

@@ -148,3 +148,58 @@ Tools live in `apps/desktop/src/tools/` and are plain ES modules. Each tool
 exposes a `run(action, args)` and registers itself in
 `src/tools/index.js`. Keep the same rules: validate input, never execute
 untrusted data, and always stream results.
+
+## Skills
+
+Skills are user-enableable capability packs (a `SKILL.md` with instructions
+plus optional `tools/*.mjs` helper tools) installed into
+`~/.mona-agent/skills/`. The bundled ones ship with the agent:
+
+```bash
+mona-agent skills list          # installed skills + enabled state
+mona-agent skills install       # install the bundled skills (idempotent)
+mona-agent skills enable <name> # inject its instructions into the brain
+mona-agent skills disable <name>
+```
+
+Enabled skills' instructions are injected into the agent's context, and their
+tools become callable through the same registry as the built-ins.
+
+## Policy (engine)
+
+The engine checks every tool call against a policy before executing it.
+Defaults are safe (all built-in tools allowed, destructive shell patterns
+blocked); an optional `~/.mona-agent/policy.json` (or `MONA_POLICY`) tunes
+it:
+
+```json
+{
+  "tools":    { "shell": "confirm", "web": "deny" },
+  "shell":    { "deny": ["git\s+push"] },
+  "approval": { "patterns": ["sudo"] },
+  "budget":   { "dailyTokens": 500000, "dailyCostUsd": 2 },
+  "maxSteps": 12
+}
+```
+
+- `tools`: per-tool tier — `allow` | `deny` | `confirm` (unknown tools are
+default-denied)
+- `shell.deny` / `approval.patterns`: extra regex patterns (blocked vs
+need-approval)
+- `budget`: daily caps; `0` = unlimited. Levels degrade automatically:
+  normal → eco (cheap profile) → critical (minimal) → exhausted (no tasks)
+- `maxSteps`: 2–16 (default 8)
+
+## Budget (engine)
+
+Daily token/cost usage is recorded in `~/.mona-agent/budget.json` (0600) and
+survives restarts. When a cap is hit the daemon answers new tasks with a
+clear message instead of burning spend — and the dashboard shows the level
+in the device stats.
+
+## Memory store (engine)
+
+Alongside the markdown memory tool, the engine keeps a structured store
+(`~/.mona-agent/memory-store.json`): deduplicated near-identical entries,
+TTL expiry (30 days default), capped at 500 entries, and scored recall. The
+daemon auto-remembers finished tasks and recalls them into future prompts.

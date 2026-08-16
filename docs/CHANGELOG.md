@@ -1,5 +1,34 @@
 # Changelog
 
+## v2.7.0
+
+- **Dead weight wired up** — `packages/engine` and `packages/protocol` are
+  now the single source of truth the daemon runs on; the inline loop and
+  hand-rolled wire format are gone:
+  - The agentic loop (plan → act → reflect → answer) now runs on the shared
+    **TaskLoop** engine core — policy checks on every tool call, corrective
+    nudges, budget steering and a forced conclusion are engine guarantees,
+    not daemon habits
+  - **Policy-as-code** — `~/.mona-agent/policy.json` (or `MONA_POLICY`) now
+    governs tool authorization (`allow`/`deny`/`confirm`), shell patterns and
+    daily budget caps; safe defaults apply when no file exists
+  - **Budget governor** — daily token/cost caps degrade the reasoning profile
+    (normal → eco → critical → exhausted) and block new tasks when spent;
+    usage is reported in `stats` and streamed to the dashboard
+  - **Structured memory** — the engine's `MemoryStore` (dedupe, TTL, scored
+    recall) now auto-remembers finished tasks and injects recalled context
+    into future prompts alongside the markdown memory tool
+  - **Shared wire contract** — every outbound frame is a versioned envelope
+    from `@mona/protocol`; inbound frames with an unknown protocol version
+    are rejected at connect time (close code 4002); `agent.log` type added
+  - **Lenient parser merged upstream** — the battle-tested brain-reply parser
+    (balanced-brace extraction, broken-JSON salvage, reasoning preserved on
+    tool calls) now lives in the engine, so the daemon and any future client
+    parse identically
+- **Skills tests fixed** — test isolation from the real `~/.mona-agent` config
+- Test suite grew 58 → 104 (engine loop/parser, protocol contract, skills);
+  all green on Node 20/22
+
 ## v2.6.0
 
 - **Always-visible progress** — every think step now emits `task:step

@@ -121,10 +121,22 @@ with one click.
                                 └───────────────────────────────┘
 ```
 
-- `apps/desktop` — the device agent (daemon, tools, terminal UI)
-- `packages/*` — shared protocol/engine contracts
+- `apps/desktop` — the device agent (daemon, tools, terminal UI). It is thin
+  on purpose: it supplies the cloud brain, the tools and the trace plumbing.
+- `packages/engine` — the agent core: bounded plan → act → reflect → answer
+  loop with policy-as-code, a budget governor (cheap-first degradation) and
+  structured memory. Zero dependencies, tested offline.
+- `packages/protocol` — the wire contract (versioned envelopes, message
+  types, close codes) shared by the daemon and the gateway.
 - `docs/` — architecture, compliance (GDPR, CRA, ISO 27001, IEC 62443),
   threat model, tool reference, changelog
+
+Every loop guarantee lives in the engine and is tested once: policy checks
+before each tool call, corrective nudges on malformed replies, forced
+conclusion at the step limit (never hangs), and budget steering that shifts
+to cheaper reasoning profiles as daily caps approach. Every step — think,
+tool call, result, denial, profile switch — is streamed to your dashboard
+and recorded in the audit trail.
 
 ## Documentation
 

@@ -9,14 +9,13 @@ import os from 'node:os';
 import { statfsSync } from 'node:fs';
 import { CLOUD, DEFAULTS } from './config.js';
 import { log } from './log.js';
+import { envelope, TYPES, isTerminalClose, parseFrame, checkVersion, CLOSE_CODES } from '@mona/protocol';
 
-/**
- * Close codes the cloud uses to say "this credential is no longer valid".
- * Reconnecting would just fail again — the daemon stops and asks for re-login.
- *   4001 — unauthorized (bad / expired API key)
- *   4003 — forbidden (device revoked, agent disabled)
- */
-const TERMINAL_CLOSE_CODES = new Set([4001, 4003]);
+// ── Versioned frames ──────────────────────────────────────────────
+// Every outbound frame is built with the shared wire contract
+// (packages/protocol) so the daemon and the gateway can never drift apart.
+// Inbound frames are validated the same way: unknown protocol versions are
+// rejected at connect time with the protocol close code.
 
 /** Sampled CPU busy ratio — two os.cpus() readings 100ms apart. */
 async function cpuPercent() {
@@ -96,7 +95,7 @@ export class ControlChannel extends EventEmitter {
         // Docker platform protocol: flat register message, no hello handshake.
         this.#sendFlat('register', { name: os.hostname(), model: `mona-agent/${DEFAULTS.version}` });
       } else {
-        this.#send('hello', {
+        this.#send(TYPES.HELLO, {
           agentId:  this.#agentId,
           host:     os.hostname(),
           platform: os.platform(),
@@ -115,15 +114,22 @@ export class ControlChannel extends EventEmitter {
       let msg;
       try { msg = JSON.parse(raw.toString()); } catch { return; }
 
-      if (msg.type === 'llm:response' || msg.type === 'llm:error') {
+      // Shared contract: reject connections that speak an unknown dialect.
+      if (msg && typeof msg === 'object' && msg.v !== undefined && !checkVersion(msg)) {
+        log.warn(`Peer speaks protocol v${msg.v} — closing (${CLOSE_CODES.PROTOCOL})`);
+        this.#ws.close(CLOSE_CODES.PROTOCOL, 'unsupported protocol version');
+        return;
+      }
+
+      if (msg.type === TYPES.LLM_RESPONSE || msg.type === TYPES.LLM_ERROR) {
         this.#resolveLlm(msg);
-      } else if (msg.type === 'command') {
+      } else if (msg.type === TYPES.COMMAND) {
         this.emit('command', msg);
-      } else if (CLOUD.platform === 'docker' && msg.type === 'chat') {
+      } else if (CLOUD.platform === 'docker' && msg.type === TYPES.CHAT) {
         // Docker dashboard chat  same run flow as a command.
         this.emit('command', { action: 'run', runId: msg.requestId, payload: { task: msg.message } });
-      } else if (msg.type === 'ping') {
-        this.#send('pong', {});
+      } else if (msg.type === TYPES.PING) {
+        this.#send(TYPES.PONG, {});
       } else {
         this.emit('message', msg);
       }
@@ -134,7 +140,7 @@ export class ControlChannel extends EventEmitter {
       // WS relay absent (HTTP fallback active): no reconnect loop.
       if (this.#wsSkipped) return;
       // Terminal close: the credential itself was rejected — do not loop.
-      if (TERMINAL_CLOSE_CODES.has(code)) {
+      if (isTerminalClose(code)) {
         this.#stopped = true;
         clearTimeout(this.#reconnectTimer);
         log.error(`Cloud rejected credentials (code ${code}) — stopping. Run: mona-agent login`);
@@ -169,15 +175,9 @@ export class ControlChannel extends EventEmitter {
     return this;
   }
 
-  /** Send a typed message upstream. Every envelope carries a protocol version. */
+  /** Send a typed message upstream — every frame is a versioned envelope. */
   #send(type, data) {
-    const msg = JSON.stringify({
-      v: 1,
-      type,
-      ts: Date.now(),
-      agentId: this.#agentId,
-      data,
-    });
+    const msg = JSON.stringify(envelope(type, data, { agentId: this.#agentId }));
     if (this.#ws?.readyState === WebSocket.OPEN) {
       this.#ws.send(msg);
     } else {
@@ -202,16 +202,16 @@ export class ControlChannel extends EventEmitter {
   }
 
   // ── Public emitters (all consumed by the website dashboard) ─────
-  step(name, detail)     { if (CLOUD.platform !== 'docker') this.#send('agent.step', { name, detail }); }
-  token(delta, runId)    { if (CLOUD.platform !== 'docker') this.#send('agent.token', { delta, runId }); }
-  result(runId, output)  { if (CLOUD.platform !== 'docker') this.#send('agent.result', { runId, output }); }
-  log(level, message)    { if (CLOUD.platform !== 'docker') this.#send('agent.log', { level, message }); }
+  step(name, detail)     { if (CLOUD.platform !== 'docker') this.#send(TYPES.AGENT_STEP, { name, detail }); }
+  token(delta, runId)    { if (CLOUD.platform !== 'docker') this.#send(TYPES.AGENT_TOKEN, { delta, runId }); }
+  result(runId, output)  { if (CLOUD.platform !== 'docker') this.#send(TYPES.AGENT_RESULT, { runId, output }); }
+  log(level, message)    { if (CLOUD.platform !== 'docker') this.#send(TYPES.AGENT_LOG, { level, message }); }
 
   // ── Docker platform protocol ────────────────────────────────────
 
   /** Reply to a dashboard chat message (docker platform). */
   chatResponse(requestId, message) {
-    this.#sendFlat('chat:response', { requestId, message });
+    this.#sendFlat(TYPES.CHAT_RESPONSE, { requestId, message });
   }
 
   /**
@@ -227,7 +227,7 @@ export class ControlChannel extends EventEmitter {
         reject(new Error('LLM request timed out after 120s'));
       }, 120_000);
       this.#llmPending.set(requestId, { resolve, reject, timeout });
-      this.#sendFlat('llm:request', { requestId, messages, temperature });
+      this.#sendFlat(TYPES.LLM_REQUEST, { requestId, messages, temperature });
     });
   }
 
@@ -275,7 +275,7 @@ export class ControlChannel extends EventEmitter {
         // Docker dashboard shows live agent status from these broadcasts.
         this.#sendFlat('status', { status: 'online', details: metrics });
       } else {
-        this.#send('device.metrics', metrics);
+        this.#send(TYPES.DEVICE_METRICS, metrics);
       }
       // HTTP fallback: shared hosting cannot run the Node WS relay,
       // so also push metrics straight to the Sngine PHP API.
