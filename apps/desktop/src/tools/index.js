@@ -11,8 +11,9 @@ import { apps } from './apps.js';
 import { browser } from './browser.js';
 import { web } from './web.js';
 import { memory } from './memory.js';
+import { notify } from './notify.js';
 
-const BUILTIN = [sysinfo, shell, files, net, apps, browser, web, memory];
+const BUILTIN = [sysinfo, shell, files, net, apps, browser, web, memory, notify];
 const TIMEOUT_MS = 30_000;
 
 class ToolRegistry {

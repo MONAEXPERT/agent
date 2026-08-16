@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.5.0
+
+- **Files sandbox hardened** — fixed a path-boundary bug that could let a
+  `../workspace-evil` sibling path escape the workspace; symlink escapes are
+  now rejected (realpath check on every access); writes are capped at 1 MB;
+  deleting the workspace root is refused
+- **Shell guard extended** — `poweroff`/`reboot`/`halt` and pipe-to-shell
+  downloads (`curl … | sh`, `wget … | bash`) are now always blocked
+- **New tool: `notify`** — desktop notifications (macOS osascript, Linux
+  notify-send, Windows msg) with strict shell-metacharacter sanitization
+- **Version alignment** — device-reported version now 1.6.0 (was stale 1.5.0,
+  out of sync with the desktop package)
+
+
 ## v2.4.0
 
 - Multi-device platform — devices register as first-class entities (name,

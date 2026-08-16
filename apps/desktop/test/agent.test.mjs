@@ -80,6 +80,82 @@ describe('tools/files', () => {
       assert.ok(err.message.includes('traversal'));
     }
   });
+
+  it('rejects sibling-prefix escapes (boundary check)', async () => {
+    try {
+      await files.run({ action: 'read', path: '../workspace-evil/secret.txt' });
+      assert.fail('Should have thrown');
+    } catch (err) {
+      assert.ok(err.message.includes('traversal'));
+    }
+  });
+
+  it('rejects symlink escapes out of the workspace', async () => {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const fs = await import('node:fs/promises');
+    const ws = process.env.MONA_WORKSPACE || path.join(os.homedir(), '.mona-agent', 'workspace');
+    const link = path.join(ws, '__escape_test');
+    try {
+      await fs.symlink(os.tmpdir(), link);
+      try {
+        await files.run({ action: 'list', path: '__escape_test' });
+        assert.fail('Should have thrown');
+      } catch (err) {
+        assert.ok(err.message.includes('Symlink escape'));
+      }
+    } finally {
+      await fs.rm(link, { force: true });
+    }
+  });
+
+  it('refuses to delete the workspace root', async () => {
+    const result = await files.run({ action: 'delete', path: '.' });
+    assert.ok(result.error && result.error.includes('workspace root'));
+  });
+
+  it('caps write size at 1 MB', async () => {
+    const result = await files.run({ action: 'write', path: '__big.txt', content: 'x'.repeat(1_000_001) });
+    assert.ok(result.error && result.error.includes('too large'));
+  });
+});
+
+describe('tools/notify', () => {
+  let buildNotifyCmd;
+  before(async () => {
+    ({ buildNotifyCmd } = await import('../src/tools/notify.js'));
+  });
+
+  it('builds a macOS osascript command', () => {
+    const cmd = buildNotifyCmd('Mona', 'Task done', 'darwin');
+    assert.ok(cmd.includes('display notification'));
+    assert.ok(cmd.includes('Task done'));
+  });
+
+  it('builds a Linux notify-send command', () => {
+    assert.ok(buildNotifyCmd('Mona', 'Hi', 'linux').startsWith('notify-send'));
+  });
+
+  it('builds a Windows msg command', () => {
+    assert.ok(buildNotifyCmd('Mona', 'Hi', 'win32').includes('msg'));
+  });
+
+  it('strips quotes to avoid shell injection', () => {
+    const cmd = buildNotifyCmd('Mona"; rm -rf ~', 'body', 'linux');
+    // payload is inert: fully enclosed as a quoted argument, no breakout
+    assert.ok(cmd.includes('"Mona; rm -rf ~"'));
+    assert.ok(!cmd.includes('";'));
+  });
+
+  it('strips single quotes on macOS to protect osascript', () => {
+    const cmd = buildNotifyCmd("Mona'; rm -rf ~", 'body', 'darwin');
+    assert.ok(cmd.includes('with title "Mona; rm -rf ~"'));
+    assert.ok(!cmd.includes("';"));
+  });
+
+  it('returns null on unsupported platforms', () => {
+    assert.equal(buildNotifyCmd('Mona', 'Hi', 'plan9'), null);
+  });
 });
 
 describe('tools/net', () => {
@@ -111,6 +187,7 @@ describe('tools/registry', () => {
     assert.ok(names.includes('shell'));
     assert.ok(names.includes('files'));
     assert.ok(names.includes('net'));
+    assert.ok(names.includes('notify'));
   });
 
   it('lists tools with descriptions', () => {

@@ -127,6 +127,21 @@ Web research — pure Node, no external dependencies, multi-OS.
   entities, caps output at 10 KB.
 - 15 s timeout per request, honest `mona-agent/2.x` user agent.
 
+## notify
+
+Desktop notifications — lets the agent surface alerts on your screen.
+
+| Platform | Mechanism |
+|---|---|
+| macOS | `osascript` `display notification` |
+| Linux | `notify-send` (fails silently if absent) |
+| Windows | `msg` via PowerShell |
+
+- Titles are capped at 100 chars, bodies at 300.
+- All shell metacharacters (`"`, `'`, `\`, backtick) are stripped before the
+  command is built — notification text can never escape into the shell.
+- Unsupported platforms return a clear error instead of guessing.
+
 ## Adding your own tool
 
 Tools live in `apps/desktop/src/tools/` and are plain ES modules. Each tool

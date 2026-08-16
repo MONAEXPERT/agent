@@ -80,6 +80,10 @@ const BLOCKED_PATTERNS = [
   /chmod\s+777\s+\//i,
   /sudo\b/i,
   /shutdown\b/i,
+  /poweroff\b|reboot\b|halt\b/i,
+  // Pipe-to-shell: remote code execution via downloader
+  /curl\s+.*\|\s*(ba|z)?sh/i,
+  /wget\s+.*\|\s*(ba|z)?sh/i,
   // Windows
   /format\s+[a-z]:/i,
   /del\s+\/f\s+\/s\s+[a-z]:\\/i,
