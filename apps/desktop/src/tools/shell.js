@@ -43,7 +43,7 @@ const cfg = SHELL_CONFIG[PLATFORM] || SHELL_CONFIG.linux;
 
 // ── OS-aware default allowlist ────────────────────────────────────
 const DEFAULTS = {
-  darwin: 'df,uptime,uname,whoami,date,hostname,vm_stat,top,cat,head,tail,wc,ls,pwd,echo,env,which,sw_vers,sysctl',
+  darwin: 'df,uptime,uname,whoami,date,hostname,vm_stat,top,cat,head,tail,wc,ls,pwd,echo,env,which,sw_vers,sysctl,open',
   linux:  'df,uptime,uname,whoami,date,hostname,free,ps,top,cat,head,tail,wc,ls,pwd,echo,env,which',
   win32:  'whoami,date,hostname,dir,type,echo,ver,systeminfo,tasklist',
 };

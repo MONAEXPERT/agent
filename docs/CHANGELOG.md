@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.8.1
+
+- **macOS app launcher**: `open` added to the default shell allowlist —
+  the agent can now launch apps, files and URLs (e.g. `open -a Calendar`)
+  out of the box. Everything still runs through the same argv-based
+  sandbox: realpath resolution, scrubbed env, per-segment allowlist.
+
+## v2.8.1
+
+- **macOS app launcher**: `open` added to the default shell allowlist —
+  the agent can now launch apps, files and URLs (e.g. `open -a Calendar`)
+  out of the box. Everything still runs through the same argv-based
+  sandbox: realpath resolution, scrubbed env, per-segment allowlist.
+
 ## v2.8.0 — hardened core (security pass)
 
 - **Shell: argv execution, no string-to-shell.** Commands are parsed into

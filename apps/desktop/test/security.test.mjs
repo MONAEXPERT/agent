@@ -504,3 +504,17 @@ describe('security/policy — audit + limits', () => {
 after(() => {
   try { fs.rmSync(FAKE_HOME, { recursive: true, force: true }); } catch { /* best effort */ }
 });
+
+describe('security/shell — macOS app launcher', () => {
+  it('allows `open` in the default allowlist on macOS', () => {
+    if (os.platform() !== 'darwin') return;
+    assert.ok(shell.security.allowlist.includes('open'), 'open must be allowlisted');
+  });
+});
+
+describe('security/shell — macOS app launcher', () => {
+  it('allows `open` in the default allowlist on macOS', () => {
+    if (os.platform() !== 'darwin') return;
+    assert.ok(shell.security.allowlist.includes('open'), 'open must be allowlisted');
+  });
+});
