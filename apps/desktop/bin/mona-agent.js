@@ -482,7 +482,7 @@ async function start() {
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
 
-  daemon.start();
+  // (start already invoked above in the try block — single call only)
 
   // Keep process alive; all work is driven by inbound commands.
   setInterval(() => {}, 1 << 30);
