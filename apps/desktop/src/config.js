@@ -82,7 +82,7 @@ export const DEFAULTS = Object.freeze({
   metricsIntervalMs: 10_000,
   reconnectMinMs:    1_000,
   reconnectMaxMs:    30_000,
-  version:           '1.8.0',
+  version:           '1.8.1',
 });
 
 // ── Credential management ─────────────────────────────────────────
