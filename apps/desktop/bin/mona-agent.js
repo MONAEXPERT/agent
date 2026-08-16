@@ -16,6 +16,7 @@ import { stdin, stdout } from 'node:process';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { loadCreds, saveCreds, requireCreds, CLOUD, DEFAULTS, PATHS } from '../src/config.js';
 import { VERSION, isUpdateAvailable } from '../src/version.js';
 import { checkForUpdates, applyUpdate } from '../src/update.js';
@@ -684,6 +685,64 @@ function versionCmd() {
   console.log(`v${VERSION}`);
 }
 
+// ── tools ────────────────────────────────────────────────────────
+async function toolsCmd() {
+  const sub = args[0] || 'list';
+  const { ToolRegistry, discoverExternalTools } = await import('../src/tools/registry.js');
+
+  if (sub === 'list') {
+    const reg = new ToolRegistry();
+    const external = await discoverExternalTools();
+    for (const t of external) reg.register(t);
+    const items = reg.list();
+    console.log(`\n  ${BOLD}Registered tools${RESET}  (${items.length})`);
+    for (const t of items) {
+      console.log(`  ${CYAN}${t.name.padEnd(16)}${RESET} ${t.description || ''}`);
+      console.log(`             ${DIM}v${t.version} · ${t.sideEffects}${t.sideEffects === 'none' ? '' : ' · non-idempotent'}`);
+    }
+    console.log();
+    return;
+  }
+
+  if (sub === 'inspect') {
+    const name = args[1];
+    if (!name) { console.error(`\n  Usage: mona-agent tools inspect <name>\n`); process.exit(2); }
+    const reg = new ToolRegistry();
+    const external = await discoverExternalTools();
+    for (const t of external) reg.register(t);
+    const found = reg.list().find((t) => t.name === name);
+    if (!found) { console.error(`\n  ${RED}Tool "${name}" not found.${RESET}\n`); process.exit(1); }
+    console.log(`\n  ${BOLD}${found.name}${RESET}  v${found.version}`);
+    console.log(`  ${found.description}\n`);
+    console.log(`  ${DIM}sideEffects:${RESET}  ${found.sideEffects}`);
+    return;
+  }
+
+  if (sub === 'validate') {
+    const path = args[1];
+    if (!path) { console.error(`\n  Usage: mona-agent tools validate <path-to-tool-module>\n`); process.exit(2); }
+    try {
+      const resolved = path.startsWith('/') || path.startsWith('file:') ? path : join(process.cwd(), path);
+      const mod = await import(pathToFileURL(resolved).href);
+      const { isTool } = await import('../src/tools/define.js');
+      const t = mod.default || mod;
+      if (isTool(t)) {
+        console.log(`\n  ${GREEN}Valid tool: ${t.name} v${t.version}${RESET} (${t.description})\n`);
+      } else {
+        console.error(`\n  ${RED}Not a tool descriptor. Use defineTool() and export it as default.${RESET}\n`);
+        process.exit(1);
+      }
+    } catch (e) {
+      console.error(`\n  ${RED}Could not load ${path}: ${e.message}${RESET}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  console.error(`\n  Unknown tools subcommand: ${sub}\n  Run ${CYAN}mona-agent tools help${RESET}\n`);
+  process.exit(2);
+}
+
 // ── status ────────────────────────────────────────────────────────
 function status() {
   const c = loadCreds();
@@ -732,6 +791,7 @@ function help() {
     ${CYAN}mode${RESET}              Set the capability dial: minimal · standard · full
     ${CYAN}daemon${RESET}            Install / manage auto-start background service
     ${CYAN}skills${RESET}            List / install / enable / disable skills
+    ${CYAN}tools${RESET}             List / inspect / validate tools (SDK)
     ${CYAN}update${RESET}            Check for updates / self-update
     ${CYAN}version${RESET}           Print the installed version
     ${CYAN}debug${RESET}             Debug mode — verbose system + connection info
@@ -819,6 +879,7 @@ switch (cmd) {
   case 'mode':                await modeCmd(); break;
   case 'daemon':              await daemonCmd(); break;
   case 'skills':              await skillsCmd(); break;
+  case 'tools':               await toolsCmd(); break;
   case 'update':              await updateCmd(); break;
   case 'version':             versionCmd(); break;
   case undefined:
