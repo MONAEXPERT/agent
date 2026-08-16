@@ -23,6 +23,7 @@ import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply } from '@mona/en
 import { writePid, clearPid, alreadyRunning } from './daemon.js';
 import { VERSION } from './version.js';
 import { checkForUpdates, applyUpdate } from './update.js';
+import { currentMode } from './modes.js';
 
 // The engine's parser is the single source of truth for brain replies.
 export { parseBrainReply };
@@ -314,9 +315,61 @@ export class AgentDaemon extends EventEmitter {
     } catch { /* never break the task for debugging */ }
   }
 
+  /** Dashboard system commands (!cmd) — version, update, status. */
+  async #runSystemCommand(name, arg, runId, cloudTask = null) {
+    const done = (payload) => {
+      // Report back through whatever channel the task arrived on.
+      if (cloudTask) {
+        taskResult(this.#creds.apiKey, cloudTask.id, { result: JSON.stringify(payload), steps: [] }).catch(() => {});
+      } else {
+        this.#control.result(runId, payload);
+      }
+      runFinish(this.#creds.apiKey, runId, { result: payload, status: 'done' }).catch(() => {});
+    };
+
+    switch (name) {
+      case 'version':
+        log.info('System command: version');
+        done({ ok: true, cmd: 'version', version: VERSION });
+        break;
+
+      case 'update':
+        log.info('System command: update (dashboard-triggered)');
+        const check = await checkForUpdates();
+        if (!check.available) {
+          done({ ok: true, cmd: 'update', upToDate: true, version: VERSION, latest: check.latest,
+                 message: check.latest ? `Already on v${VERSION} (latest: v${check.latest}).` : 'Release feed unreachable.' });
+          break;
+        }
+        const r = await applyUpdate();
+        if (r.ok) {
+          done({ ok: true, cmd: 'update', updated: true, from: r.from, to: r.version,
+                 message: `Updated v${r.from} → v${r.version}. Restart the daemon to run it.` });
+        } else {
+          done({ ok: false, cmd: 'update', error: r.error });
+        }
+        break;
+
+      case 'status':
+        done({ ok: true, cmd: 'status', version: VERSION, mode: currentMode(), tools: tools.names() });
+        break;
+
+      default:
+        done({ ok: false, cmd: name, error: `Unknown system command: ${name}` });
+    }
+  }
+
   async #runTask(task, runId, cloudTask = null) {
     if (!task) {
       this.#control.result(runId, { error: 'No task provided' });
+      return;
+    }
+
+    // System commands from the dashboard: !cmd <name> — handled locally,
+    // never sent to the brain (no tokens burned, nothing logged as a chat).
+    const cmdMatch = String(task).match(/^!cmd\s+([a-z0-9_-]+)(?:\s+(.*))?$/i);
+    if (cmdMatch) {
+      await this.#runSystemCommand(cmdMatch[1].toLowerCase(), cmdMatch[2] || '', runId, cloudTask);
       return;
     }
 
