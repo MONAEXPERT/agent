@@ -84,8 +84,8 @@ prepared data-processing annex for customers.
 | Encryption at rest | AES-256-GCM vault for all API keys and tokens |
 | Encryption in transit | HTTPS/TLS for every connection; no plaintext endpoints |
 | Access control | Per-user bearer tokens, session auth, CSRF protection, per-user rate limits |
-| Least privilege | Device tool sandbox — allowlisted shell, confined file roots, egress-only networking |
-| Logging & audit | Immutable-style audit log of agent actions, LLM calls, key events |
+| Least privilege | Device tool sandbox — argv-based allowlisted shell, SSRF-safe network, confined file roots, egress-only networking |
+| Logging & audit | Immutable-style audit log of agent actions, LLM calls, key events + tamper-evident hash-chained local audit (`mona-agent audit verify`) |
 | Resilience | Stateless API, automatic reconnect, HTTP fallback channel, 180-point device history |
 | Incident response | [SECURITY.md](../SECURITY.md) — 48 h acknowledgment, coordinated disclosure, advisory publishing |
 

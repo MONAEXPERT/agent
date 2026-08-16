@@ -15,6 +15,9 @@ deployment, for GDPR/DPIA reviews and security assessments.
 | Usage & cost metrics | Every LLM call | Cloud DB | Aggregated for insights; per-run detail deleted with agent |
 | Device telemetry (CPU/mem/disk/uptime) | Device, every 10 s | Cloud DB (latest + rolling history) | Forgotten on "Forget device" |
 | Device files & command output | Device tools | **Stays on the device** except task-relevant results streamed to the cloud for the brain | Ephemeral per run |
+| Policy file | User (device) | `~/.mona-agent/policy.json` — local, authoritative, never sent to the cloud | Until edited |
+| Local audit log | Device policy engine | `~/.mona-agent/audit.jsonl` — hash-chained, append-only, 0600; never leaves the device | Until deleted by the user |
+| Trash | Device file tool | `~/.mona-agent/trash` — recoverable deletes | Until purged |
 
 ## Data flow (one task)
 
@@ -29,13 +32,18 @@ deployment, for GDPR/DPIA reviews and security assessments.
 
 ## Minimization principles
 
-- **No secrets on devices.** Provider keys never leave the cloud.
+- **No secrets on devices.** Provider keys never leave the cloud; child
+  processes get a scrubbed environment (only `PATH/HOME/LANG` + safe vars).
 - **No model weights anywhere in this product.** The product is a control
   plane; the models are third-party APIs.
 - **Telemetry is performance-only** (CPU, memory, disk, uptime, load). No
   keystrokes, no screen capture, no browsing history.
 - **Tool output is truncated** for transport (bounded context) — the full
   output stays on the device unless the task requires it.
+- **Deletes are recoverable by default** — the file tool moves files to a
+  local trash directory; permanent deletion requires an explicit `purge`.
+- **Local decisions stay local** — the policy file and the hash-chained
+  audit log never leave the device; the cloud sees only what the task needs.
 
 ## Data subject rights (operator toolkit)
 

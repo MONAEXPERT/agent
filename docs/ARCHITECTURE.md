@@ -35,7 +35,7 @@ mona-agent is a **headless Node.js daemon** with two jobs:
 
 | Module | Responsibility |
 |---|---|
-| `bin/mona-agent.js` | CLI entrypoint — `gui`, `start`, `login`, `connect`, `chat`, `exec` |
+| `bin/mona-agent.js` | CLI entrypoint — `gui`, `start`, `login`, `connect`, `chat`, `exec`, `policy`, `audit` |
 | `src/config.js` | Credentials, cloud endpoint resolution, platform detection |
 | `src/cloud.js` | REST client for the control plane API (Bearer-auth) |
 | `src/control.js` | Control channel: versioned envelopes, command dispatch, metrics streaming |
@@ -134,12 +134,25 @@ upgrade**:
 
 - **No AI provider keys on the device.** Only a mona.expert device token is
   stored (`~/.mona-agent/credentials.json`, mode 0600).
-- **Guarded shell** — commands run through an allowlist; dangerous patterns
-  are blocked before execution (shell tool AND engine policy).
-- **Confined files tool** — reads/writes are limited to safe, allowed paths.
-- **Policy-as-code** — `~/.mona-agent/policy.json` (or `MONA_POLICY`) can
-  deny or gate any tool, block shell patterns, and set daily budget caps;
-  the defaults are safe.
+- **Local policy is authoritative.** `~/.mona-agent/policy.json`
+  (`MONA_POLICY` to override) governs every tool call — allow / deny /
+  confirm tiers, shell patterns, per-tool rate limits, daily budget caps.
+  It is loaded once from disk at startup; the control plane can never
+  modify or widen it. Presets: `mona-agent policy preset strict|standard|permissive`.
+- **Shell executes argv arrays, never shell strings.** Commands are parsed
+  quote-aware; every executable is realpath-resolved and allowlisted
+  (chains and pipes re-check each segment); the child environment is
+  scrubbed to `PATH/HOME/LANG`; timeouts kill the whole process group.
+- **SSRF-safe networking.** DNS is resolved by the agent and every address
+  is checked against blocked ranges; connections go to the validated IP
+  with Host header + TLS SNI; redirects are re-validated per hop (max 5);
+  cloud metadata endpoints are blocked by name and IP.
+- **Confined files tool.** Boundary-checked workspace containment with
+  symlink-escape and TOCTOU guards (`O_NOFOLLOW` + descriptor check),
+  special files refused, deletes move to trash.
+- **Tamper-evident audit.** Every policy decision is appended to
+  `~/.mona-agent/audit.jsonl` (hash-chained, append-only, 0600) and
+  verified with `mona-agent audit verify`.
 - **Egress-only** — the daemon opens outbound connections only; it listens
   on localhost only (for the local dashboard).
 

@@ -30,17 +30,28 @@ device. Every run is audit-logged with per-step usage, tokens, cost and timing.
    keys live encrypted on the server and are never shipped to devices.
 3. **TLS everywhere.** All control and data traffic is HTTPS with certificate
    verification (no TLS bypass, no insecure fallback).
-4. **Tool sandboxing.** Shell execution runs against an explicit command
-   allowlist (blocked by default); file access is confined to a workspace root
-   with path-traversal rejection; web access validates URL schemes.
-5. **Complete audit trail.** Every chat message, brain step, tool call, tool
-   result, token count, cost and latency is stored and exportable (JSONL) —
-   including per-step reasoning for incident reconstruction.
+4. **Tool sandboxing.** Shell execution is argv-based (never a shell
+   string): every executable is realpath-resolved and allowlisted, chains
+   and pipes re-check each segment, and the child environment is scrubbed.
+   File access is confined to a workspace root with path-traversal,
+   symlink-escape and TOCTOU rejection; deletes move to trash. Network
+   access is SSRF-safe — private ranges, loopback and cloud metadata are
+   unreachable.
+5. **Complete audit trail.** Every chat message, brain step, tool call,
+   tool result, token count, cost and latency is stored and exportable
+   (JSONL) — including per-step reasoning for incident reconstruction. On
+   the device, every policy decision is additionally appended to a
+   hash-chained, tamper-evident local audit log (`mona-agent audit verify`).
 6. **Self-healing operation.** Transient failures retry with backoff, malformed
    brain replies trigger corrective nudges, stranded tasks expire with a
    closing message instead of replaying days later.
 7. **Rate limiting & plan separation.** Free and Pro plans enforce request
-   limits per user and per device.
+   limits per user and per device; the local policy engine adds per-tool
+   rate limits that the control plane cannot override.
+8. **Local policy is authoritative.** `~/.mona-agent/policy.json`
+   (allow/deny/confirm, presets, rate limits) is loaded from disk at
+   startup — a compromised or malicious control plane can request, but
+   the device decides.
 
 ## Useful reading
 

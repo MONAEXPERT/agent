@@ -26,8 +26,11 @@ windows) and restart them on demand.
 ## 5. Compliance-heavy environments
 Every action is traced (reasoning → tool call → result → answer →
 verification) with tokens, cost and latency — exportable as JSONL for audits
-and model fine-tuning. See `additional-documents/` for ISO, IEC and CRA
-readiness.
+and model fine-tuning. On the device, every policy decision lands in a
+hash-chained, tamper-evident local audit log (`mona-agent audit verify`)
+and the policy file (presets: strict/standard/permissive) bounds what any
+remote party can ever ask the machine to do. See `additional-documents/`
+for ISO, IEC and CRA readiness.
 
 ## 6. Model evaluation & training
 Collect real conversation traces with human feedback (Good/Bad ratings) and

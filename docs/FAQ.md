@@ -68,10 +68,28 @@ egress to agent.mona.expert.
 
 ## Can the agent damage my machine?
 
-The tool sandbox blocks dangerous patterns before execution, the files tool
-is confined to safe paths, and every action is recorded in the cloud audit
-log. Treat the agent like any other user with shell access: grant what you
-trust.
+The sandbox is layered: the shell executes argv arrays (no shell strings)
+with a realpath-resolved allowlist, the files tool is confined to a
+workspace (traversal, symlink and TOCTOU escapes rejected; deletes go to
+trash), and the network tool is SSRF-safe (private ranges and cloud
+metadata unreachable). A local policy file (`~/.mona-agent/policy.json`)
+can deny or gate any tool, and every decision lands in a hash-chained
+local audit log (`mona-agent audit verify`). Start with
+`mona-agent policy preset strict` for a read-only agent. Treat the agent
+like any other user with shell access: grant what you trust.
+
+## How do I tighten or loosen the agent?
+
+```bash
+mona-agent policy preset strict      # read-only (no shell/net/browser)
+mona-agent policy preset standard    # shell & browser need approval
+mona-agent policy preset permissive  # everything allowed (default)
+mona-agent policy explain <tool> …   # why a call is allowed/denied
+mona-agent audit verify              # confirm the audit chain is intact
+```
+
+Edit `~/.mona-agent/policy.json` directly for rate limits, budget caps
+and extra shell patterns — see [TOOLS.md](TOOLS.md).
 
 ## Where do I report bugs or security issues?
 

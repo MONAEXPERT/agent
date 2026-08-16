@@ -38,11 +38,41 @@ Paste your mona.expert API key when prompted. The key is stored in
 ```bash
 mona-agent gui                    # terminal dashboard with live log
 mona-agent chat "free disk space" # one-shot conversation
-mona-agent exec "uptime"          # run a single command
+mona-agent exec shell cmd=uptime  # run a single allowed command
 mona-agent start                  # headless background service (auto-reconnect)
 ```
 
-## 5. See it in the browser
+## 5. Security defaults (v2.8+)
+
+- **Shell** — commands are parsed into argv arrays and executed without a
+  shell; every executable must be on the allowlist (realpath-checked).
+  Chains (`&&`, `;`, pipes) re-check every segment; `sudo`, redirects,
+  `$(...)` and backticks are rejected. To run other commands, extend
+  `MONA_ALLOW_CMDS` (comma-separated) or set `{"shell": {"unsafe": true}}`
+  in `~/.mona-agent/policy.json` (audited).
+- **Network** — SSRF-safe: private ranges, loopback and cloud metadata are
+  unreachable, redirects are re-validated per hop.
+- **Files** — confined to the workspace; deletes move to trash.
+- **Policy** — every tool call is checked against `~/.mona-agent/policy.json`
+  (allow / deny / confirm / rate limits). The control plane can never widen
+  it. Apply a preset:
+
+```bash
+mona-agent policy preset strict      # read-only agent
+mona-agent policy preset standard    # shell/browser need approval
+mona-agent policy status             # what's currently allowed
+mona-agent policy explain shell cmd=df  # why a call is allowed/denied
+```
+
+- **Audit** — every decision is written to a tamper-evident, hash-chained
+  log. Verify it anytime:
+
+```bash
+mona-agent audit tail                # recent decisions
+mona-agent audit verify              # detect tampering
+```
+
+## 6. See it in the browser
 
 Open <https://agent.mona.expert/dashboard>. Your device appears with live
 CPU, memory, disk and load — and a chat window connected to the cloud brain.
