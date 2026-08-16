@@ -20,6 +20,7 @@ import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
 import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply } from '@mona/engine';
+import { writePid, clearPid, alreadyRunning } from './daemon.js';
 
 // The engine's parser is the single source of truth for brain replies.
 export { parseBrainReply };
@@ -119,9 +120,15 @@ export class AgentDaemon extends EventEmitter {
   }
 
   /** Start the daemon — connect to cloud and begin accepting commands. */
-  start() {
+  start({ force = false } = {}) {
+    if (!force && alreadyRunning()) {
+      const err = new Error('mona-agent is already running (see ~/.mona-agent/daemon.pid). Use `mona-agent daemon status`, or start with --force after a crash.');
+      err.code = 'EALREADYRUNNING';
+      throw err;
+    }
     log.info(`Agent starting`, { agentId: this.#creds.agentId });
     log.info(`Tools: ${tools.names().join(', ')}`);
+    writePid();
     this.#control.connect();
     this.#startTaskPoll();
     return this;
@@ -652,6 +659,7 @@ Rules:
     log.info('Agent shutting down');
     if (this.#taskPoll) clearInterval(this.#taskPoll);
     this.#control.close();
+    clearPid();
     this.emit('close');
   }
 }
