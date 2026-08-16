@@ -73,21 +73,13 @@ describe('tools/files', () => {
   });
 
   it('rejects path traversal', async () => {
-    try {
-      await files.run({ action: 'read', path: '../../../etc/passwd' });
-      assert.fail('Should have thrown');
-    } catch (err) {
-      assert.ok(err.message.includes('traversal'));
-    }
+    const result = await files.run({ action: 'read', path: '../../../etc/passwd' });
+    assert.ok(result.error && result.error.includes('traversal'));
   });
 
   it('rejects sibling-prefix escapes (boundary check)', async () => {
-    try {
-      await files.run({ action: 'read', path: '../workspace-evil/secret.txt' });
-      assert.fail('Should have thrown');
-    } catch (err) {
-      assert.ok(err.message.includes('traversal'));
-    }
+    const result = await files.run({ action: 'read', path: '../workspace-evil/secret.txt' });
+    assert.ok(result.error && result.error.includes('traversal'));
   });
 
   it('rejects symlink escapes out of the workspace', async () => {
@@ -98,12 +90,8 @@ describe('tools/files', () => {
     const link = path.join(ws, '__escape_test');
     try {
       await fs.symlink(os.tmpdir(), link);
-      try {
-        await files.run({ action: 'list', path: '__escape_test' });
-        assert.fail('Should have thrown');
-      } catch (err) {
-        assert.ok(err.message.includes('Symlink escape'));
-      }
+      const result = await files.run({ action: 'list', path: '__escape_test' });
+      assert.ok(result.error && result.error.includes('Symlink escape'));
     } finally {
       await fs.rm(link, { force: true });
     }

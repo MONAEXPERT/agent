@@ -55,7 +55,7 @@ general-purpose models itself.
 
 | Risk | Mitigation |
 |---|---|
-| Erroneous tool call | User-visible confirmation via activity feed; allowlisted commands by default; `MONA_SHELL_UNSAFE=1` is an explicit user opt-in |
+| Erroneous tool call | User-visible confirmation via activity feed; allowlisted argv-based execution by default; unrestricted shell requires an audited policy decision (`shell.unsafe`) |
 | Hallucinated data | System prompt instructs the model to read real data via tools and never invent it |
 | Privacy leakage | Metrics minimised to system telemetry; see [GDPR.md](GDPR.md) |
 

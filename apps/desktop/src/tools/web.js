@@ -5,13 +5,16 @@ const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_8) AppleWebKit/605.1.15 (K
 const FETCH_TIMEOUT_MS = 15000;
 const MAX_TEXT = 10000;
 
+import { safeFetch } from './net.js';
+
 async function httpGet(url, headers = {}) {
-  const res = await fetch(url, {
+  const res = await safeFetch(url, {
     headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml', ...headers },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    timeoutMs: FETCH_TIMEOUT_MS,
+    maxBytes: 200_000,
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-  return res.text();
+  if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status} for ${url}`);
+  return res.body.toString('utf8');
 }
 
 /** Crude but effective HTML → text extraction (no external deps). */

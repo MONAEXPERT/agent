@@ -109,13 +109,44 @@ so the control plane can enforce `agent_permissions` without probing:
 
 | Field | Meaning |
 |---|---|
-| `allowlist` | Allowed command patterns (env `MONA_ALLOW_CMDS`, per-OS defaults) |
-| `unsafe` | `true` only when `MONA_SHELL_UNSAFE=1` is explicitly set |
+| `allowlist` | Allowed command names (env `MONA_ALLOW_CMDS`, per-OS defaults) |
+| `unsafe` | `true` only when policy `shell.unsafe` is set (or deprecated `MONA_SHELL_UNSAFE=1`) |
 | `platform` | Detected OS (`darwin` / `linux` / `win32`) |
+| `mode` | `argv` — commands execute as argv arrays, never as a shell string |
 
-Blocked patterns (always denied): `rm -rf /`, `mkfs`, `dd if=`, fork bombs,
-`sudo`, `shutdown`, `format C:`, `diskpart`, and friends — see
-`src/tools/shell.js` for the full list.
+Execution model (v2.8+):
+
+- Commands are parsed quote-aware into argv arrays; `&&`, `||`, `;` chains
+  and `|` pipes are supported, and EVERY segment's executable must pass the
+  allowlist (pipe-to-shell is structurally impossible — `sh`/`bash` are not
+  allowlisted).
+- Executables are resolved to their realpath before execution.
+- Redirects (`>`, `<`), command substitution (`$()`, backticks) and
+  env-assignment prefixes are rejected with a clear error.
+- The child environment is scrubbed to `PATH/HOME/LANG` (+ a few safe
+  vars); only `$HOME`, `$PATH`, `$USER`, `$LANG`, `$PWD`, `$TMPDIR` expand.
+- Timeouts kill the whole process group; output is capped at 64 KB per
+  stream (8 KB returned in tool results).
+- `MONA_SHELL_UNSAFE=1` is deprecated — set
+  `{"shell": {"unsafe": true}}` in `~/.mona-agent/policy.json` instead.
+
+Blocked patterns (defence-in-depth, always denied): `rm -rf /`, `mkfs`,
+`dd if=`, fork bombs, `sudo`, `shutdown`, `format C:`, `diskpart`, and
+friends — see `src/tools/shell.js` for the full list.
+
+## net
+
+SSRF-safe HTTP(S) fetch (v2.8+):
+
+- DNS is resolved by the agent; every address must pass the blocked-range
+  check (loopback, private, link-local, metadata, CGNAT, reserved, IPv6
+  equivalents) — DNS rebinding cannot walk past it.
+- Connections go to the validated IP with the real Host header and TLS SNI.
+- Redirects are re-validated on every hop, max 5.
+- Cloud metadata endpoints are blocked by name (`metadata.google.internal`,
+  …) and by IP (`169.254.169.254`, `100.100.100.200`, `fd00:ec2::254`).
+- Response size is capped (50 KB for the tool) and read as a bounded stream
+  — no decompression bombs. No env bypass exists.
 
 ## web
 

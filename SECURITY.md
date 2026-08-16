@@ -15,10 +15,23 @@ the client-side security model and how to report vulnerabilities.
 - **No AI provider keys on the device.** The client stores only a
   mona.expert device token (`~/.mona-agent/credentials.json`, mode 0600).
   All third-party keys live in the cloud vault, AES-256 encrypted.
-- **Guarded shell.** Commands run through an allowlist; dangerous patterns
-  are rejected before execution.
-- **Confined file tool.** Reads and writes are limited to safe roots;
-  symlink escapes are refused.
+- **Local policy is authoritative.** `~/.mona-agent/policy.json` governs
+  every tool call (allow / deny / confirm / rate limits). The control plane
+  can never modify or widen it — it is loaded once from disk at startup.
+  `mona-agent policy explain <tool>` shows which rule fired.
+- **Shell: argv execution, never a shell string.** Commands are parsed into
+  argv arrays; every executable is realpath-resolved and allowlisted;
+  chains and pipes re-check each segment; redirects and command
+  substitution are rejected. Child processes get a scrubbed environment.
+- **SSRF-safe networking.** DNS is resolved by the agent, every address is
+  checked against blocked ranges, redirects are re-validated per hop, and
+  cloud metadata endpoints are blocked by name and IP.
+- **Confined file tool.** Reads/writes confined to the workspace with
+  symlink-escape and traversal guards, `O_NOFOLLOW` + descriptor checks
+  (TOCTOU), special files refused, deletes go to trash by default.
+- **Tamper-evident audit log.** Every policy decision is appended to
+  `~/.mona-agent/audit.jsonl`, hash-chained and append-only. Verify with
+  `mona-agent audit verify`.
 - **Egress-only networking.** The daemon opens outbound connections only
   and listens on localhost exclusively (for the local dashboard). No
   inbound ports, no public exposure.
@@ -26,6 +39,20 @@ the client-side security model and how to report vulnerabilities.
   sent, only to the cloud endpoint you configured (`MONA_CLOUD`).
 - **Transparent transport.** HTTPS with Bearer-auth; WebSocket upgrade when
   available, HTTPS polling fallback otherwise.
+
+## Verified guarantees (red-team suite)
+
+Every security claim above maps to an automated adversarial test in
+`apps/desktop/test/security.test.mjs` — command injection, allowlist
+bypass, pipe-to-shell, path traversal, symlink escape, SSRF (incl. DNS
+rebinding simulation and redirect-to-metadata), FIFO/device refusal,
+audit-chain tampering, rate limits. Run with `npm test`.
+
+## Deprecations
+
+- `MONA_SHELL_UNSAFE=1` — deprecated in v2.8.0. Use
+  `{"shell": {"unsafe": true}}` in `~/.mona-agent/policy.json` instead
+  (audited). Removed in v3.0.
 
 ## Reporting a vulnerability
 
