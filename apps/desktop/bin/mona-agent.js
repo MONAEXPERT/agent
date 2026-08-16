@@ -13,6 +13,9 @@
 
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { loadCreds, saveCreds, requireCreds, CLOUD, DEFAULTS, PATHS } from '../src/config.js';
 import { verifyKey } from '../src/cloud.js';
 import { testConnection, sendChat } from '../src/api.js';
@@ -20,6 +23,7 @@ import { tools } from '../src/tools/index.js';
 import { AgentDaemon } from '../src/agent.js';
 import { Dashboard } from '../src/tui.js';
 import { log } from '../src/log.js';
+import { Policy, auditVerify } from '@mona/engine';
 
 const [cmd, ...args] = process.argv.slice(2);
 
@@ -256,7 +260,8 @@ async function debug() {
   console.log(`  ${DIM}MONA_CLOUD:${RESET}       ${process.env.MONA_CLOUD || '(default)'}`);
   console.log(`  ${DIM}MONA_CLOUD_WS:${RESET}    ${process.env.MONA_CLOUD_WS || '(auto)'}`);
   console.log(`  ${DIM}MONA_ALLOW_CMDS:${RESET}  ${process.env.MONA_ALLOW_CMDS || '(default)'}`);
-  console.log(`  ${DIM}MONA_SHELL_UNSAFE:${RESET} ${process.env.MONA_SHELL_UNSAFE || '0'}`);
+  console.log(`  ${DIM}MONA_SHELL_UNSAFE:${RESET} ${process.env.MONA_SHELL_UNSAFE || '0'} ${process.env.MONA_SHELL_UNSAFE ? YELLOW + '(deprecated — use policy shell.unsafe)' + RESET : ''}`);
+  console.log(`  ${DIM}MONA_POLICY:${RESET}      ${process.env.MONA_POLICY || '~/.mona-agent/policy.json'}`);
   console.log(`  ${DIM}MONA_WORKSPACE:${RESET}   ${process.env.MONA_WORKSPACE || '(default)'}`);
 
   // Connection test
@@ -284,6 +289,109 @@ async function debug() {
   }
 
   console.log();
+}
+
+// ── policy (inspect / explain / presets) ─────────────────────────
+async function policyCmd() {
+  const sub = args[0] || 'status';
+  const p = Policy.load();
+  const policyPath = process.env.MONA_POLICY || join(homedir(), '.mona-agent', 'policy.json');
+
+  if (sub === 'status') {
+    console.log(`\n  ${BOLD}mona-agent policy${RESET}\n`);
+    console.log(`  ${DIM}File:${RESET}    ${policyPath}${existsSync(policyPath) ? '' : ` ${YELLOW}(not created — defaults in use)${RESET}`}`);
+    console.log(`  ${DIM}Unsafe:${RESET}  ${p.shellUnsafe ? YELLOW + 'true' + RESET + (p.unsafeSource === 'env' ? ` ${DIM}(deprecated MONA_SHELL_UNSAFE env — move to policy)${RESET}` : '') : GREEN + 'false' + RESET}`);
+    console.log(`  ${DIM}Budget:${RESET}  ${p.dailyTokens || '∞'} tokens/day, ${p.dailyCostUsd ? '$' + p.dailyCostUsd : '∞'} USD/day`);
+    console.log(`  ${DIM}Max steps:${RESET} ${p.maxSteps}`);
+    console.log(`  ${DIM}Audit:${RESET}   ${p.auditEnabled ? GREEN + 'on' + RESET : 'off'} (${p.auditPath})`);
+    console.log(`\n  ${BOLD}Tool rules${RESET}`);
+    for (const t of tools.names()) {
+      console.log(`    ${CYAN}${t.padEnd(10)}${RESET} ${p.toolTier(t)}`);
+    }
+    console.log(`\n  ${DIM}Presets:${RESET} ${CYAN}mona-agent policy preset strict|standard|permissive${RESET}`);
+    console.log(`  ${DIM}Explain:${RESET} ${CYAN}mona-agent policy explain <tool> [key=value...]${RESET}\n`);
+    return;
+  }
+
+  if (sub === 'explain') {
+    const toolName = args[1];
+    if (!toolName) {
+      console.log(`\n  ${DIM}Usage:${RESET} mona-agent policy explain ${CYAN}<tool> [key=value...]${RESET}\n`);
+      return;
+    }
+    const toolArgs = {};
+    for (let i = 2; i < args.length; i++) {
+      const eq = args[i].indexOf('=');
+      if (eq > 0) toolArgs[args[i].slice(0, eq)] = args[i].slice(eq + 1);
+    }
+    const e = p.explain(toolName, toolArgs);
+    console.log(`\n  ${BOLD}mona-agent policy explain${RESET}\n`);
+    console.log(`  ${DIM}Tool:${RESET}      ${toolName}`);
+    console.log(`  ${DIM}Decision:${RESET}  ${e.tier === 'allow' ? GREEN + 'allow' : e.tier === 'confirm' ? YELLOW + 'confirm' : RED + 'deny'}${RESET}`);
+    console.log(`  ${DIM}Matched:${RESET}   ${e.matchedRule}`);
+    console.log(`  ${DIM}Details:${RESET}   ${e.decision}`);
+    if (e.rateLimited) console.log(`  ${RED}Rate limit:${RESET} exceeded — wait or raise rateLimits in policy`);
+    console.log();
+    return;
+  }
+
+  if (sub === 'preset') {
+    const name = args[1];
+    if (!name) {
+      console.log(`\n  ${DIM}Usage:${RESET} mona-agent policy preset ${CYAN}<strict|standard|permissive>${RESET}\n`);
+      return;
+    }
+    try {
+      const preset = Policy.preset(name);
+      mkdirSync(join(homedir(), '.mona-agent'), { recursive: true });
+      writeFileSync(policyPath, JSON.stringify(preset.raw, null, 2) + '\n', { mode: 0o600 });
+      console.log(`\n  ${GREEN}Wrote ${name} preset${RESET} → ${policyPath}`);
+      console.log(`  ${DIM}Restart the daemon for it to take effect.${RESET}\n`);
+    } catch (err) {
+      console.error(`\n  ${RED}${err.message}${RESET}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  console.error(`\n  Unknown policy subcommand: ${sub}\n  Run ${CYAN}mona-agent policy help${RESET}\n`);
+}
+
+// ── audit (tamper-evident decision log) ───────────────────────────
+async function auditCmd() {
+  const sub = args[0] || 'tail';
+  const auditPath = process.env.MONA_AUDIT || join(homedir(), '.mona-agent', 'audit.jsonl');
+
+  if (sub === 'tail') {
+    if (!existsSync(auditPath)) {
+      console.log(`\n  ${YELLOW}No audit log yet: ${auditPath}${RESET}\n`);
+      return;
+    }
+    const lines = readFileSync(auditPath, 'utf8').trim().split('\n').filter(Boolean).slice(-20);
+    console.log(`\n  ${BOLD}mona-agent audit${RESET} ${DIM}(${auditPath})${RESET}\n`);
+    for (const line of lines) {
+      try {
+        const r = JSON.parse(line);
+        const verdict = r.verdict === 'allow' ? GREEN + 'allow' : r.verdict === 'confirm' ? YELLOW + 'confirm' : RED + r.verdict;
+        console.log(`  ${DIM}${r.seq}${RESET} ${r.ts}  ${CYAN}${(r.tool || '').padEnd(8)}${RESET} ${verdict}${RESET}  ${DIM}${r.reason}${RESET}`);
+      } catch { console.log(`  ${DIM}${line.slice(0, 120)}${RESET}`); }
+    }
+    console.log();
+    return;
+  }
+
+  if (sub === 'verify') {
+    const v = auditVerify(auditPath);
+    if (v.ok) {
+      console.log(`\n  ${GREEN}Audit chain OK${RESET} — ${v.checked} entries verified, no tampering detected.\n`);
+    } else {
+      console.log(`\n  ${RED}Audit chain BROKEN${RESET} at entry ${v.brokenAt} (${v.reason || 'hash mismatch'}).\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  console.error(`\n  Unknown audit subcommand: ${sub}\n  Run ${CYAN}mona-agent audit help${RESET}\n`);
 }
 
 // ── gui (terminal dashboard) ──────────────────────────────────────
@@ -405,6 +513,8 @@ function help() {
     ${CYAN}connect${RESET} ${DIM}[url]${RESET}   Test / force connection to control plane
     ${CYAN}chat${RESET} ${DIM}<msg>${RESET}      Send a chat message via API
     ${CYAN}exec${RESET} ${DIM}<tool>${RESET}     Execute a tool directly (sysinfo, shell, files, net)
+    ${CYAN}policy${RESET}            Inspect policy, explain decisions, apply presets
+    ${CYAN}audit${RESET}             Tail or verify the tamper-evident audit log
     ${CYAN}debug${RESET}             Debug mode — verbose system + connection info
     ${CYAN}status${RESET}            Show login and connection info
     ${CYAN}help${RESET}              Show this help
@@ -428,6 +538,13 @@ function help() {
     mona-agent exec shell cmd=uptime
     mona-agent exec files action=list path=/tmp
 
+    ${DIM}# Security: policy + audit${RESET}
+    mona-agent policy status
+    mona-agent policy explain shell cmd=df
+    mona-agent policy preset standard
+    mona-agent audit tail
+    mona-agent audit verify
+
     ${DIM}# Debug mode${RESET}
     mona-agent debug
 
@@ -436,8 +553,9 @@ function help() {
     MONA_CLOUD        Cloud base URL     ${DIM}(default: ${CLOUD.base})${RESET}
     MONA_CLOUD_WS     WebSocket URL      ${DIM}(auto-derived from MONA_CLOUD)${RESET}
     MONA_ALLOW_CMDS   Shell allowlist    ${DIM}(comma-separated command names)${RESET}
-    MONA_SHELL_UNSAFE Allow all shell    ${DIM}(set to 1 — NOT recommended)${RESET}
+    MONA_POLICY       Policy file path   ${DIM}(default: ~/.mona-agent/policy.json)${RESET}
     MONA_WORKSPACE    File tool sandbox  ${DIM}(default: ~/.mona-agent/workspace)${RESET}
+    MONA_SHELL_UNSAFE ${YELLOW}DEPRECATED${RESET}        ${DIM}— set "shell": {"unsafe": true} in policy.json instead${RESET}
 
   ${BOLD}QUICK START${RESET}
 
@@ -464,6 +582,8 @@ switch (cmd) {
   case 'exec':                await execTool(); break;
   case 'debug':               await debug(); break;
   case 'status':              status(); break;
+  case 'policy':              await policyCmd(); break;
+  case 'audit':               await auditCmd(); break;
   case undefined:
     // Default: GUI if TTY, headless otherwise
     if (process.stdout.isTTY) await gui();

@@ -88,8 +88,8 @@ with one click.
 
 | Capability | How |
 |---|---|
-| Run commands | guarded, allowlisted shell — dangerous patterns blocked before execution |
-| Manage files | sandboxed workspace — path-traversal and symlink escapes rejected |
+| Run commands | guarded, argv-based shell — every executable allowlisted, no string-to-shell, env scrubbed |
+| Manage files | sandboxed workspace — path-traversal, symlink and TOCTOU escapes rejected; deletes go to trash |
 | Web research | search + page fetch (no API key needed) |
 | Launch apps | open/quit desktop applications |
 | Browser | open URLs / run searches in your default browser |
@@ -101,8 +101,11 @@ with one click.
 ## How it stays safe
 
 - **Sandboxed tools** — files are confined to a workspace (boundary-checked,
-  symlink-guarded, 1 MB write cap); the shell is allowlisted with always-
-  blocked patterns (`sudo`, `rm -rf /`, `mkfs`, pipe-to-shell downloads, …).
+  symlink- and TOCTOU-guarded, 1 MB write cap); the shell is argv-based
+  with a realpath-resolved allowlist and always-blocked patterns (`sudo`,
+  `rm -rf /`, `mkfs`, pipe-to-shell downloads, …); the network tool is
+  SSRF-safe (private ranges and cloud metadata unreachable); every policy
+  decision lands in a hash-chained audit log.
 - **Egress-only networking** — the agent reaches out to your control plane;
   nothing listens for inbound connections.
 - **Revocable access** — one click in the dashboard kills a device's token.

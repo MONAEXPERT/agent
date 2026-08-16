@@ -3,7 +3,7 @@
 // Policy-as-code, budget governor, structured memory, bounded task loop.
 // Zero runtime dependencies; every piece is unit-testable offline.
 
-export { Policy } from './policy.js';
+export { Policy, PRESETS, auditWrite, auditVerify } from './policy.js';
 export { Budget } from './budget.js';
 export { MemoryStore } from './memory.js';
 export { TaskLoop, parseBrainReply } from './loop.js';

