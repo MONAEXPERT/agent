@@ -1,18 +1,24 @@
-// Structured local memory: scored recall, near-duplicate dedupe, TTL, pruning.
+// Structured local memory: vector recall, near-duplicate dedupe, TTL, pruning.
 //
 // The agent that remembers everything useful and forgets everything stale.
-// Entries carry a creation time and optional tags; recall scores by
-// keyword overlap plus recency decay. Near-duplicates are merged instead
-// of appended, so memory stays dense instead of bloated.
+// Entries carry a creation time and optional tags; recall scores by cosine
+// similarity over hashed feature vectors (see ./vector.js) blended with
+// recency decay and a hit boost. Near-duplicates are merged instead of
+// appended, so memory stays dense instead of bloated.
+//
+// The on-disk format is unchanged from earlier versions ({ entries: [...] });
+// entries without a stored vector get one computed lazily on first recall, so
+// old memory files keep working untouched.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { embed, cosine } from './vector.js';
 
 const DEFAULT_STORE = process.env.MONA_MEMORY_STORE || join(homedir(), '.mona-agent', 'memory-store.json');
 const MAX_ENTRIES = 500;
 const DEFAULT_TTL_DAYS = 30;
-const DEDUPE_THRESHOLD = 0.85;
+const DEDUPE_THRESHOLD = 0.9;
 
 function normalize(text) {
   return String(text || '')
@@ -20,14 +26,6 @@ function normalize(text) {
     .replace(/[^a-z0-9äöüß\s]/gi, ' ')
     .split(/\s+/)
     .filter((w) => w.length > 1);
-}
-
-function overlap(a, b) {
-  if (!a.length || !b.length) return 0;
-  const set = new Set(a);
-  let hits = 0;
-  for (const w of b) if (set.has(w)) hits++;
-  return hits / Math.min(a.length, b.length);
 }
 
 export class MemoryStore {
@@ -54,15 +52,22 @@ export class MemoryStore {
     } catch { /* best-effort */ }
   }
 
+  /** Stored vector for an entry, computed lazily from text when absent. */
+  #vec(e) {
+    if (!e.vector) e.vector = Array.from(embed(e.text));
+    return e.vector;
+  }
+
   remember(text, { ttlDays = DEFAULT_TTL_DAYS, tags = [] } = {}) {
     const body = String(text || '').trim();
     if (!body) return null;
-    const tokens = normalize(body);
 
     // Dedupe: if an existing entry is nearly identical, refresh it instead.
+    const v = Array.from(embed(body));
     for (const e of this.entries) {
-      if (overlap(tokens, normalize(e.text)) >= DEDUPE_THRESHOLD) {
+      if (cosine(v, this.#vec(e)) >= DEDUPE_THRESHOLD) {
         e.text = body;
+        e.vector = v;
         e.createdAt = Date.now();
         e.ttlDays = ttlDays;
         e.tags = tags;
@@ -79,6 +84,7 @@ export class MemoryStore {
       ttlDays,
       createdAt: Date.now(),
       hits: 1,
+      vector: v,
     };
     this.entries.push(entry);
     this.prune();
@@ -86,20 +92,23 @@ export class MemoryStore {
     return entry;
   }
 
-  /** Score = keyword overlap with the query + recency decay + hit boost. */
+  /**
+   * Vector recall: cosine similarity with the query (0.7) + recency decay
+   * (0.2) + hit boost (0.1). TTL-expired entries are never returned.
+   */
   recall(query, { limit = 8 } = {}) {
     const q = normalize(query);
+    const qv = embed(q.join(' '));
     const now = Date.now();
     const results = [];
     for (const e of this.entries) {
-      const toks = normalize(e.text);
-      const overlapScore = q.length ? overlap(q, toks) : 0;
-      if (q.length && overlapScore === 0) continue;
       const ageDays = (now - e.createdAt) / 86400000;
       if (ageDays > (e.ttlDays || DEFAULT_TTL_DAYS)) continue;
+      const cos = q.length ? cosine(qv, this.#vec(e)) : 0;
+      if (q.length && cos < 0.1) continue;
       const recency = Math.max(0, 1 - ageDays / (e.ttlDays || DEFAULT_TTL_DAYS));
-      const score = (q.length ? overlapScore * 0.6 : 0.3) + recency * 0.3 + Math.min(0.1, (e.hits || 1) * 0.02);
-      results.push({ text: e.text, score, ageDays, tags: e.tags, createdAt: e.createdAt });
+      const score = (q.length ? cos * 0.7 : 0.3) + recency * 0.2 + Math.min(0.1, (e.hits || 1) * 0.02);
+      results.push({ text: e.text, score, cosine: Math.round(cos * 1000) / 1000, ageDays, tags: e.tags, createdAt: e.createdAt });
     }
     results.sort((a, b) => b.score - a.score);
     return results.slice(0, limit);

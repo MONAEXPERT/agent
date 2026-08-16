@@ -13,8 +13,9 @@ import { browser } from './browser.js';
 import { web } from './web.js';
 import { memory } from './memory.js';
 import { notify } from './notify.js';
+import { vector } from './vector.js';
 
-const BUILTIN = [sysinfo, shell, files, net, apps, browser, web, memory, notify];
+const BUILTIN = [sysinfo, shell, files, net, apps, browser, web, memory, notify, vector];
 const TIMEOUT_MS = 30_000;
 
 // Policy choke point: EVERY tool invocation (daemon, brain loop, CLI exec)
