@@ -21,6 +21,8 @@ import { CLOUD } from './config.js';
 import { log } from './log.js';
 import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply } from '@mona/engine';
 import { writePid, clearPid, alreadyRunning } from './daemon.js';
+import { VERSION } from './version.js';
+import { checkForUpdates, applyUpdate } from './update.js';
 
 // The engine's parser is the single source of truth for brain replies.
 export { parseBrainReply };
@@ -155,10 +157,21 @@ export class AgentDaemon extends EventEmitter {
           this.#control.result(runId, { pong: true, ts: Date.now() });
           break;
 
+        case 'update':
+          // Dashboard-triggered self-update: fetch latest release, swap,
+          // then report back. The daemon keeps running the old code until
+          // the next start — the update is applied on disk immediately.
+          await this.#handleUpdate(runId);
+          break;
+
         case 'reset':
           this.#messages = [];
           log.info('Conversation history cleared');
           this.#control.result(runId, { ok: true, action: 'reset' });
+          break;
+
+        case 'version':
+          this.#control.result(runId, { ok: true, action: 'version', version: VERSION });
           break;
 
         default:
@@ -263,9 +276,34 @@ export class AgentDaemon extends EventEmitter {
     log.error('Could not report task result to cloud');
   }
 
+  /** Dashboard-triggered self-update: check + apply, then report the result. */
+  async #handleUpdate(runId) {
+    log.info('Update requested from dashboard');
+    const check = await checkForUpdates();
+    if (!check.available) {
+      this.#control.result(runId, {
+        ok: true, action: 'update', upToDate: true,
+        installed: check.installed, latest: check.latest,
+        message: check.latest ? `Already on the latest release (v${check.installed}).` : 'Release feed unreachable — try again later.',
+      });
+      return;
+    }
+    const r = await applyUpdate();
+    if (r.ok) {
+      log.info(`Self-update applied: v${r.from} → v${r.version}`);
+      this.#control.result(runId, {
+        ok: true, action: 'update', updated: true,
+        from: r.from, to: r.version,
+        message: `Updated v${r.from} → v${r.version}. Restart the daemon to run the new version.`,
+      });
+    } else {
+      log.error(`Self-update failed: ${r.error}`);
+      this.#control.result(runId, { ok: false, action: 'update', error: r.error });
+    }
+  }
+
   /** Auto-debug: capture a system snapshot when things go wrong. */
-  async #debugSnapshot(runId, why) {
-    try {
+  async #debugSnapshot(runId, why) {    try {
       const info = await tools.run('sysinfo', {});
       const uname = await tools.run('shell', { cmd: 'uname -a && which node && node -v' });
       await postActivity(this.#creds.apiKey, 'auto.debug', {
