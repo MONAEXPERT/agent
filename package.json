@@ -16,7 +16,7 @@
     "start": "node apps/desktop/bin/mona-agent.js start",
     "gui": "node apps/desktop/bin/mona-agent.js gui",
     "login": "node apps/desktop/bin/mona-agent.js login",
-    "test": "node --test apps/desktop/test/agent.test.mjs apps/desktop/test/control.test.mjs apps/desktop/test/docker-control.test.mjs apps/desktop/test/skills.test.mjs apps/desktop/test/tools-new.test.mjs apps/desktop/test/tui-scroll.test.mjs apps/desktop/test/security.test.mjs packages/engine/test/engine.test.mjs packages/protocol/test/protocol.test.mjs"
+    "test": "node --test apps/desktop/test/agent.test.mjs apps/desktop/test/control.test.mjs apps/desktop/test/docker-control.test.mjs apps/desktop/test/skills.test.mjs apps/desktop/test/tools-new.test.mjs apps/desktop/test/tools-sdk.test.mjs apps/desktop/test/tui-scroll.test.mjs apps/desktop/test/security.test.mjs apps/desktop/test/modes.test.mjs apps/desktop/test/version.test.mjs apps/desktop/test/system-cmd.test.mjs packages/engine/test/engine.test.mjs packages/protocol/test/protocol.test.mjs"
   },
   "engines": {
     "node": ">=20",
@@ -69,6 +69,14 @@
     "README.md",
     "LICENSE",
     "SECURITY.md",
-    "docs/"
-  ]
+    "docs/",
+    "types/index.d.ts",
+    "types/index.test-d.ts"
+  ],
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "tsd": "^0.31.2",
+    "typescript": "^5.9.3"
+  },
+  "types": "types/index.d.ts"
 }
