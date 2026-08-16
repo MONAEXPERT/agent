@@ -236,9 +236,9 @@ describe('persistent memory context', () => {
 });
 
 describe('brain reply parser', () => {
-  let parseBrainReply, parseToolCall, lenientStringField;
+  let parseBrainReply, parseToolCall;
   before(async () => {
-    ({ parseBrainReply, parseToolCall, lenientStringField } = await import('../src/agent.js'));
+    ({ parseBrainReply, parseToolCall } = await import('../src/agent.js'));
   });
 
   it('parses a plain tool call (legacy)', () => {
@@ -277,8 +277,8 @@ describe('brain reply parser', () => {
   });
 
   it('rejects valid JSON with the wrong shape (→ corrective nudge)', () => {
-    assert.equal(parseBrainReply('{"foo":123}'), null);
-    assert.equal(parseBrainReply('[]'), null);
+    assert.equal(parseBrainReply('{"foo":123}').kind, 'malformed');
+    assert.equal(parseBrainReply('[]').kind, 'malformed');
   });
 
   it('finds embedded answer objects in prose', () => {
@@ -288,8 +288,8 @@ describe('brain reply parser', () => {
   });
 
   it('handles empty input', () => {
-    assert.equal(parseBrainReply(''), null);
-    assert.equal(parseBrainReply(null), null);
+    assert.equal(parseBrainReply('').kind, 'empty');
+    assert.equal(parseBrainReply(null).kind, 'empty');
   });
 
   it('salvages a broken answer JSON with unescaped quotes (no raw JSON leak)', () => {
@@ -303,11 +303,6 @@ describe('brain reply parser', () => {
   it('does not salvage plain text that merely starts with a brace', () => {
     const r = parseBrainReply('{"weird": "broken string without answer');
     assert.equal(r.kind, 'text');
-  });
-
-  it('lenientStringField handles escapes', () => {
-    const out = lenientStringField('{"answer":"line1\\nline2 \\\\ back \\\"q\\\""}', 'answer');
-    assert.equal(out, 'line1\nline2 \\ back "q"');
   });
 });
 

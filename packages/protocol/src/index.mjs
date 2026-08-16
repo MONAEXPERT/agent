@@ -35,6 +35,7 @@ export const TYPES = Object.freeze({
   AGENT_STEP: 'agent.step',       // device  { runId, name, detail }
   AGENT_TOKEN: 'agent.token',     // device  { runId, text }   (kept for TUI streaming)
   AGENT_RESULT: 'agent.result',   // device  { runId, ok, text, usage, error }
+  AGENT_LOG: 'agent.log',         // device  { level, message } (daemon diagnostics)
   /* telemetry (device ) */
   DEVICE_METRICS: 'device.metrics',
   /* liveness */
