@@ -56,7 +56,165 @@ const KNOWN_TOOLS = new Set([
   'sysinfo', 'shell', 'files', 'net', 'apps', 'browser', 'web', 'memory', 'notify',
 ]);
 
-const VALID_TIERS = new Set(['allow', 'deny', 'confirm']);
+const VALID_TIERS = new Set(['allow', 'deny', 'confirm', 'prompt']);
+
+// ── Rule matching (P3: rules array with when-conditions) ──────────
+// Policy shape v2 — first-match-wins, deny-by-default:
+// {
+//   "version": 2,
+//   "default": "deny",
+//   "rules": [
+//     { "tool": "sysinfo.*", "effect": "allow" },
+//     { "tool": "fs.read", "effect": "allow",
+//       "when": { "path": { "within": ["~/.mona-agent/workspace"] } } },
+//     { "tool": "shell.run", "effect": "prompt",
+//       "when": { "argv0": { "in": ["git", "npm", "ls"] } } },
+//     { "tool": "net.fetch", "effect": "allow",
+//       "when": { "host": { "notIn": ["metadata.google.internal"] },
+//                 "ip": { "notInCidr": ["127.0.0.0/8", "169.254.0.0/16"] } } },
+//     { "tool": "*", "effect": "deny" }
+//   ]
+// }
+
+/** Convert a policy glob ("sysinfo.*", "fs.*", "*") to a RegExp. */
+export function globToRegExp(pattern) {
+  const p = String(pattern).trim();
+  if (p === '*') return /^.*$/;
+  const escaped = p
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*')
+    .replace(/\?/g, '.');
+  return new RegExp(`^${escaped}$`);
+}
+
+/** Expand ~ at the start of a path. */
+function expandTilde(p) {
+  return p.startsWith('~/') ? join(homedir(), p.slice(2)) : p;
+}
+
+/** Realpath containment check — symlink-safe prefix comparison. */
+export function pathWithin(path, roots) {
+  try {
+    const { realpathSync } = requireRealpath();
+    const real = realpathSync(String(path));
+    for (const root of roots || []) {
+      const base = realpathSync(expandTilde(String(root)));
+      if (real === base) return true;
+      if (real.startsWith(base.endsWith('/') ? base : base + '/')) return true;
+    }
+  } catch { /* missing path → not within */ }
+  return false;
+}
+
+/** IPv4/IPv6 CIDR containment (stdlib only). */
+export function ipInCidr(ip, cidrs) {
+  if (!Array.isArray(cidrs)) return false;
+  for (const cidr of cidrs) {
+    const [net, bitsRaw] = String(cidr).split('/');
+    const bits = Number(bitsRaw);
+    if (ip === net) return true; // exact match (also covers bare /32, /128)
+    try {
+      if (ipInNet(ip, net, bits)) return true;
+    } catch { /* not parseable as this family */ }
+  }
+  return false;
+}
+
+function ipInNet(ip, net, bits) {
+  const isIp4 = String(ip).includes('.');
+  const isNet4 = String(net).includes('.');
+  if (isIp4 !== isNet4) return false; // family mismatch
+  if (isIp4) {
+    // Explicit IPv4: 4-byte comparison with IPv4 prefix bits.
+    const a = ip4Bytes(ip), b = ip4Bytes(net);
+    if (!a || !b) return false;
+    const n = bits ?? 32;
+    const fullBytes = Math.floor(n / 8);
+    const remBits = n % 8;
+    for (let i = 0; i < fullBytes; i++) if (a[i] !== b[i]) return false;
+    if (remBits > 0) {
+      const mask = 0xff << (8 - remBits);
+      if ((a[fullBytes] & mask) !== (b[fullBytes] & mask)) return false;
+    }
+    return true;
+  }
+  const a = ipv6Bytes(ip), b = ipv6Bytes(net);
+  if (!a || !b || a.length !== b.length) return false;
+  const fullBytes = Math.floor((bits ?? 128) / 8);
+  const remBits = (bits ?? 128) % 8;
+  for (let i = 0; i < fullBytes; i++) if (a[i] !== b[i]) return false;
+  if (remBits > 0) {
+    const mask = 0xff << (8 - remBits);
+    if ((a[fullBytes] & mask) !== (b[fullBytes] & mask)) return false;
+  }
+  return true;
+}
+
+function ip4Bytes(addr) {
+  const parts = String(addr).split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return null;
+  return parts;
+}
+
+function ipv6Bytes(addr) {
+  const s = String(addr);
+  if (s.includes('.')) {
+    // IPv4 — map to IPv4-mapped IPv6 for uniform comparison.
+    const parts = s.split('.').map(Number);
+    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return null;
+    return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, ...parts];
+  }
+  const groups = s.split(':').filter(Boolean);
+  if (groups.length > 8) return null;
+  const bytes = [];
+  for (const g of groups) {
+    const v = parseInt(g, 16);
+    if (Number.isNaN(v)) return null;
+    bytes.push((v >> 8) & 0xff, v & 0xff);
+  }
+  while (bytes.length < 16) bytes.unshift(0);
+  return bytes.slice(0, 16);
+}
+
+function requireRealpath() {
+  return { realpathSync: realpathSyncImpl };
+}
+
+import { realpathSync as realpathSyncImpl } from 'node:fs';
+
+/** Evaluate one `when` condition object against the call args. */
+function matchWhen(when, args) {
+  if (!when || typeof when !== 'object') return true;
+  for (const [key, cond] of Object.entries(when)) {
+    const value = args?.[key];
+    if (cond && typeof cond === 'object') {
+      // value list checks
+      if (Array.isArray(cond.in) && !cond.in.includes(value)) return false;
+      if (Array.isArray(cond.notIn) && cond.notIn.includes(value)) return false;
+      if (Array.isArray(cond.includes) && !String(value || '').includes(...cond.includes)) return false;
+      // path containment
+      if (Array.isArray(cond.within) && !pathWithin(value, cond.within)) return false;
+      // numeric bounds
+      if (typeof cond.max === 'number' && !(Number(value) <= cond.max)) return false;
+      if (typeof cond.min === 'number' && !(Number(value) >= cond.min)) return false;
+      // CIDR checks
+      if (Array.isArray(cond.inCidr) && !ipInCidr(value, cond.inCidr)) return false;
+      if (Array.isArray(cond.notInCidr) && ipInCidr(value, cond.notInCidr)) return false;
+    }
+  }
+  return true;
+}
+
+/** Find the first rule matching tool+args. Returns the rule or null. */
+function firstMatchingRule(rules, name, args) {
+  for (const rule of rules || []) {
+    if (!rule || typeof rule.tool !== 'string') continue;
+    if (!globToRegExp(rule.tool).test(name)) continue;
+    if (!matchWhen(rule.when, args)) continue;
+    return rule;
+  }
+  return null;
+}
 
 // ── Audit log (hash-chained, append-only) ─────────────────────────
 let auditSeq = 0;
@@ -202,6 +360,12 @@ export class Policy {
     this.auditPath = typeof r.auditPath === 'string' ? r.auditPath : DEFAULT_AUDIT_PATH;
     this.rateLimiter = new RateLimiter(r.rateLimits && typeof r.rateLimits === 'object' ? r.rateLimits : {});
 
+    // P3 rules layer: when a rules array is present it is authoritative
+    // (first-match-wins, deny-by-default). Legacy `tools` map still works
+    // as a fallback so existing 2.x policy files keep working unchanged.
+    this.rules = Array.isArray(r.rules) ? r.rules : null;
+    this.defaultEffect = r.default === 'allow' ? 'allow' : 'deny';
+
     // Deprecated env fallback: MONA_SHELL_UNSAFE=1 still works for one minor
     // version but is superseded by policy `shell.unsafe`. Prefer the policy file.
     if (!this.shellUnsafe && process.env.MONA_SHELL_UNSAFE === '1') {
@@ -241,8 +405,42 @@ export class Policy {
     return KNOWN_TOOLS.has(name) ? 'allow' : 'deny';
   }
 
-  /** Check a tool call against the policy (policy + rate limits). */
+  /** Check a tool call against the policy (rules → tiers → rate limits). */
   check(name, args = {}) {
+    // P3: rules array is authoritative when present.
+    if (this.rules) {
+      const rule = firstMatchingRule(this.rules, name, args);
+      const effect = rule ? rule.effect : this.defaultEffect;
+      const reason = rule
+        ? `Rule "${rule.tool}" → ${effect}`
+        : `No rule matched — default ${this.defaultEffect}`;
+      if (effect === 'prompt' || effect === 'confirm') {
+        // prompt/confirm in headless = deny unless approval is granted by the
+        // caller (TUI grants it; the daemon auto-denies without --yes-i-know).
+        if (this.auditEnabled) {
+          auditWrite({ kind: 'tool', tool: name, argsHash: sha256(JSON.stringify(args ?? {})).slice(0, 16), verdict: 'confirm', reason }, this.auditPath);
+        }
+        return { allowed: false, tier: 'confirm', rule: rule?.tool || null, reason };
+      }
+      if (effect === 'deny') {
+        if (this.auditEnabled) {
+          auditWrite({ kind: 'tool', tool: name, argsHash: sha256(JSON.stringify(args ?? {})).slice(0, 16), verdict: 'deny', reason }, this.auditPath);
+        }
+        return { allowed: false, tier: 'deny', rule: rule?.tool || null, reason };
+      }
+      // allow — still subject to rate limits
+      if (!this.rateLimiter.allow(name)) {
+        const rl = { allowed: false, tier: 'deny', rule: rule?.tool || null, reason: `Rate limit exceeded for "${name}"` };
+        if (this.auditEnabled) auditWrite({ kind: 'tool', tool: name, argsHash: sha256(JSON.stringify(args ?? {})).slice(0, 16), verdict: 'deny', reason: rl.reason }, this.auditPath);
+        return rl;
+      }
+      if (this.auditEnabled) {
+        auditWrite({ kind: 'tool', tool: name, argsHash: sha256(JSON.stringify(args ?? {})).slice(0, 16), verdict: 'allow', reason }, this.auditPath);
+      }
+      return { allowed: true, tier: 'allow', rule: rule?.tool || null, reason };
+    }
+
+    // Legacy path: tier map (2.x behavior unchanged).
     const tier = this.toolTier(name);
     let verdict;
     if (tier === 'deny') {
@@ -292,8 +490,28 @@ export class Policy {
     return { allowed: true, tier: 'allow', reason: '' };
   }
 
-  /** Explain why a call would be allowed/denied (for `mona-agent policy explain`). */
+  /** Explain why a call would be allowed/denied (for `mona-agent policy explain`).
+   *  Rules array wins; legacy tier map fallback preserved. */
   explain(name, args = {}) {
+    if (this.rules) {
+      const rule = firstMatchingRule(this.rules, name, args);
+      if (rule) {
+        return {
+          tool: name,
+          decision: `Rule "${rule.tool}" matched → ${rule.effect}`,
+          tier: rule.effect === 'prompt' ? 'confirm' : rule.effect,
+          matchedRule: rule.tool,
+          policyPath: DEFAULT_POLICY_PATH,
+        };
+      }
+      return {
+        tool: name,
+        decision: `No rule matched — default ${this.defaultEffect}`,
+        tier: this.defaultEffect,
+        matchedRule: null,
+        policyPath: DEFAULT_POLICY_PATH,
+      };
+    }
     const tier = this.toolTier(name);
     let matched;
     if (this.toolRules[name]) matched = `tools.${name} = "${tier}"`;
@@ -326,4 +544,5 @@ export class Policy {
   budget() {
     return { dailyTokens: this.dailyTokens, dailyCostUsd: this.dailyCostUsd };
   }
+
 }
