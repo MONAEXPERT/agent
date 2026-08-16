@@ -473,6 +473,9 @@ export class AgentDaemon extends EventEmitter {
 
         let corrections = 0;
         for (let i = 0; i < brain.maxSteps; i++) {
+          // Always-visible progress: the UI shows step i/maxSteps, so a task
+          // can never appear stuck or loop silently.
+          this.emit('task:step', i + 1, brain.maxSteps);
           const tThink = Date.now();
           const thinkRes = await this.#thinkWithRetry(messages, runId, { temperature: brain.temperature, profile: brain.profile });
           const answer = thinkRes.text ?? thinkRes ?? '';

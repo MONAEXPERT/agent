@@ -13,272 +13,128 @@ language:
 - en
 ---
 
-# mona-agent — your computer, with a brain in the cloud 
+# mona-agent — your computer, with a brain you control
 
 <p align="center">
-  <strong>The open-source AI agent for your computer.<br/>
-  Chat from anywhere. It runs commands, manages files and automates tasks —<br/>
-  private by design, with your AI keys locked in an encrypted cloud vault.</strong>
+  <strong>The open-source AI agent for your own computer.<br/>
+  Chat from anywhere — it runs commands, manages files, automates tasks.<br/>
+  Every step is streamed to you. Nothing runs in the dark.</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/MONAEXPERT/agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg" alt="Node.js 20+"></a>
-  <a href="https://github.com/MONAEXPERT/agent/actions"><img src="https://github.com/MONAEXPERT/agent/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
-  <a href="https://github.com/MONAEXPERT/agent/blob/main/package.json"><img src="https://img.shields.io/badge/dependencies-1-lightgrey.svg" alt="1 runtime dependency"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-informational.svg" alt="Platforms: macOS, Linux, WSL2">
-  <img src="https://img.shields.io/badge/security-egress--only%20%7C%20sandboxed-brightgreen.svg" alt="Security: egress-only, sandboxed">
-  <img src="https://img.shields.io/badge/privacy-AES--256%20vault-blueviolet.svg" alt="Privacy: AES-256 key vault">
-  <a href="https://huggingface.co/aiagentmona/mona-agent"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-aiagentmona%2Fmona-agent-yellow.svg" alt="Hugging Face: aiagentmona/mona-agent"></a>
+  <img src="https://img.shields.io/badge/api%20keys-on%20device-0-red.svg" alt="Zero API keys on device">
+  <img src="https://img.shields.io/badge/control-via%20agent.mona.expert-blueviolet.svg" alt="Controlled via agent.mona.expert">
+  <img src="https://img.shields.io/badge/privacy-AES--256%20vault-blue.svg" alt="Privacy: AES-256 vault">
 </p>
 
-## Contents
-
-- [Private & secure by design](#private--secure-by-design)
-- [What it can do](#what-it-can-do)
-- [Built for](#built-for)
-- [Quickstart — 60 seconds](#quickstart--60-seconds)
-- [How mona-agent compares](#how-mona-agent-compares)
-- [Documentation](#documentation)
-- [Security & compliance](#compliance--trust)
-
----
-
-## The story
+## Why mona-agent
 
 Most AI assistants live in a chat window. They can write you a script — but
 they can't run it. They can explain a crash — but they can't look at your
-logs. They know everything about your code and nothing about your machine.
+logs.
 
-**mona-agent is the other half.** It's a small, open-source app you install
-on your own computer — macOS, Linux, WSL2 — that connects it to a brain in
-the cloud. You talk to it from your dashboard or your phone; it reasons
-about the task, then *actually does it*: checks disk space, restarts a
-service, finds a file, opens an app, runs a cleanup. It streams every step
-back so you can watch it think and act in real time — and because it's open
-source, sandboxed and egress-only, you can read every line, see every
-command it runs, and revoke its access with one click.
+**mona-agent is the other half.** A small, open-source app on your own
+machine (macOS, Linux, WSL2) that connects to a brain in the cloud. You talk
+to it from your dashboard; it reasons about the task, then *actually does
+it*: checks disk space, restarts a service, finds a file, opens an app, runs
+a cleanup — and streams every step back so you can watch it think and act in
+real time.
 
-It's the difference between an advisor and an employee. One tells you what
-to do. The other just gets it done.
+## The five promises
 
-```
-  Your Device                           mona.expert Cloud
-  +-------------------+                +----------------------------+
-  |   mona-agent      |                |  Dashboard & chat          |
-  |                   |--- HTTPS ----+ |  AI engine (the brain)     |
-  |  * executes tools |<-- commands --+ |  Agent orchestration       |
-  |  * streams metrics|               |  Key vault (AES-256)        |
-  |  * terminal UI    |-- results --->+ |  Live device monitoring    |
-  +-------------------+                +----------------------------+
-```
-
-## Private & secure by design
-
-Your machine is a trust boundary, not a sandbox afterthought.
-
-- **Zero AI keys on your device.** Provider keys (OpenAI, Anthropic, …) live
-  only in the cloud, encrypted AES-256-GCM. The device holds one revocable
-  token — nothing else worth stealing.
-- **Egress-only networking.** The agent makes outbound HTTPS connections and
-  listens on localhost only. No open ports, no public exposure — it works
-  behind NAT and firewalls.
-- **Guarded execution.** Commands run through an allowlist; dangerous
-  patterns (`rm -rf /`, fork bombs, silent `sudo`) are blocked *before*
-  execution. File access is confined to safe paths with symlink-escape
-  rejection.
-- **Complete audit trail.** Every action — reasoning → tool call → result →
-  answer → verification — is traced with tokens, cost and latency, and
-  exportable for audits.
-- **Documented, not hand-waved.** A real [threat model (STRIDE)](docs/additional-documents/THREAT-MODEL.md),
-  [data-flow & minimization](docs/additional-documents/DATA-FLOW.md),
-  [security self-audit guide](docs/additional-documents/SECURITY-AUDIT.md)
-  and [EU CRA readiness](docs/additional-documents/CRA-READINESS.md). No fake
-  certifications — "trust me" isn't a security model.
-
-See [SECURITY.md](SECURITY.md) for the full policy and responsible disclosure.
-
-## What it can do
-
--  **Operate your computer from anywhere** — ask from your phone: *"how's
-  the disk looking?"*, *"restart nginx"*, *"open Safari"*
--  **Think  act  observe  deliver** — a real agentic loop: the cloud
-  brain plans, the device executes local tools, results flow back, and the
-  answer lands in your chat — up to 8 tool steps per task
--  **Fail is never allowed** — transient errors retry automatically,
-  failed commands trigger self-diagnosis and a smarter second attempt,
-  and every task ends with an answer
--  **Zero secrets on the device** — no AI provider keys are stored
-  locally; they live in the encrypted cloud vault. One key. One brain.
--  **Live device monitoring** — CPU, memory, disk, load and uptime
-  streamed to your dashboard every 10 seconds, with history sparklines
--  **Terminal-native** — a fast TUI with live logs, or a quiet headless
-  background service; one command installs it, one dependency powers it
--  **Free and open source** — MIT licensed, forever
-
-## Built for
-
--  **Developers** — delegate test runs, log checks and service restarts to a
-   device you can chat with from your phone.
--  **Homelab & server ops** — manage headless boxes, Raspberry Pis and NAS
-   without SSH; the device polls the cloud, so no open ports are needed.
--  **Personal automation** — open apps, check disk, control media, run
-   scripts from any browser.
--  **Kiosks & presentation machines** — restart demo windows and
-   long-running GUI programs on demand.
--  **Compliance-heavy teams** — every action traced and exportable; EU CRA /
-   NIS2 / AI Act / GDPR documentation included.
-
-More scenarios: [docs/USE-CASES.md](docs/USE-CASES.md).
+1. **Saves you money.** Your AI keys live in one encrypted vault on
+   agent.mona.expert — never on your devices. Tasks are routed to the
+   cheapest model that can handle them (simple → cheap, complex → deep),
+   with per-run token and cost traces. No wasteful loops, no hidden spend.
+2. **Zero API keys on device.** The only thing stored locally is your
+   agent.mona.expert token, in a `0600` file. No OpenAI, Anthropic or other
+   provider keys ever touch your machine. Steal the laptop — you lose
+   nothing but a revocable token.
+3. **Fully transparent.** Every task streams: reasoning steps, tool calls,
+   tool results, token usage, model, latency. Everything is recorded in an
+   append-only audit trail on your control plane. You can always see *what*
+   it did and *why*.
+4. **Never loops silently.** The agent works in a bounded
+   plan → act → reflect → verify loop. Every step emits progress
+   (step N of M), every tool call is streamed, and when the step budget is
+   reached it is forced to conclude with an answer. A task can never spin
+   in the background without visible output.
+5. **Yours, and only yours.** Control happens exclusively through your
+   account at agent.mona.expert. Authenticated dashboard, per-user data
+   isolation, CSRF-protected API, revocable device tokens, rate limits and
+   a full audit trail. No third party, no backdoor, no telemetry.
 
 ## Quickstart — 60 seconds
 
 ```bash
-# 1. Install (needs Node.js 20+)
+# 1. Install the agent on your computer (macOS / Linux / WSL2)
 curl -fsSL https://agent.mona.expert/install.sh | bash
 
-# 2. Log in with your mona.expert key
-mona-agent login
+# 2. Log in with a token from your dashboard (Devices → Generate token)
+MONA_CLOUD=https://agent.mona.expert mona-agent login
 
-# 3. Start the terminal dashboard — or run headless
-mona-agent gui
-mona-agent start
+# 3. Start it
+mona-agent start        # or: mona-agent gui  (live terminal dashboard)
 ```
 
-Then open **<https://agent.mona.expert/dashboard>** — your device appears
-with live stats, and you can chat with it from the browser.
+Then open **https://agent.mona.expert/mona** — build an agent, chat with it,
+schedule it (cron), watch it work on your device, and revoke access any time
+with one click.
 
-## Usage
+## What it can do
 
-```bash
-mona-agent login            # save your mona.expert key
-mona-agent connect          # test the connection end to end
-mona-agent gui              # terminal dashboard with live log
-mona-agent chat "free up disk space"     # one-shot conversation
-mona-agent exec "uptime && df -h"        # run a guarded command
-mona-agent start            # headless background service with auto-reconnect
+| Capability | How |
+|---|---|
+| Run commands | guarded, allowlisted shell — dangerous patterns blocked before execution |
+| Manage files | sandboxed workspace — path-traversal and symlink escapes rejected |
+| Web research | search + page fetch (no API key needed) |
+| Launch apps | open/quit desktop applications |
+| Browser | open URLs / run searches in your default browser |
+| Persistent memory | remembers across tasks and restarts |
+| Notifications | desktop alerts (macOS / Linux / Windows) |
+| Schedule runs | cron-style tasks from the dashboard |
+| Multi-device | agents claim tasks per device — never executed twice |
+
+## How it stays safe
+
+- **Sandboxed tools** — files are confined to a workspace (boundary-checked,
+  symlink-guarded, 1 MB write cap); the shell is allowlisted with always-
+  blocked patterns (`sudo`, `rm -rf /`, `mkfs`, pipe-to-shell downloads, …).
+- **Egress-only networking** — the agent reaches out to your control plane;
+  nothing listens for inbound connections.
+- **Revocable access** — one click in the dashboard kills a device's token.
+- **Open source** — read every line; the code is the security documentation.
+- **Bounded work** — step limits, corrective nudges and forced conclusions
+  mean no infinite loops, no silent hangs.
+
+## Architecture
+
+```
+┌──────────────┐   WSS / SSE    ┌───────────────────────────────┐
+│  your device │ ◄────────────► │  agent.mona.expert            │
+│  mona-agent  │   tasks+steps  │  dashboard · API · vault      │
+│  (sandbox)   │                │  AES-256 encrypted AI keys    │
+└──────────────┘                │  cron runner · audit trail    │
+                                └───────────────────────────────┘
 ```
 
-In the dashboard chat, just talk normally:
-
-> *"Run `df -h` and tell me my disk usage."* ·
-> *"What's the load average?"* ·
-> *"Open Spotify and play some focus music."*
-
-The brain picks the tool, the device runs it, you get the result.
-
-## Built-in tools
-
-| Tool | What the agent can do with it |
-|------|-------------------------------|
-| `sysinfo` | CPU, memory, disk, load, uptime, host and platform details |
-| `shell` | Run commands — allowlisted by default, full shell opt-in |
-| `files` | List, read, write, move, delete — confined to safe paths |
-| `net` | HTTP(S) requests, DNS, connectivity checks |
-
-Full reference: **[docs/TOOLS.md](docs/TOOLS.md)**
-
-## How mona-agent compares
-
-| | Typical AI chat | mona-agent |
-|---|---|---|
-| Can it see your machine? |  |  live metrics & files |
-| Can it execute? |  |  sandboxed shell & tools |
-| Does it retry when things fail? |  |  auto-debug + retry loop |
-| Where do your API keys live? | on your disk |  encrypted cloud vault |
-| Is every action audited? |  |  full trace, exportable |
-| Install | app + account | one command, one dependency |
-
-## FAQ
-
-**Is mona-agent free?** — Yes. The client is MIT licensed and free
-forever; the cloud has a free tier at
-[agent.mona.expert](https://agent.mona.expert).
-
-**What data leaves my device?** — Only what the task requires: system
-metrics, and the results of commands you asked the agent to run. Nothing
-is sent to third parties. See **[docs/GDPR.md](docs/GDPR.md)**.
-
-**Can it damage my machine?** — Commands are allowlisted by default, the
-file tool is confined to safe paths, and every action is recorded in the
-audit log. Full shell execution is an explicit opt-in.
-
-**Does it run on servers?** — Any Node.js 20+ machine: headless Linux
-boxes, Raspberry Pis, home servers. See
-**[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)**.
+- `apps/desktop` — the device agent (daemon, tools, terminal UI)
+- `packages/*` — shared protocol/engine contracts
+- `docs/` — architecture, compliance (GDPR, CRA, ISO 27001, IEC 62443),
+  threat model, tool reference, changelog
 
 ## Documentation
 
-| Page | Contents |
-|------|----------|
-| [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) | Install, login, first steps, troubleshooting |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Daemon internals, agentic loop, metrics pipeline |
-| [docs/TOOLS.md](docs/TOOLS.md) | Tool-by-tool reference with examples |
-| [docs/EXAMPLES.md](docs/EXAMPLES.md) | Automation recipes — cron, watchdogs, backups |
-| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Cloud API, scheduling, boot persistence |
-| [docs/FAQ.md](docs/FAQ.md) | Frequently asked questions |
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Release history |
-| [examples/](examples) | launchd & systemd units, health check script |
-
-## Compliance & Trust
-
-<a href="docs/COMPLIANCE.md"><img src="https://img.shields.io/badge/EU_CRA-ready-blue.svg" alt="EU Cyber Resilience Act ready"></a>
-<a href="docs/COMPLIANCE.md"><img src="https://img.shields.io/badge/NIS2-aligned-blue.svg" alt="NIS2 aligned"></a>
-<a href="docs/AI-ACT.md"><img src="https://img.shields.io/badge/EU_AI_Act-transparency_documented-blueviolet.svg" alt="EU AI Act transparency"></a>
-<a href="docs/GDPR.md"><img src="https://img.shields.io/badge/GDPR-privacy_by_design-brightgreen.svg" alt="GDPR privacy by design"></a>
-<a href="docs/SBOM.md"><img src="https://img.shields.io/badge/SBOM-CycloneDX_1.5-informational.svg" alt="SBOM CycloneDX 1.5"></a>
-
-- **[EU Cyber Resilience Act](docs/COMPLIANCE.md)** — SBOM, vulnerability
-  handling, secure by design, coordinated disclosure
-- **[NIS2](docs/COMPLIANCE.md)** — TOMs, logging, incident support
-- **[EU AI Act](docs/AI-ACT.md)** — limited-risk classification,
-  transparency obligations implemented and documented
-- **[GDPR](docs/GDPR.md)** — data minimisation, Art. 30 record, DPA-ready
-- **[SBOM](docs/SBOM.md)** — CycloneDX 1.5, one runtime dependency
-- **[Security policy](SECURITY.md)** — threat model, disclosure process, supported versions
-
-## Community
-
- **Star the repo** if mona-agent is useful to you — it genuinely helps
-others discover the project.
-
--  [GitHub Discussions](https://github.com/MONAEXPERT/agent/discussions) — ideas, questions, show & tell
--  [Issues](https://github.com/MONAEXPERT/agent/issues) — bugs and feature requests
--  [Hugging Face](https://huggingface.co/aiagentmona/mona-agent) — mirror of this repo
--  [agent.mona.expert](https://agent.mona.expert) — the cloud dashboard
--  [SECURITY.md](SECURITY.md) — responsible disclosure
-
-## Development
-
-```bash
-git clone git@github.com:MONAEXPERT/agent.git
-cd agent
-npm install
-npm test            # 26 tests, 9 suites
-npm run gui         # run the dev build of the TUI
-```
-
-Requires Node.js ≥ 20. Plain modern JavaScript (ESM), no build step,
-one runtime dependency — deliberately small.
+- [Getting started](docs/GETTING-STARTED.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Tools reference](docs/TOOLS.md)
+- [Compliance & trust](docs/COMPLIANCE.md)
+- [Changelog](docs/CHANGELOG.md)
+- [FAQ](docs/FAQ.md)
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Free forever.
-
----
-
-**[mona.expert](https://agent.mona.expert)** — one key, one brain, any
-device. 
-
-
-## Compliance & standards
-
-Enterprise-ready documentation: [EU CRA readiness](docs/additional-documents/CRA-READINESS.md),
-[ISO/IEC 27001 mapping](docs/additional-documents/ISO-27001-MAPPING.md),
-[IEC 62443 alignment](docs/additional-documents/IEC-62443.md),
-[threat model](docs/additional-documents/THREAT-MODEL.md),
-[data flow & minimization](docs/additional-documents/DATA-FLOW.md),
-[deployment guide](docs/additional-documents/DEPLOYMENT-GUIDE.md),
-[enterprise FAQ](docs/additional-documents/ENTERPRISE-FAQ.md) and
-[SBOM](docs/additional-documents/SBOM.md).
-See [SECURITY.md](SECURITY.md) for vulnerability reporting.
+MIT — free to read, fork and run. Your machine, your data, your keys.

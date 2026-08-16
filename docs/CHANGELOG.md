@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.6.0
+
+- **Always-visible progress** — every think step now emits `task:step
+  (i/maxSteps)`, so a task can never appear stuck or loop without output
+- **Professional README** — five promises: saves money (cheap-first model
+  routing, per-run cost traces), zero API keys on device, fully transparent,
+  never loops silently, controlled exclusively via agent.mona.expert
+
+
 ## v2.5.0
 
 - **Files sandbox hardened** — fixed a path-boundary bug that could let a
