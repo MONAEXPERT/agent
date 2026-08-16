@@ -193,6 +193,32 @@ mona-agent skills enable <name> # inject its instructions into the brain
 mona-agent skills disable <name>
 ```
 
+### Capability dial (mode)
+
+Instead of tuning skills and policy by hand, set a profile:
+
+```bash
+mona-agent mode list
+mona-agent mode set minimal   # no skills, strict policy (read-only)
+mona-agent mode set standard  # core skills, shell/browser need approval
+mona-agent mode set full      # all skills, permissive policy + auto-start daemon
+```
+
+`mode set` writes `~/.mona-agent/policy.json`, enables exactly the mode's
+skills and — for `full` — marks the daemon for auto-start.
+
+### Daemon (background service)
+
+```bash
+mona-agent daemon status      # service + pid state
+mona-agent daemon install     # launchd (macOS) / systemd (Linux) auto-start
+mona-agent daemon uninstall   # stop + remove
+mona-agent daemon stop        # signal the running daemon to exit
+```
+
+Single-instance: `~/.mona-agent/daemon.pid` guards against double-run; stale
+pid files (after a crash) are cleaned automatically.
+
 Enabled skills' instructions are injected into the agent's context, and their
 tools become callable through the same registry as the built-ins.
 

@@ -53,6 +53,13 @@ export class SkillsManager {
     saveConfig(cfg);
   }
 
+  /** Persist an explicit enabled-list (used by `mode set`). */
+  saveRaw(names) {
+    this.enabled = Array.isArray(names) ? names.filter((n) => typeof n === 'string') : [];
+    this.#saveEnabled();
+    return this.enabled;
+  }
+
   /** All installed skills with metadata + enabled state. */
   list() {
     const out = [];

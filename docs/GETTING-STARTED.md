@@ -42,6 +42,33 @@ mona-agent exec shell cmd=uptime  # run a single allowed command
 mona-agent start                  # headless background service (auto-reconnect)
 ```
 
+### Capability dial: from zero skills to full daemon
+
+Pick how much power the agent gets on this device:
+
+```bash
+mona-agent mode list              # minimal · standard · full
+mona-agent mode show              # current mode + effective policy
+mona-agent mode set minimal       # read-only: no skills, no shell, no network writes
+mona-agent mode set standard      # balanced: core skills, shell/browser need approval
+mona-agent mode set full          # everything on + auto-start daemon
+```
+
+Setting a mode writes `~/.mona-agent/policy.json` (the device-side authority),
+enables/disables the matching skills and — in `full` — installs the background
+service so the agent starts on login and restarts on crash (launchd on macOS,
+systemd on Linux):
+
+```bash
+mona-agent daemon status          # service + pid state
+mona-agent daemon install         # enable auto-start on login
+mona-agent daemon uninstall       # stop + remove the service
+mona-agent skills list            # installed skills + enabled state
+```
+
+Only one daemon can run per device: `mona-agent start` refuses to double-run
+(see `~/.mona-agent/daemon.pid`), and `start --force` is only for crash recovery.
+
 ## 5. Security defaults (v2.8+)
 
 - **Shell** — commands are parsed into argv arrays and executed without a

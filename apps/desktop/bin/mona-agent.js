@@ -14,7 +14,7 @@
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { loadCreds, saveCreds, requireCreds, CLOUD, DEFAULTS, PATHS } from '../src/config.js';
 import { verifyKey } from '../src/cloud.js';
@@ -24,6 +24,9 @@ import { AgentDaemon } from '../src/agent.js';
 import { Dashboard } from '../src/tui.js';
 import { log } from '../src/log.js';
 import { Policy, auditVerify } from '@mona/engine';
+import { MODES, MODE_NAMES, applyMode, modeSummary, currentMode, POLICY_PATH } from '../src/modes.js';
+import { daemonStatus, daemonInstall, daemonUninstall, alreadyRunning, stopRunningDaemon, DAEMON_PATHS, writePid, clearPid } from '../src/daemon.js';
+import { SkillsManager } from '../src/skills.js';
 
 const [cmd, ...args] = process.argv.slice(2);
 
@@ -428,6 +431,7 @@ async function start() {
   });
 
   const creds = requireCreds();
+  const force = args.includes('--force');
 
   console.log(`\n  ${BOLD}${CYAN}mona-agent${RESET} ${DIM}v${DEFAULTS.version}${RESET}`);
   console.log(`  ${DIM}Headless daemon — controlled from ${CLOUD.base}${RESET}`);
@@ -436,6 +440,16 @@ async function start() {
   console.log();
 
   const daemon = new AgentDaemon(creds);
+
+  try {
+    daemon.start({ force });
+  } catch (e) {
+    if (e?.code === 'EALREADYRUNNING') {
+      console.error(`  ${RED}${e.message}${RESET}\n`);
+      process.exit(1);
+    }
+    throw e;
+  }
 
   daemon.on('connected', () => {
     process.stderr.write(`  ${GREEN}● Connected to ${CLOUD.base}${RESET}\n`);
@@ -474,6 +488,159 @@ async function start() {
   setInterval(() => {}, 1 << 30);
 }
 
+// ── mode ──────────────────────────────────────────────────────────
+async function modeCmd() {
+  const sub = args[0];
+
+  if (sub === 'set') {
+    const name = args[1];
+    if (!name) {
+      console.error(`\n  Usage: mona-agent mode set <${MODE_NAMES.join('|')}>\n`);
+      process.exit(2);
+    }
+    try {
+      const r = applyMode(name);
+      console.log(`\n  ${BOLD}Mode set: ${r.mode}${RESET}`);
+      console.log(`  ${DIM}${r.label}${RESET}`);
+      console.log(`  ${DIM}Policy:${RESET}    ${r.policy} → ${r.policyPath}`);
+      console.log(`  ${DIM}Skills:${RESET}    ${r.skills.length ? r.skills.join(', ') : '(none)'}`);
+      console.log(`  ${DIM}Daemon:${RESET}    ${r.daemon ? 'auto-start installed' : 'manual (mona-agent start)'}`);
+      console.log(`\n  ${DIM}Next:${RESET} ${CYAN}mona-agent daemon status${RESET}  ·  ${CYAN}mona-agent mode show${RESET}\n`);
+    } catch (e) {
+      console.error(`\n  ${RED}${e.message}${RESET}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (sub === 'show' || sub === 'status' || !sub) {
+    const s = modeSummary();
+    console.log(`\n  ${BOLD}mona-agent mode${RESET}  ${DIM}· ${s.label}${RESET}`);
+    console.log(`  ${DIM}${s.description}${RESET}`);
+    console.log(`  ${DIM}Policy:${RESET}  ${s.policy}${s.policyTiers ? '  (' + Object.entries(s.policyTiers).map(([k, v]) => `${k}=${v}`).join(', ') + ')' : ''}`);
+    console.log(`  ${DIM}Skills:${RESET}  ${s.skills.length ? s.skills.join(', ') : '(none)'}`);
+    console.log(`  ${DIM}Daemon:${RESET}  ${s.daemon ? 'installed' : 'not installed'}`);
+    console.log(`\n  ${DIM}Set a mode:${RESET} ${CYAN}mona-agent mode set <${MODE_NAMES.join('|')}>${RESET}\n`);
+    return;
+  }
+
+  if (sub === 'list') {
+    console.log(`\n  ${BOLD}Available modes${RESET}\n`);
+    for (const name of MODE_NAMES) {
+      const m = MODES[name];
+      const active = name === currentMode() ? '  ← active' : '';
+      console.log(`  ${CYAN}${name.padEnd(9)}${RESET} ${m.label}${active}`);
+      console.log(`             ${DIM}${m.description}${RESET}`);
+    }
+    console.log();
+    return;
+  }
+
+  console.error(`\n  Unknown mode subcommand: ${sub}\n  Run ${CYAN}mona-agent mode help${RESET}\n`);
+  process.exit(2);
+}
+
+// ── daemon ────────────────────────────────────────────────────────
+async function daemonCmd() {
+  const sub = args[0] || 'status';
+
+  if (sub === 'install') {
+    const r = daemonInstall();
+    if (!r.ok) {
+      console.error(`\n  ${RED}Failed to install daemon:${RESET}\n  ${r.output || 'unknown error'}\n`);
+      process.exit(1);
+    }
+    const cfg = (await import('../src/config.js')).loadConfig();
+    cfg.daemon = 'installed';
+    (await import('../src/config.js')).saveConfig(cfg);
+    console.log(`\n  ${GREEN}Daemon installed & started.${RESET}`);
+    console.log(`  ${DIM}It will auto-start on login (KeepAlive on crash).${RESET}`);
+    console.log(`  ${DIM}Log:${RESET} ${DAEMON_PATHS.log}\n`);
+    return;
+  }
+
+  if (sub === 'uninstall') {
+    daemonUninstall();
+    const cfg = (await import('../src/config.js')).loadConfig();
+    delete cfg.daemon;
+    (await import('../src/config.js')).saveConfig(cfg);
+    console.log(`\n  ${YELLOW}Daemon stopped & removed.${RESET}\n`);
+    return;
+  }
+
+  if (sub === 'stop') {
+    const stopped = stopRunningDaemon();
+    console.log(stopped
+      ? `\n  ${YELLOW}Stop signal sent to running daemon.${RESET}\n`
+      : `\n  ${DIM}No running daemon (no PID file).${RESET}\n`);
+    return;
+  }
+
+  if (sub === 'status') {
+    const st = daemonStatus();
+    console.log(`\n  ${BOLD}mona-agent daemon${RESET}  ${DIM}· ${st.platform}${RESET}`);
+    console.log(`  ${DIM}Service:${RESET}    ${st.serviceInstalled ? GREEN + 'installed' + RESET : DIM + 'not installed' + RESET}  ${st.serviceRunning ? GREEN + '· running' + RESET : st.serviceLoaded ? YELLOW + '· loaded' + RESET : ''}`);
+    console.log(`  ${DIM}PID file:${RESET}   ${st.pid ? st.pid + (st.pidAlive ? ' (alive)' : YELLOW + ' (stale)' + RESET) : '(none)'}`);
+    console.log(`  ${DIM}Unit:${RESET}      ${isMacPath()}`);
+    console.log(`  ${DIM}Log:${RESET}       ${DAEMON_PATHS.log}\n`);
+    if (st.serviceInstalled && !st.serviceRunning) {
+      console.log(`  ${YELLOW}Service installed but not running. Start it:${RESET} ${CYAN}mona-agent daemon install${RESET}\n`);
+    }
+    return;
+  }
+
+  console.error(`\n  Unknown daemon subcommand: ${sub}\n  Run ${CYAN}mona-agent daemon help${RESET}\n`);
+  process.exit(2);
+}
+
+function isMacPath() {
+  return platform() === 'darwin' ? DAEMON_PATHS.launchd : DAEMON_PATHS.systemd;
+}
+
+// ── skills ────────────────────────────────────────────────────────
+async function skillsCmd() {
+  const sub = args[0];
+  const manager = new SkillsManager();
+
+  if (sub === 'list') {
+    const items = manager.list();
+    if (!items.length) {
+      console.log(`\n  No skills installed. Run: ${CYAN}mona-agent skills install${RESET}\n`);
+      return;
+    }
+    console.log(`\n  ${BOLD}Installed skills${RESET}  (mode: ${CYAN}${currentMode()}${RESET})\n`);
+    for (const s of items) {
+      const mark = s.enabled ? GREEN + '✓' + RESET : DIM + '·' + RESET;
+      console.log(`  ${mark} ${s.name} — ${s.description || 'no description'}`);
+    }
+    console.log(`\n  Enable: ${CYAN}mona-agent skills enable <name>${RESET}  ·  Disable: ${CYAN}mona-agent skills disable <name>${RESET}\n`);
+    return;
+  }
+
+  if (sub === 'install') {
+    const r = manager.install();
+    console.log(`\n  ${GREEN}Installed ${r.installed} bundled skill(s)${RESET} into ${r.dir}\n`);
+    return;
+  }
+
+  if (sub === 'enable' || sub === 'disable') {
+    const name = args[1];
+    if (!name) { console.error(`\n  Usage: mona-agent skills ${sub} <name>\n`); process.exit(2); }
+    if (sub === 'enable') {
+      const r = manager.enable(name);
+      if (!r.ok) { console.error(`\n  ${RED}${r.error}${RESET}\n`); process.exit(1); }
+      console.log(`\n  ${GREEN}Enabled ${name}.${RESET} Active: ${r.enabled.join(', ') || '(none)'}\n`);
+    } else {
+      manager.disable(name);
+      console.log(`\n  ${YELLOW}Disabled ${name}.${RESET}\n`);
+    }
+    return;
+  }
+
+  console.error(`\n  Unknown skills subcommand: ${sub}\n  Run ${CYAN}mona-agent skills help${RESET}\n`);
+  process.exit(2);
+}
+
 // ── status ────────────────────────────────────────────────────────
 function status() {
   const c = loadCreds();
@@ -491,6 +658,9 @@ function status() {
   console.log(`  ${DIM}Creds:${RESET}   ${PATHS.creds}`);
   console.log(`  ${DIM}Config:${RESET}  ${PATHS.dir}`);
   console.log(`  ${DIM}Tools:${RESET}   ${tools.names().join(', ')}`);
+  console.log(`  ${DIM}Mode:${RESET}    ${currentMode()}`);
+  const ds = daemonStatus();
+  console.log(`  ${DIM}Daemon:${RESET}  ${ds.serviceInstalled ? 'installed' : 'not installed'}${ds.serviceRunning ? ' · running' : ds.pidAlive ? ' · running (pid)' : ''}`);
   console.log();
 }
 
@@ -515,6 +685,9 @@ function help() {
     ${CYAN}exec${RESET} ${DIM}<tool>${RESET}     Execute a tool directly (sysinfo, shell, files, net)
     ${CYAN}policy${RESET}            Inspect policy, explain decisions, apply presets
     ${CYAN}audit${RESET}             Tail or verify the tamper-evident audit log
+    ${CYAN}mode${RESET}              Set the capability dial: minimal · standard · full
+    ${CYAN}daemon${RESET}            Install / manage auto-start background service
+    ${CYAN}skills${RESET}            List / install / enable / disable skills
     ${CYAN}debug${RESET}             Debug mode — verbose system + connection info
     ${CYAN}status${RESET}            Show login and connection info
     ${CYAN}help${RESET}              Show this help
@@ -547,6 +720,14 @@ function help() {
 
     ${DIM}# Debug mode${RESET}
     mona-agent debug
+
+    ${DIM}# Capability dial: from zero skills to full daemon${RESET}
+    mona-agent mode list
+    mona-agent mode set standard
+    mona-agent mode set full     ${DIM}# also installs auto-start daemon${RESET}
+    mona-agent daemon status
+    mona-agent daemon install
+    mona-agent daemon uninstall
 
   ${BOLD}ENVIRONMENT${RESET}
 
@@ -584,6 +765,9 @@ switch (cmd) {
   case 'status':              status(); break;
   case 'policy':              await policyCmd(); break;
   case 'audit':               await auditCmd(); break;
+  case 'mode':                await modeCmd(); break;
+  case 'daemon':              await daemonCmd(); break;
+  case 'skills':              await skillsCmd(); break;
   case undefined:
     // Default: GUI if TTY, headless otherwise
     if (process.stdout.isTTY) await gui();
