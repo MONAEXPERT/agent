@@ -12,9 +12,12 @@ describe('tools/sysinfo', () => {
     ({ sysinfo } = await import('../src/tools/sysinfo.js'));
   });
 
-  it('returns host info', async () => {
+  it('returns host info (coarse by default, PII gated)', async () => {
     const result = await sysinfo.run({});
-    assert.ok(result.host);
+    // P4: host/network are fingerprintable PII — coarse by default.
+    assert.equal(result.detail, 'coarse');
+    assert.ok(!result.host, 'hostname must be gated in coarse mode');
+    assert.ok(!result.network, 'network map must be gated in coarse mode');
     assert.ok(result.platform);
     assert.ok(result.arch);
     assert.ok(result.cpus > 0);
@@ -22,6 +25,13 @@ describe('tools/sysinfo', () => {
     assert.ok(result.mem.percent >= 0 && result.mem.percent <= 100);
     assert.ok(Array.isArray(result.loadavg));
     assert.equal(result.loadavg.length, 3);
+  });
+
+  it('includes PII only when detail:full is requested', async () => {
+    const full = await sysinfo.run({ detail: 'full' });
+    assert.equal(full.detail, 'full');
+    assert.ok(full.host, 'hostname present in full mode');
+    assert.ok(Array.isArray(full.network));
   });
 });
 
