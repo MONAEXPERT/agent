@@ -29,6 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   denied / compact / verify / answer / error) is written to the same
   hash-chained `~/.mona-agent/audit.jsonl` used for policy decisions —
   `mona-agent audit tail|verify` now covers the full task trail.
+- **`jobs` tool — background command management** (`apps/desktop/src/tools/jobs.js`):
+  long-running work no longer blocks the task loop or dies with the 15s shell
+  timeout. `jobs start <cmd> [cwd]` returns a job id + pid immediately,
+  `status <id>`, `output <id> [tail]`, `list`, `wait <id> [timeoutS]` and
+  `kill <id>` manage it — the same job lifecycle a harness exposes to the
+  brain. Background commands route through the *same* security surface as
+  the shell tool (argv parsing, allowlist, blocked patterns, scrubbed env)
+  and honour the shell policy tier, so a background command can never widen
+  device policy. The tool registry now supports per-tool timeouts (jobs may
+  wait up to 130s; every other tool keeps the 30s default).
 
 ### Changed
 - `MemoryStore` recall is vector-based while keeping the same on-disk format

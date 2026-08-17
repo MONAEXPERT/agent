@@ -14,8 +14,9 @@ import { web } from './web.js';
 import { memory } from './memory.js';
 import { notify } from './notify.js';
 import { vector } from './vector.js';
+import { jobs } from './jobs.js';
 
-const BUILTIN = [sysinfo, shell, files, net, apps, browser, web, memory, notify, vector];
+const BUILTIN = [sysinfo, shell, files, net, apps, browser, web, memory, notify, vector, jobs];
 const TIMEOUT_MS = 30_000;
 
 // Policy choke point: EVERY tool invocation (daemon, brain loop, CLI exec)
@@ -68,15 +69,18 @@ class ToolRegistry {
 
     log.info(`Tool: ${name}`, args);
 
+    // Per-tool timeout override (e.g. `jobs.wait` may legitimately poll for
+    // minutes) — default 30s stays for every other tool.
+    const timeoutMs = Number.isFinite(tool.timeoutMs) && tool.timeoutMs > 0 ? tool.timeoutMs : TIMEOUT_MS;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const result = await tool.run(args, controller.signal);
       return result;
     } catch (err) {
       if (err.name === 'AbortError') {
-        return { error: `Tool '${name}' timed out (${TIMEOUT_MS / 1000}s)` };
+        return { error: `Tool '${name}' timed out (${timeoutMs / 1000}s)` };
       }
       return { error: err.message };
     } finally {
