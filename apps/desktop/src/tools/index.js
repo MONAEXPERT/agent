@@ -1,9 +1,20 @@
 // Tool registry — discovers and dispatches tool calls.
-// Each tool module exports { name, description, args, run(args) }.
-// The registry validates inputs and enforces timeouts.
+//
+// Two kinds of tool can be registered:
+//   - legacy modules  { name, description, args, run(args, signal) }
+//   - defineTool() descriptors { name, version, description, input, handler }
+//     (dynamic plugins) — lifted to the runtime shape automatically.
+//
+// Plugin tools are hot-loadable at runtime (discoverExternalTools reads
+// node_modules/mona-agent-tool-* and MONA_TOOL_PATH) and are gated by the
+// SAME policy choke point as builtins: an unknown tool is denied by default,
+// and an owner explicitly allows a plugin with a policy rule
+// ("tools": {"my.tool": "allow"}).
 
 import { log } from '../log.js';
 import { Policy } from '@mona/engine';
+import { isTool } from './define.js';
+import { discoverExternalTools } from './registry.js';
 import { sysinfo } from './sysinfo.js';
 import { shell } from './shell.js';
 import { files } from './files.js';
@@ -18,29 +29,72 @@ import { jobs } from './jobs.js';
 import { delegate } from './delegate.js';
 import { goal } from './goal.js';
 import { workflow } from './workflow.js';
+import { plugin } from './plugin.js';
 
-const BUILTIN = [sysinfo, shell, files, net, apps, browser, web, memory, notify, vector, jobs, delegate, goal, workflow];
+const BUILTIN = [sysinfo, shell, files, net, apps, browser, web, memory, notify, vector, jobs, delegate, goal, workflow, plugin];
 const TIMEOUT_MS = 30_000;
 
 // Policy choke point: EVERY tool invocation (daemon, brain loop, CLI exec)
 // passes through the local policy engine. The control plane can never
-// widen this — it is loaded once from disk at startup.
+// widen this — it is loaded once from disk at startup. Plugin tools are
+// denied by default until the owner adds an explicit policy rule.
 const POLICY = Policy.load();
+
+/** Lift a defineTool() descriptor to the legacy runtime shape. */
+function liftDescriptor(tool) {
+  return {
+    name:        tool.name,
+    version:     tool.version,
+    description: tool.description,
+    args:        tool.input?.properties || {},
+    timeoutMs:   tool.timeoutMs,
+    run:         async (args, signal) => tool.handler(args, {
+      signal,
+      logger: log,
+      workspace: process.env.MONA_WORKSPACE || process.cwd(),
+      invoke: (n, i) => tools.run(n, i),
+    }),
+  };
+}
+
+function envToolPaths() {
+  return String(process.env.MONA_TOOL_PATH || '')
+    .split(',').map((s) => s.trim()).filter(Boolean);
+}
 
 class ToolRegistry {
   #tools = new Map();
+  #sources = new Map(); // name → 'builtin' | 'plugin'
 
   constructor() {
     for (const tool of BUILTIN) {
-      this.register(tool);
+      this.register(tool, 'builtin');
     }
   }
 
-  register(tool) {
-    if (!tool.name || typeof tool.run !== 'function') {
-      throw new Error(`Invalid tool: missing name or run function`);
+  /**
+   * Register a tool (legacy {name,run} or defineTool descriptor).
+   * Collisions are a hard error — plugins may never silently override
+   * builtins or each other.
+   */
+  register(tool, source = 'builtin') {
+    const lifted = isTool(tool) ? liftDescriptor(tool) : tool;
+    if (!lifted || typeof lifted.name !== 'string' || typeof lifted.run !== 'function') {
+      throw new Error(`Invalid tool: expected a defineTool() descriptor or {name, run} module — got ${typeof tool}`);
     }
-    this.#tools.set(tool.name, tool);
+    if (this.#tools.has(lifted.name)) {
+      throw new Error(`Tool registry collision: "${lifted.name}" is already registered — refusing to override.`);
+    }
+    this.#tools.set(lifted.name, lifted);
+    this.#sources.set(lifted.name, source);
+    return lifted.name;
+  }
+
+  /** Remove a tool by name (plugin unload). Returns true when removed. */
+  unregister(name) {
+    const had = this.#tools.delete(name);
+    this.#sources.delete(name);
+    return had;
   }
 
   /** List all registered tools (for cloud brain context). */
@@ -49,12 +103,44 @@ class ToolRegistry {
       name:        t.name,
       description: t.description,
       args:        t.args || {},
+      version:     t.version || undefined,
     }));
   }
 
   /** List tool names. */
   names() {
     return [...this.#tools.keys()];
+  }
+
+  /** name → 'builtin' | 'plugin'. */
+  sources() {
+    return Object.fromEntries([...this.#sources.entries()]);
+  }
+
+  /** Policy tier for a tool under the loaded policy (deny unless allowed). */
+  policyTier(name) {
+    return POLICY.toolTier(name);
+  }
+
+  /**
+   * Discover + register dynamic plugins (node_modules/mona-agent-tool-*
+   * plus extra dirs and MONA_TOOL_PATH). Hot-loadable at runtime.
+   * @returns {Promise<number>} tools loaded
+   */
+  async loadExternalTools(extraPaths = []) {
+    const paths = [...new Set([...envToolPaths(), ...extraPaths])];
+    const discovered = await discoverExternalTools(paths);
+    let loaded = 0;
+    for (const t of discovered) {
+      try {
+        this.register(t, 'plugin');
+        loaded++;
+        log.info(`Plugin tool loaded: ${t.name} v${t.version || '?'}`);
+      } catch (err) {
+        log.warn(`Plugin tool "${t.name}" not loaded: ${err.message}`);
+      }
+    }
+    return loaded;
   }
 
   /** Run a tool by name with timeout enforcement + policy gate. */

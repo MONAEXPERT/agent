@@ -70,6 +70,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   sub-agent's prompt (research → synthesize → verify). Results are
   structured per phase and per task; failing sub-tasks are reported in
   place (`status: partial`) and never abort the workflow.
+- **`plugin` tool + dynamic plugin registry** (`apps/desktop/src/tools/plugin.js`,
+  `apps/desktop/src/tools/index.js`): third-party tools ship as packages
+  (`mona-agent-tool-*` or any dir on `MONA_TOOL_PATH`) exporting
+  `defineTool()` descriptors, and are **hot-loaded at runtime** — at daemon
+  start and on demand. The runtime registry now accepts descriptors (lifted
+  to the legacy shape), reports per-tool source (`builtin`/`plugin`) and
+  policy tier, and refuses collisions (a plugin can never override a
+  builtin). `plugin list|load|reload|remove` manages them. Plugin tools are
+  **denied by default**: the owner allows one with an explicit
+  `"tools": {"my.tool": "allow"}` policy rule — `plugin list` prints the
+  exact rule needed. The daemon advertises loaded plugins to the cloud on
+  connect.
 
 ### Changed
 - `MemoryStore` recall is vector-based while keeping the same on-disk format
