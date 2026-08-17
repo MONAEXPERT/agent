@@ -20,6 +20,8 @@ export { FleetController } from './fleet.js';
 export { buildRunEvidence, readAuditEntries, queryAudit } from './evidence.js';
 export { PackageLifecycle, PKG_STATES, normalisePackage } from './package-lifecycle.js';
 export { toNdjson, exportAuditNdjson, exportRunEvidenceNdjson } from './siem.js';
+export { AdminApi } from './admin-api.js';
+export { normaliseMarketplaceIndex, hashMarketplaceIndex, signMarketplaceIndex, verifyMarketplaceIndex } from './marketplace-index.js';
 export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
 
 /**

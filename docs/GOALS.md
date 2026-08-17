@@ -1,6 +1,6 @@
 # Mona Agent: Product and Engineering Goals
 
-> Status: working strategy, not a promise of completed functionality.
+> Status: working strategy, not a promise of completed functionality. The enterprise engine has durable run/device/JIT/upgrade/evidence primitives, SIEM NDJSON export, a JSON-safe admin API, signed plugin manifests, and a signed marketplace-index trust primitive. Production signing certificates, an authenticated admin-console transport/UI, hosted marketplace distribution, and cross-platform acceptance infrastructure remain operational work outside this repository.
 >
 > Repository reviewed at `SHA256:jgWTvgWUi0Eb3t9pBsJvP0CbQfPKcXTIMjTopJL0Nn4` and cross-checked against the repository roadmap and architecture review.
 
