@@ -21,8 +21,9 @@ import { setAgentRoots } from './tools/files.js';
 import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
-import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite } from '@mona/engine';
+import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, runSubtasks, MAX_SUB_STEPS } from '@mona/engine';
 import { TaskQueue } from './taskqueue.js';
+import { configureDelegateRunner } from './tools/delegate.js';
 import { writePid, clearPid, alreadyRunning } from './daemon.js';
 import { VERSION } from './version.js';
 import { checkForUpdates, applyUpdate } from './update.js';
@@ -34,6 +35,7 @@ export { parseBrainReply };
 const MAX_RETRIES = 3;       // transient failures (network, 429, 5xx)
 const TASK_POLL_MS = 2000;   // sngine platform: poll the cloud task queue
 const TOOL_OUT_MAX = 4000;   // chars of tool output fed back to the brain
+const MAX_DELEGATE_DEPTH = 2; // a sub-agent may not nest delegation deeper
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -128,6 +130,9 @@ export class AgentDaemon extends EventEmitter {
   #recentTasks = new Map();
   // Owner-configurable reasoning profile (set from the cloud per poll).
   #brain = { maxSteps: 8, temperature: 0.4, extraRules: '', verify: true };
+  // Delegation: sub-agents spawned by the `delegate` tool. Depth-limited so
+  // a sub-agent can never fan out into runaway nesting (max 2 levels deep).
+  #delegateDepth = 0;
 
   constructor(creds) {
     super();
@@ -155,6 +160,9 @@ export class AgentDaemon extends EventEmitter {
       tools: tools.list(),
       shell: shellSecurity,
     });
+
+    // The `delegate` tool dispatches through this daemon's brain/tools.
+    configureDelegateRunner(async (req) => this.#runSubTasks(req));
 
     // Forward control events
     this.#control.on('connected',    ()    => this.emit('connected'));
@@ -818,6 +826,57 @@ export class AgentDaemon extends EventEmitter {
       log.warn(`Tool ${toolName}: ${result.error}`);
     } else {
       log.info(`Tool ${toolName} done`);
+    }
+  }
+
+  // ── Sub-agent delegation (the `delegate` tool) ───────────────────
+  // Fresh, bounded TaskLoops with their own context share this daemon's
+  // policy, budget, tools and brain. Depth-limited: a sub-agent may never
+  // spawn further sub-agents beyond MAX_DELEGATE_DEPTH, so delegation
+  // cannot nest into runaway recursion. Every sub-event lands in the local
+  // hash-chained audit log — transparent like all other steps.
+  async #runSubTasks({ tasks, concurrency }) {
+    if (this.#delegateDepth >= MAX_DELEGATE_DEPTH) {
+      throw new Error(`delegation depth limit reached (max ${MAX_DELEGATE_DEPTH} levels)`);
+    }
+    this.#delegateDepth++;
+    try {
+      const parent = this.#currentTask;
+      const subThink = async (messages, prof) => {
+        const res = await think({
+          apiKey: this.#creds.apiKey,
+          messages,
+          tools: tools.list(),
+          temperature: prof?.temperature ?? this.#brain.temperature,
+          profile: prof?.profile ?? 'standard',
+        });
+        return {
+          text: res?.text ?? '',
+          usage: res?.usage ? {
+            input: +res.usage.input || 0,
+            output: +res.usage.output || 0,
+            total: +res.usage.total || 0,
+            costUsd: +res.usage.costUsd || 0,
+          } : null,
+        };
+      };
+      const onEvent = (subId, kind, payload) => {
+        auditWrite({ kind: 'subtask', runId: parent?.runId || '', subId, event: kind, ...payload });
+      };
+      return await runSubtasks({
+        tasks,
+        think: subThink,
+        runTool: (name, args) => tools.run(name, args),
+        policy: this.#policy,
+        budget: this.#budget,
+        maxSteps: Math.min(this.#brain.maxSteps, MAX_SUB_STEPS),
+        temperature: this.#brain.temperature,
+        concurrency,
+        tools: tools.list(),
+        onEvent,
+      });
+    } finally {
+      this.#delegateDepth--;
     }
   }
 
