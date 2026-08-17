@@ -12,6 +12,7 @@ export { runWorkflow, validatePhases, buildPhaseContext, MAX_PHASES } from './wo
 export { GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, normaliseGoal, MAX_GOAL_ROUNDS, MAX_OBJECTIVE } from './goal.js';
 export { RunStore, normaliseRun, retryDecision, RUN_STATUSES, ACTIVE_RUN_STATUSES, TERMINAL_RUN_STATUSES } from './run-state.js';
 export { JitAccess, ROLES, normaliseGrant } from './jit.js';
+export { DeviceRegistry, DEVICE_HEALTH, hashCredential, normaliseDevice } from './device-registry.js';
 export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
 
 /**
