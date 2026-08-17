@@ -16,6 +16,7 @@ export { DeviceRegistry, DEVICE_HEALTH, hashCredential, normaliseDevice } from '
 export { computeRunMetrics, evaluateAlerts } from './metrics.js';
 export { hashManifest, generateSigningKeyPair, normalisePluginManifest, signManifest, verifyManifest, checkCapabilities } from './plugin-manifest.js';
 export { UpgradeOrchestrator, UPGRADE_STATES, normaliseUpgrade } from './upgrade.js';
+export { FleetController } from './fleet.js';
 export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
 
 /**
