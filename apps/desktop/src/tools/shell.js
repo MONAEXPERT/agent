@@ -436,6 +436,18 @@ async function executeStages(stages, { cwd, timeoutMs }) {
   };
 }
 
+// ── Security surface exports ──────────────────────────────────────
+// Sibling tools (the `jobs` tool) MUST reuse exactly these primitives so
+// background commands get the same protection as foreground ones: argv
+// parsing (no shell string), allowlist + realpath resolution, blocked
+// patterns and scrubbed env. No background path may widen the surface.
+export { parseCommand, resolveBinary };
+export const blockedPatterns = BLOCKED_PATTERNS;
+export const safeEnvKeys = SAFE_ENV_KEYS;
+export const shellCfg = cfg;
+export const allowSet = ALLOW;
+export const unsafeMode = UNSAFE;
+
 // ── Tool definition ───────────────────────────────────────────────
 export const shell = {
   name: 'shell',

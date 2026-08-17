@@ -126,9 +126,42 @@ agent starts every task already knowing what it has seen before.
 
 Example the agent might run:
 
-```json
-{"tool":"vector","args":{"action":"search","query":"how do I restart the web server"}}
+```json{"tool":"vector","args":{"action":"search","query":"how do I restart the web server"}}
 ```
+
+## jobs
+
+Background command management — long-running work must never block the task
+loop or die with the 15s shell timeout. `jobs` gives the brain the same job
+lifecycle an agent harness exposes: start, poll, read incremental output,
+wait, or kill.
+
+| Action | Behaviour |
+|---|---|
+| `start <cmd> [cwd]` | Runs the command in the background, returns `id` + `pid` immediately |
+| `status <id>` | `running` / `done` / `error` / `killed`, exit code, elapsed, bytes captured |
+| `output <id> [tail]` | Captured stdout/stderr — last `tail` chars (default 4000) with byte counts |
+| `list` | All jobs, newest first |
+| `wait <id> [timeoutS]` | Polls until completion (max 120s), then returns status + tail output |
+| `kill <id>` | SIGKILLs the whole process group |
+
+**Security parity:** `start` routes through the exact same surface as the
+`shell` tool — quote-aware argv parsing (never a shell string), allowlist +
+realpath binary resolution, blocked patterns, scrubbed child env, and the
+shell policy tier. When policy denies the `shell` tool (or a command matches
+`shell.approval`), `jobs start` refuses identically — a background command
+can never widen device policy.
+
+**Lifecycle:** each job spawns its own process group (detached), output is
+captured in memory (256 KB per stream), and `kill` takes the whole tree
+down. Jobs live for the daemon process lifetime — restarting the daemon
+clears them.
+
+Example the agent might run for a long build:
+
+```json{"tool":"jobs","args":{"action":"start","cmd":"npm run build"}}
+```
+then poll with `{"tool":"jobs","args":{"action":"wait","id":"job-3","timeoutS":90}}`.
 
 ## security
 

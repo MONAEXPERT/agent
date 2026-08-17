@@ -54,6 +54,7 @@ const BASE_DENY = [
 
 const KNOWN_TOOLS = new Set([
   'sysinfo', 'shell', 'files', 'net', 'apps', 'browser', 'web', 'memory', 'notify', 'vector',
+  'jobs',
 ]);
 
 const VALID_TIERS = new Set(['allow', 'deny', 'confirm', 'prompt']);
