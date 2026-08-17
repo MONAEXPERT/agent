@@ -137,25 +137,40 @@ function systemdStatus() {
 
 // ── Public API ───────────────────────────────────────────────────
 export function isMac() { return platform() === 'darwin'; }
+export function isWindows() { return platform() === 'win32'; }
+
+function windowsUnsupported() {
+  return {
+    supported: false,
+    installed: false,
+    loaded: false,
+    running: false,
+    reason: 'Native Windows service integration is not available in this release; use foreground `mona-agent start`.',
+  };
+}
 
 export function daemonStatus() {
-  const st = isMac() ? launchdStatus() : systemdStatus();
+  const st = isWindows() ? windowsUnsupported() : (isMac() ? launchdStatus() : systemdStatus());
   const pid = readPid();
   return {
     platform: platform(),
     serviceInstalled: st.installed,
     serviceLoaded: st.loaded,
     serviceRunning: st.running,
+    serviceSupported: st.supported !== false,
+    serviceReason: st.reason || null,
     pid: pid?.pid ?? null,
     pidAlive: pid ? pidAlive(pid.pid) : false,
   };
 }
 
 export function daemonInstall() {
+  if (isWindows()) return { ok: false, supported: false, error: windowsUnsupported().reason };
   return isMac() ? launchdInstall() : systemdInstall();
 }
 
 export function daemonUninstall() {
+  if (isWindows()) { clearPid(); return windowsUnsupported(); }
   if (isMac()) launchdUninstall(); else systemdUninstall();
   clearPid();
 }
