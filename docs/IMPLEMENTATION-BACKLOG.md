@@ -2,6 +2,21 @@
 
 This backlog turns the repository assessment into deliverable work. It is ordered by risk reduction and customer evidence, not by feature breadth. Each item has an explicit completion signal.
 
+## Status (branch `enterprise-run-skel`)
+
+Implemented and tested in `packages/engine/src` (all committed with unit tests):
+
+- **P0.1 Durable run lifecycle** — `run-state.js`: recovery points, rollback, cancel, resume, bounded retries, safe retry decisions.
+- **P0.2 Honest capability status** — capability matrix in `README.md` (unchanged, still authoritative).
+- **P0.3 Repeatable release evidence** — SBOM/SHA256/provenance in `.github/workflows/release.yml`; added CodeQL + secret scan + reproducibility gate in `ci.yml`.
+- **P1.4 / Goal 7 supply-chain** — `plugin-manifest.js`: Ed25519 signing/verification + deny-by-default capabilities.
+- **P2.1 Device & identity lifecycle** — `device-registry.js`: enrollment, revocation, rotation, health, tenant isolation; `jit.js`: role-scoped JIT access.
+- **P2.2 Central evidence & value metrics** — `evidence.js` (run reconstruction + audit export), `metrics.js` (value metrics + alerts).
+- **Goal 6 deployment** — `upgrade.js` (health-gated staged rollout), `package-lifecycle.js` (install/upgrade/rollback).
+- **Integration** — `fleet.js` composes the above into one operator entry point.
+
+Remaining: real Authenticode/GPG signing keys + CI secrets (P1.3), admin-console UI, marketplace index, and SIEM exporter integration.
+
 ## P0 — Trust foundation
 
 ### P0.1 Durable run lifecycle and recovery
