@@ -96,6 +96,12 @@ Type=simple
 ExecStart=${agentBin()} start --force
 Restart=on-failure
 RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.mona-agent
+MemoryMax=1G
 
 [Install]
 WantedBy=default.target

@@ -28,6 +28,8 @@ import { configureDelegateRunner } from './tools/delegate.js';
 import { configureGoalRunner } from './tools/goal.js';
 import { configureWorkflowRunner } from './tools/workflow.js';
 import { writePid, clearPid, alreadyRunning } from './daemon.js';
+import { startMetricsServer } from './metrics.js';
+import { initOtel, startSpan, endSpan, setSpanAttrs } from './otel.js';
 import { VERSION } from './version.js';
 import { checkForUpdates, applyUpdate } from './update.js';
 import { currentMode } from './modes.js';
@@ -143,6 +145,10 @@ export class AgentDaemon extends EventEmitter {
   // it), reasoning runs on-device against the user's own keys — the cloud
   // keeps coordinating (queue, cron, audit) but never sees a prompt.
   #localConfig = null;
+  // Localhost health/metrics (MONA_METRICS_PORT) — bound to 127.0.0.1 only.
+  #metricsPort = null;
+  #stopMetrics = null;
+  #startedAt = 0;
 
   constructor(creds) {
     super();
@@ -212,6 +218,26 @@ export class AgentDaemon extends EventEmitter {
       log.info(`Brain: cloud (agent.mona.expert)`);
     }
     writePid();
+    // Optional OTel: spans when @opentelemetry/api is installed, no-op
+    // otherwise. Best-effort — never blocks startup.
+    initOtel().then((ok) => { if (ok) log.info('OTel: spans enabled (@opentelemetry/api detected)'); });
+    // Optional localhost /healthz + /metrics (MONA_METRICS_PORT). 127.0.0.1
+    // only — for systemd/Docker health checks and local Prometheus.
+    if (process.env.MONA_METRICS_PORT && Number(process.env.MONA_METRICS_PORT) > 0) {
+      this.#startedAt = Date.now();
+      this.#metricsPort = Number(process.env.MONA_METRICS_PORT);
+      this.#stopMetrics = startMetricsServer({
+        port: this.#metricsPort,
+        getState: () => ({
+          connected: this.#control.connected,
+          uptimeS: Math.floor((Date.now() - this.#startedAt) / 1000),
+          ...this.#stats,
+          budget: this.#budget.summary(),
+          queue: { size: this.#tasks.size },
+        }),
+      });
+      log.info(`Health: http://127.0.0.1:${this.#metricsPort}/healthz · metrics: /metrics`);
+    }
     // Dynamic plugins: hot-load mona-agent-tool-* packages + MONA_TOOL_PATH
     // so the tool list advertised to the cloud includes them. Best-effort —
     // a broken plugin never blocks startup.
@@ -544,6 +570,9 @@ export class AgentDaemon extends EventEmitter {
     this.emit('task:start', { ...this.#currentTask, locked: this.#locked });
     log.info(`Task: "${task.slice(0, 100)}"`);
     auditWrite({ kind: 'task', event: 'start', runId, task: truncate(String(task), 400) });
+    // OTel span for the whole task (no-op when the API is absent).
+    const taskSpan = startSpan('task.run', { runId: String(runId) });
+    const toolSpans = new Map();
 
     const steps = [];
     let final = '';
@@ -668,6 +697,7 @@ export class AgentDaemon extends EventEmitter {
             postActivity(this.#creds.apiKey, 'tool.call', { tool: name, args }, runId, this.#creds.agentId).catch(() => {});
             trace('tool.call', { summary: name, detail: JSON.stringify(args || {}, null, 2) });
             auditWrite({ kind: 'task', event: 'tool', runId, tool: name, args: truncate(JSON.stringify(args || {}), 500) });
+            toolSpans.set(name, startSpan(`tool.${name}`, { runId: String(runId) }));
           });
           loop.on('tool:result', (name, out) => {
             this.#stats.toolCalls++;
@@ -677,6 +707,12 @@ export class AgentDaemon extends EventEmitter {
             trace('tool.result', { summary: truncate(outStr, 500), detail: truncate(outStr, 4000) });
             auditWrite({ kind: 'task', event: 'tool:result', runId, tool: name, output: truncate(outStr, 500) });
             log.info(`Tool result (${name}): ${truncate(outStr, 120)}`);
+            const toolSpan = toolSpans.get(name);
+            if (toolSpan) {
+              setSpanAttrs(toolSpan, { result: out && out.error ? 'error' : 'ok' });
+              endSpan(toolSpan, !(out && out.error));
+              toolSpans.delete(name);
+            }
             if (out && (out.error || out.exitCode)) this.#debugSnapshot(runId, `tool ${name} failed`);
           });
           loop.on('tool:denied', (name, verdict) => {
@@ -824,11 +860,14 @@ export class AgentDaemon extends EventEmitter {
         }
       }
       if (cloudTask) await this.#reportResult(cloudTask, msg, steps, { runId, usage: usageTotals, model: lastModel, provider: lastProvider });
+      endSpan(taskSpan, false);
       return;
     }
 
     this.#stats.tasks++;
     this.#stats.tokens += final.length;
+    setSpanAttrs(taskSpan, { tokens: usageTotals.total, costUsd: usageTotals.costUsd, steps: steps.length });
+    endSpan(taskSpan, true);
 
     // Goal rounds: persist the round outcome, strip the completion marker,
     // and enqueue the next round when the objective is still open.
