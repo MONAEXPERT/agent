@@ -17,6 +17,7 @@ import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { PATHS } from './config.js';
 import { runtimeSupport } from './platform.js';
+import { windowsServiceInstall, windowsServiceUninstall, windowsServiceStatus, windowsServiceStop } from './windows-service.js';
 
 export const PID_FILE = join(PATHS.dir, 'daemon.pid');
 
@@ -140,18 +141,12 @@ function systemdStatus() {
 export function isMac() { return platform() === 'darwin'; }
 export function isWindows() { return platform() === 'win32'; }
 
-function windowsUnsupported() {
-  return {
-    supported: false,
-    installed: false,
-    loaded: false,
-    running: false,
-    reason: 'Native Windows service integration is not available in this release; use foreground `mona-agent start`.',
-  };
+function windowsStatus() {
+  return windowsServiceStatus();
 }
 
 export function daemonStatus() {
-  const st = isWindows() ? windowsUnsupported() : (isMac() ? launchdStatus() : systemdStatus());
+  const st = isWindows() ? windowsStatus() : (isMac() ? launchdStatus() : systemdStatus());
   const pid = readPid();
   return {
     platform: platform(),
@@ -167,12 +162,12 @@ export function daemonStatus() {
 }
 
 export function daemonInstall() {
-  if (isWindows()) return { ok: false, supported: false, error: windowsUnsupported().reason };
+  if (isWindows()) return windowsServiceInstall();
   return isMac() ? launchdInstall() : systemdInstall();
 }
 
 export function daemonUninstall() {
-  if (isWindows()) { clearPid(); return windowsUnsupported(); }
+  if (isWindows()) { const result = windowsServiceUninstall(); clearPid(); return result; }
   if (isMac()) launchdUninstall(); else systemdUninstall();
   clearPid();
 }
@@ -215,6 +210,7 @@ export function alreadyRunning() {
 
 /** Kill the running daemon (used by `daemon uninstall` + `stop`). */
 export function stopRunningDaemon() {
+  if (isWindows()) return windowsServiceStop();
   const pid = readPid();
   if (!pid) return false;
   try {

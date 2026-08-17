@@ -64,6 +64,7 @@
   "files": [
     "apps/desktop/bin",
     "apps/desktop/src",
+    "apps/desktop/src/windows-service.ps1",
     "packages/engine/src",
     "packages/protocol/src",
     "README.md",

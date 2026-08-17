@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
+import { spawnFileSync } from './platform-process.js';
 import { join } from 'node:path';
 
 const SERVICE = 'mona-agent';
@@ -19,6 +20,39 @@ export function memoryBackend() {
     load: () => value ? { ...value } : null,
     save: (_service, _account, next) => { value = { ...next }; },
     clear: () => { value = null; },
+  };
+}
+
+export function windowsDpapiBackend({ account = 'default', command = 'powershell.exe', runner = spawnFileSync } = {}) {
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    '$raw = [Console]::In.ReadToEnd()',
+    '$bytes = [Text.Encoding]::UTF8.GetBytes($raw)',
+    '$scope = [Security.Cryptography.DataProtectionScope]::CurrentUser',
+    '$protected = [Security.Cryptography.ProtectedData]::Protect($bytes, $null, $scope)',
+    '[Convert]::ToBase64String($protected)',
+  ].join(';');
+  const unprotect = [
+    '$ErrorActionPreference = "Stop"',
+    '$raw = [Console]::In.ReadToEnd()',
+    '$protected = [Convert]::FromBase64String($raw)',
+    '$scope = [Security.Cryptography.DataProtectionScope]::CurrentUser',
+    '$bytes = [Security.Cryptography.ProtectedData]::Unprotect($protected, $null, $scope)',
+    '[Text.Encoding]::UTF8.GetString($bytes)',
+  ].join(';');
+  let stored = null;
+  const run = (code, input) => {
+    const result = runner(command, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'RemoteSigned', '-Command', code], { input, encoding: 'utf8' });
+    if (result.status !== 0 || result.error) throw new Error('Windows DPAPI operation failed');
+    return String(result.stdout || '').trim();
+  };
+  return {
+    name: 'windows-dpapi', secure: true,
+    available: () => process.platform === 'win32',
+    load: () => { if (!stored) return null; try { return JSON.parse(run(unprotect, stored)); } catch { return null; } },
+    save: (_service, _account, value) => { stored = run(script, JSON.stringify(value)); },
+    clear: () => { stored = null; },
+    account,
   };
 }
 
@@ -48,8 +82,9 @@ export function createCredentialStore({
   const dir = join(homeDir, '.mona-agent');
   const legacy = join(dir, 'credentials.json');
   const metadataFile = join(dir, 'credentials.meta.json');
-  const selected = backend || (allowFileFallback ? fileBackend(legacy) : null);
+  const selected = backend || (os === 'win32' ? windowsDpapiBackend() : (allowFileFallback ? fileBackend(legacy) : null));
   if (!selected) throw new Error(`No credential backend available for ${os}`);
+  if (os === 'win32' && selected.name === 'file' && !allowFileFallback) throw new Error('Windows secure credential storage unavailable');
   const readMeta = () => {
     try { return JSON.parse(readFileSync(metadataFile, 'utf8')); } catch { return null; }
   };
