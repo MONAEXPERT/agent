@@ -41,6 +41,28 @@ const SHELL_CONFIG = {
 
 const cfg = SHELL_CONFIG[PLATFORM] || SHELL_CONFIG.linux;
 
+export function platformPathEntries(platform, env = process.env) {
+  const delimiter = platform === 'win32' ? ';' : ':';
+  return String(env.PATH || '').split(delimiter).filter(Boolean);
+}
+
+export function executableCandidates(name, platform, env = process.env) {
+  if (platform !== 'win32') return [name];
+  const ext = String(env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
+  if (path.extname(name)) return [name];
+  return ext.map((suffix) => `${name}${suffix.toLowerCase()}`);
+}
+
+export function isExecutableFile(filePath, platform) {
+  try {
+    const st = fs.statSync(filePath);
+    if (!st.isFile()) return false;
+    return platform === 'win32' || Boolean(st.mode & 0o111);
+  } catch {
+    return false;
+  }
+}
+
 // ── OS-aware default allowlist ────────────────────────────────────
 const DEFAULTS = {
   darwin: 'df,uptime,uname,whoami,date,hostname,vm_stat,top,cat,head,tail,wc,ls,pwd,echo,env,which,sw_vers,sysctl,open',
@@ -251,19 +273,20 @@ function resolveBinary(name) {
     return { error: `Command '${base}' not in allowlist`, allowed: effectiveAllowlist() };
   }
   let candidates = [];
-  if (name.includes('/')) {
+  if (name.includes('/') || (PLATFORM === 'win32' && name.includes('\\\\'))) {
     candidates = [path.resolve(name)];
   } else {
-    const dirs = (cfg.path || process.env.PATH || '').split(':').filter(Boolean);
-    candidates = dirs.map((d) => path.join(d, name));
+    const dirs = platformPathEntries(PLATFORM, { PATH: cfg.path || process.env.PATH });
+    for (const dir of dirs) {
+      for (const candidate of executableCandidates(name, PLATFORM, process.env)) {
+        candidates.push(path.join(dir, candidate));
+      }
+    }
   }
   for (const c of candidates) {
-    try {
-      const st = fs.statSync(c);
-      if (st.isFile() && (st.mode & 0o111)) {
-        return { bin: fs.realpathSync(c), base };
-      }
-    } catch { /* keep looking */ }
+    if (isExecutableFile(c, PLATFORM)) {
+      try { return { bin: fs.realpathSync(c), base }; } catch { /* keep looking */ }
+    }
   }
   return { error: `Command not found: ${name}` };
 }
@@ -444,6 +467,7 @@ async function executeStages(stages, { cwd, timeoutMs }) {
 export { parseCommand, resolveBinary };
 export const blockedPatterns = BLOCKED_PATTERNS;
 export const safeEnvKeys = SAFE_ENV_KEYS;
+export const platformHelpers = { platformPathEntries, executableCandidates, isExecutableFile };
 export const shellCfg = cfg;
 export const allowSet = ALLOW;
 export const unsafeMode = UNSAFE;
