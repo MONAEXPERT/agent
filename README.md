@@ -84,12 +84,13 @@ allowlisted, policy-gated surface, never a raw prompt-to-shell pipe. And
 it is an **AI automation** engine: cron-style scheduling, background
 jobs, skills, memory, and multi-agent orchestration all come built in.
 
-**The agent runs on your hardware. The brain lives in the cloud you
-control at [agent.mona.expert](https://agent.mona.expert).** Your AI keys
-never touch your device — they sit in an AES-256-encrypted vault — and
-the device holds only a single revocable token. A bring-your-own-key
-local transport (Anthropic, OpenAI-compatible, Ollama) is on the
-roadmap, so the same agent will run fully on-device too.
+**The agent runs on your hardware. The brain is your choice.** Default:
+the cloud you control at [agent.mona.expert](https://agent.mona.expert) —
+your AI keys never touch the device, they sit in an AES-256-encrypted
+vault, and the device holds a single revocable token. Or **bring your own
+keys on-device** (`mona-agent provider set anthropic|openai|ollama`):
+prompts never leave the machine, Ollama runs fully offline at $0, and
+any OpenAI-compatible endpoint (LM Studio, vLLM, OpenRouter) works too.
 
 ## Why it matters
 
@@ -120,7 +121,7 @@ tonight:
 | **AI automation** for your own tasks | cron from the dashboard, skills, background `jobs`, persistent memory |
 | Your own tools | the `defineTool()` SDK — declarative, versioned, schema-checked, provider-agnostic |
 | Third-party extensions | hot-loadable plugins — ship tools as packages, no fork required |
-| A **self-hosted AI agent** | the daemon runs entirely on hardware you own, egress-only — a BYO-key brain is on the way |
+| A **self-hosted AI agent** | the daemon runs entirely on hardware you own, egress-only — BYO keys (Anthropic / OpenAI-compatible / Ollama) keep prompts on-device |
 | A **private AI assistant** | zero API keys on device, revocable tokens, per-user data isolation |
 | A **monitoring watchdog** | `disk-health` skill + `notify` + cron — alerted before volumes fill up |
 | A **research assistant** | `web-research` skill + vector memory — sources indexed and recalled by meaning |
@@ -387,8 +388,10 @@ where mona-agent sits, straight:
   platform with a working policy gate, an SDK, and a running daemon — the
   two are complementary: build on mona-agent for anything that touches a
   real machine.
-- **MCP** is becoming the standard way to connect agents to tools; an MCP
-  transport for mona-agent is on the roadmap.
+- **MCP** is becoming the standard way to connect agents to tools.
+  mona-agent ships one: `mona-agent mcp` exposes the whole tool registry
+  to any Model Context Protocol client over stdio — policy-gated like
+  every other call.
 
 ## Frequently asked questions
 
@@ -397,7 +400,8 @@ dependency (`ws`). The agent.mona.expert cloud has a free tier.
 
 **Do I need an API key?** One: your device token from the dashboard. AI
 provider keys (OpenAI, Anthropic, …) live only in the cloud vault —
-never on your device.
+never on your device. Or bring your own keys on-device with
+`mona-agent provider set <anthropic|openai|ollama>`.
 
 **Can it run on a Raspberry Pi?** Yes — any Node.js 20+ machine, headless
 (`mona-agent start`), small footprint. Perfect home-lab material.
@@ -405,10 +409,10 @@ never on your device.
 **Does it work on Windows?** In WSL2 or Git Bash, yes. Native PowerShell
 is not a target today.
 
-**Can it run fully offline?** The agent itself is 100% on your hardware
-with egress-only networking; the brain is cloud-hosted today, and a
-bring-your-own-key local transport (Anthropic, OpenAI-compatible, Ollama)
-is on the roadmap.
+**Can it run fully offline?** Yes. `mona-agent provider set ollama` +
+`MONA_TRANSPORT=local` runs the brain on Ollama at
+`http://127.0.0.1:11434` — no API key, $0 tokens, no prompt leaves the
+device. Anthropic and any OpenAI-compatible endpoint work the same way.
 
 **How do I update it?** `mona-agent update` — or the dashboard's Update
 button. The installer replaces the agent in place; credentials are
@@ -440,8 +444,8 @@ access: grant what you trust. Every decision is audited.
 
 The [SPEC.md](docs/SPEC.md) is a working document. Shipped: the tool SDK
 (P2), policy rules engine (P3), delegation, goals, workflows, jobs,
-plugins, vector memory and secure mode. Next: bring-your-own-key local
-transport (Anthropic / OpenAI-compatible / Ollama), MCP transport,
+plugins, vector memory, secure mode, the BYO-key local brain (P5 —
+Anthropic / OpenAI-compatible / Ollama) and the MCP transport. Next:
 service units, signed installer, Docker images and OTel observability.
 
 ## Documentation

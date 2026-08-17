@@ -15,7 +15,24 @@ cloud has a free tier.
 
 It needs **one key**: your mona.expert device token (created in the
 dashboard  Settings). AI provider keys (OpenAI, Anthropic, …) live only in
-the cloud vault — never on your device.
+the cloud vault — never on your device. Since v2.10.1 you can instead
+bring your own keys on-device:
+
+```bash
+mona-agent provider set anthropic     # or: openai / ollama
+MONA_TRANSPORT=local mona-agent start
+```
+
+Then prompts never leave the machine at all. See
+[examples/providers](../examples/providers/README.md).
+
+## Can it run fully offline?
+
+Yes — with a local provider. `mona-agent provider set ollama` +
+`MONA_TRANSPORT=local` runs the brain on Ollama at
+`http://127.0.0.1:11434`: no API key, $0 tokens, no prompt leaves the
+device. Anthropic and any OpenAI-compatible endpoint (LM Studio, vLLM,
+OpenRouter) work the same way.
 
 ## Where is my key stored?
 

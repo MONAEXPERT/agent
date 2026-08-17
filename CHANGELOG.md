@@ -4,6 +4,47 @@ All notable changes to mona-agent are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.10.1] — 2026-08-17
+
+### Added
+- **BYO local brain transport** (`apps/desktop/src/transport/local.js`):
+  run the reasoning loop on-device against a user-supplied LLM —
+  `anthropic` (Messages API), `openai` (any OpenAI-compatible
+  `/chat/completions` endpoint: OpenAI, OpenRouter, Groq, LM Studio,
+  vLLM), and `ollama` (fully offline, $0). Streaming with usage mapping
+  to the engine's `{input, output, total, costUsd}` shape; per-model
+  price tables (overridable per provider) feed the budget governor, so
+  BYO runs get the same cost governance as vault runs. Config in
+  `~/.mona-agent/provider.json` (0600) with env fallbacks; the cloud can
+  never read it.
+- **`mona-agent provider` CLI**: `set <anthropic|openai|ollama>
+  [--key|--url|--model]`, `status` (masked key, model, pricing),
+  `unset`, `test` (one-shot smoke call).
+- **`MONA_TRANSPORT=local`** — fail-fast local-only brain mode; the
+  daemon refuses to start when no provider is configured.
+- **Daemon brain dispatch** (`agent.js#brainThink`): every think — main
+  loop, forced conclusion, verification pass, delegate sub-agents and
+  workflow sub-agents — routes through the BYO provider when configured;
+  prompts never leave the device. `usageTotals` now carry `costUsd`
+  through to the run trace and audit log.
+- **MCP transport** (`apps/desktop/src/transport/mcp.js` + `mona-agent
+  mcp`): Model Context Protocol stdio server (JSON-RPC 2.0) exposing the
+  tool registry to any MCP client — `initialize`, `tools/list`
+  (freeform args → JSON Schema), `tools/call`, `ping`. Every call passes
+  the same local policy gate as cloud tasks.
+- **Examples**: `scripts/disk-watchdog.sh` (cron recipe — alerts before
+  a volume fills), `scripts/morning-briefing.sh` (8am briefing),
+  `examples/providers/` (BYO templates: anthropic, openai-compatible,
+  ollama).
+- **`docs/PRICING.md`** — SaaS pricing & metering spec for the control
+  plane (tiers, metering events, Stripe mapping, BYO economics).
+- Tests: `local-provider.test.mjs` (14) + `mcp.test.mjs` (9) — full
+  suite 327 green.
+
+### Changed
+- README/docs updated: BYO on-device brain and MCP are shipped, not
+  roadmap; offline FAQ now documents the Ollama path.
+
 ## [Unreleased]
 
 ### Added
