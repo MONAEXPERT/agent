@@ -1,6 +1,6 @@
 {
   "name": "mona-agent",
-  "version": "2.10.0",
+  "version": "2.10.1",
   "description": "mona.expert device agent \u2014 smart terminal, cloud brain. The only credential it holds is the mona.expert key.",
   "type": "module",
   "private": true,
