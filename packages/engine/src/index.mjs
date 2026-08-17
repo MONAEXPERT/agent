@@ -18,6 +18,7 @@ export { hashManifest, generateSigningKeyPair, normalisePluginManifest, signMani
 export { UpgradeOrchestrator, UPGRADE_STATES, normaliseUpgrade } from './upgrade.js';
 export { FleetController } from './fleet.js';
 export { buildRunEvidence, readAuditEntries, queryAudit } from './evidence.js';
+export { PackageLifecycle, PKG_STATES, normalisePackage } from './package-lifecycle.js';
 export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
 
 /**
