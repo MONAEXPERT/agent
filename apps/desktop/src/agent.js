@@ -21,10 +21,11 @@ import { setAgentRoots } from './tools/files.js';
 import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
-import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText } from '@mona/engine';
+import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, runWorkflow } from '@mona/engine';
 import { TaskQueue } from './taskqueue.js';
 import { configureDelegateRunner } from './tools/delegate.js';
 import { configureGoalRunner } from './tools/goal.js';
+import { configureWorkflowRunner } from './tools/workflow.js';
 import { writePid, clearPid, alreadyRunning } from './daemon.js';
 import { VERSION } from './version.js';
 import { checkForUpdates, applyUpdate } from './update.js';
@@ -172,6 +173,9 @@ export class AgentDaemon extends EventEmitter {
       start: async (req) => this.#startGoal(req),
       resume: async (req) => this.#resumeGoal(req),
     });
+    // The `workflow` tool dispatches multi-phase pipelines through the same
+    // sub-agent machinery as `delegate`.
+    configureWorkflowRunner(async (req) => this.#runWorkflow(req));
 
     // Forward control events
     this.#control.on('connected',    ()    => this.emit('connected'));
@@ -894,6 +898,54 @@ export class AgentDaemon extends EventEmitter {
         maxSteps: Math.min(this.#brain.maxSteps, MAX_SUB_STEPS),
         temperature: this.#brain.temperature,
         concurrency,
+        tools: tools.list(),
+        onEvent,
+      });
+    } finally {
+      this.#delegateDepth--;
+    }
+  }
+
+  // ── Multi-phase workflow orchestration (the `workflow` tool) ────
+  // Same shared brain/tools/policy/budget as delegation, but across an
+  // ordered phase pipeline (barrier between phases, prior-phase context
+  // injected). Depth guard: workflow phases must not nest past the cap.
+  async #runWorkflow({ phases }) {
+    if (this.#delegateDepth >= MAX_DELEGATE_DEPTH) {
+      throw new Error(`delegation depth limit reached (max ${MAX_DELEGATE_DEPTH} levels)`);
+    }
+    this.#delegateDepth++;
+    try {
+      const parent = this.#currentTask;
+      const subThink = async (messages, prof) => {
+        const res = await think({
+          apiKey: this.#creds.apiKey,
+          messages,
+          tools: tools.list(),
+          temperature: prof?.temperature ?? this.#brain.temperature,
+          profile: prof?.profile ?? 'standard',
+        });
+        return {
+          text: res?.text ?? '',
+          usage: res?.usage ? {
+            input: +res.usage.input || 0,
+            output: +res.usage.output || 0,
+            total: +res.usage.total || 0,
+            costUsd: +res.usage.costUsd || 0,
+          } : null,
+        };
+      };
+      const onEvent = (phase, subId, kind, payload) => {
+        auditWrite({ kind: 'workflow', runId: parent?.runId || '', phase, subId: subId || '', event: kind, ...payload });
+      };
+      return await runWorkflow({
+        phases,
+        think: subThink,
+        runTool: (name, args) => tools.run(name, args),
+        policy: this.#policy,
+        budget: this.#budget,
+        maxSteps: Math.min(this.#brain.maxSteps, MAX_SUB_STEPS),
+        temperature: this.#brain.temperature,
         tools: tools.list(),
         onEvent,
       });

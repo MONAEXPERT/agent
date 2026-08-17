@@ -241,6 +241,45 @@ Example the agent might run for a big cleanup job:
 ```
 then poll with `{"tool":"goal","args":{"action":"status","id":"goal_abc123"}}`.
 
+## workflow
+
+Multi-phase orchestration — coordinate complex jobs as an ordered pipeline
+of phases. Each phase fans out to several concurrent sub-agents, with a
+**barrier between phases**: a phase starts only after the previous phase's
+results exist.
+
+| Field | Behaviour |
+|---|---|
+| `phases` | Array of `{name, tasks, context?, concurrency?}` (max 8 phases, 6 tasks per phase) |
+| `tasks` | `[{id, prompt}]` — each becomes a concurrent sub-agent |
+| `context` | `["phaseA", ...]` — earlier phase results injected into this phase's sub-agents |
+| `concurrency` | Sub-agents in flight inside this phase (1–6, default all) |
+
+Each phase returns `{name, status, failed, results}` where `results` is the
+per-task list (`status: done|error|blocked`, `answer`, `usage`, `trace`).
+The top level returns `{status, phases, results}` — `status` is `partial`
+when any sub-task failed; failures are reported in place and **never abort
+later phases** (they can read the failure and react).
+
+Example — research, then synthesize from the research:
+
+```json
+{"tool":"workflow","args":{"phases":[
+  {"name":"research","tasks":[
+    {"id":"a","prompt":"Summarise README.md"},
+    {"id":"b","prompt":"Summarise CHANGELOG.md"}
+  ],"concurrency":2},
+  {"name":"synthesize","tasks":[
+    {"id":"s","prompt":"Write one combined release-note draft"}
+  ],"context":["research"]}
+]}}
+```
+
+**Safety:** workflows reuse the same sub-agent machinery as `delegate` —
+same policy, same budget, same tool sandbox, same depth limit (max 2
+levels of nesting). Sub-events are recorded in the hash-chained audit log
+under `kind: workflow`.
+
 ## security
 
 The shell's security posture, advertised to the cloud in the `hello` handshake

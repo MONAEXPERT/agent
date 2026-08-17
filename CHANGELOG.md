@@ -60,6 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (0600, atomic writes, per-path in-process singleton so the tool and the
   daemon always agree) and survive daemon restarts. Round cap reached
   without completion → `blocked`.
+- **`workflow` tool — multi-phase orchestration** (`packages/engine/src/workflow.js` +
+  `apps/desktop/src/tools/workflow.js`): ordered pipelines of phases
+  (`[{name, tasks, context?, concurrency?}]`, max 8 phases × 6 tasks), each
+  phase fanning out to concurrent sub-agents on the same `runSubtasks`
+  machinery. A **barrier** sits between phases — a phase starts only after
+  the previous phase's results exist — and a phase can declare
+  `context: ["phaseName"]` to have earlier results injected into every
+  sub-agent's prompt (research → synthesize → verify). Results are
+  structured per phase and per task; failing sub-tasks are reported in
+  place (`status: partial`) and never abort the workflow.
 
 ### Changed
 - `MemoryStore` recall is vector-based while keeping the same on-disk format
