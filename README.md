@@ -342,7 +342,7 @@ mona-agent start        # background daemon
 mona-agent gui          # live terminal dashboard with scrollback
 ```
 
-Then open **https://agent.mona.expert/mona** — build an agent, chat with
+Then open **https://agent.mona.expert/** — build an agent, chat with
 it, schedule it (cron), watch it work on your device, and revoke access
 any time with one click. Requires **Node.js 20+**. Installer,
 prerequisites and troubleshooting: [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).
