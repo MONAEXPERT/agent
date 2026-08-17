@@ -7,6 +7,7 @@ export { Policy, PRESETS, auditWrite, auditVerify } from './policy.js';
 export { Budget } from './budget.js';
 export { MemoryStore } from './memory.js';
 export { TaskLoop, parseBrainReply, compactMessages } from './loop.js';
+export { runSubtasks, buildSubSystemPrompt, MAX_SUBTASKS, MAX_SUB_PROMPT, MAX_SUB_STEPS } from './delegate.js';
 export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
 
 /**

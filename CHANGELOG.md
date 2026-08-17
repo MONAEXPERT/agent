@@ -39,6 +39,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   and honour the shell policy tier, so a background command can never widen
   device policy. The tool registry now supports per-tool timeouts (jobs may
   wait up to 130s; every other tool keeps the 30s default).
+- **`delegate` tool — sub-agent fan-out** (`packages/engine/src/delegate.js` +
+  `apps/desktop/src/tools/delegate.js`): the brain splits a task into up to
+  six independent sub-tasks (`[{id, prompt}]`) that run **concurrently** as
+  fresh, bounded `TaskLoop`s with their own message context — sharing the
+  same policy, budget and tool sandbox. Every sub-result returns
+  `{status, answer, steps, usage, trace}` so the parent verifies each piece
+  before answering; failed sub-agents are reported, never hidden. Sub-steps
+  land in the local hash-chained audit log (`kind: subtask`). Delegation is
+  depth-limited (max 2 levels) so it can never nest into runaway recursion,
+  and sub-loops respect policy exactly like the main loop.
 
 ### Changed
 - `MemoryStore` recall is vector-based while keeping the same on-disk format
