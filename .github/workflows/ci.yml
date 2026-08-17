@@ -53,6 +53,41 @@ jobs:
             throw 'shell.js must never pass a user string to PowerShell'
           }
 
+  lifecycle-acceptance:
+    name: Installer lifecycle acceptance (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Lifecycle state-machine acceptance
+        run: node --test packages/engine/test/package-lifecycle.test.mjs
+
+      - name: Linux installer dry-run acceptance
+        if: runner.os == 'Linux'
+        run: |
+          test -x apps/desktop/install.sh
+          MONA_REPO=MONAEXPERT/agent apps/desktop/install.sh --dry-run --allow-root
+
+      - name: Windows installer dry-run acceptance
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./apps/desktop/install.ps1 -DryRun
+
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest
@@ -71,3 +106,58 @@ jobs:
 
       - name: npm audit (high+)
         run: npm audit --audit-level=high
+
+  security:
+    name: Security scan (CodeQL + secret detection)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+          queries: security-extended
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  reproducibility:
+    name: Reproducible source archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Two independent deterministic packs of the source tree must be
+      # byte-identical; a difference means the build is not reproducible.
+      - name: Verify deterministic source archive
+        run: |
+          pack() {
+            tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+              --exclude-vcs --exclude=node_modules --exclude='.github' \
+              -czf "$1" .
+          }
+          pack first.tar.gz
+          pack second.tar.gz
+          test "$(sha256sum first.tar.gz | cut -d' ' -f1)" = "$(sha256sum second.tar.gz | cut -d' ' -f1)"
