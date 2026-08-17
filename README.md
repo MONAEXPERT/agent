@@ -2,155 +2,466 @@
 license: mit
 tags:
 - ai-agent
+- ai
 - agent
+- computer-use
+- agentic-ai
+- llm-agent
+- ai-automation
+- ai-assistant
 - automation
 - cli
-- daemon
 - terminal
+- daemon
 - macos
 - linux
+- wsl2
+- raspberry-pi
+- self-hosted
+- local-ai
+- open-source
+- ai-security
+- sandbox
+- policy
+- privacy
+- multi-agent
+- ai-workflow
+- tool-sdk
+- plugins
+- autogpt
+- openai-computer-use
+- claude-computer-use
+- ai-jarvis
+- chatgpt-on-your-computer
+- ai-devops
+- ai-sysadmin
+- home-lab
+- background-jobs
+- vector-memory
+- cron
+- mona-expert
 language:
 - en
 ---
 
-# mona-agent — your computer, with a brain you control
+# mona-agent — the open-source AI agent for your own computer
 
 <p align="center">
-  <strong>The open-source AI agent for your own computer.<br/>
-  Chat from anywhere — it runs commands, manages files, automates tasks.<br/>
-  Every step is streamed to you. Nothing runs in the dark.</strong>
+  <strong>An AI agent that lives on your machine and actually does things.<br/>
+  Run commands, manage files, automate tasks, orchestrate multi-agent workflows,<br/>
+  and watch every step stream back to you. MIT-licensed, one runtime dependency.</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/MONAEXPERT/agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg" alt="Node.js 20+"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-informational.svg" alt="Platforms: macOS, Linux, WSL2">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-informational.svg" alt="Platforms: macOS, Linux, WSL2, Raspberry Pi">
   <img src="https://img.shields.io/badge/api%20keys-on%20device-0-red.svg" alt="Zero API keys on device">
-  <img src="https://img.shields.io/badge/control-via%20agent.mona.expert-blueviolet.svg" alt="Controlled via agent.mona.expert">
-  <img src="https://img.shields.io/badge/privacy-AES--256%20vault-blue.svg" alt="Privacy: AES-256 vault">
+  <img src="https://img.shields.io/badge/version-2.10.x-blueviolet.svg" alt="Version 2.10.x">
+  <img src="https://img.shields.io/badge/tests-160%2B%20incl.%20red--team-brightgreen.svg" alt="160+ tests incl. security red-team suite">
 </p>
 
-## Why mona-agent
+## What is an AI agent for your computer?
 
-Most AI assistants live in a chat window. They can write you a script — but
-they can't run it. They can explain a crash — but they can't look at your
-logs.
+Most AI assistants live in a chat window. They can write you a script —
+but they can't run it. They can explain a crash — but they can't look at
+your logs. They can suggest a cleanup — but they can't do it.
 
-**mona-agent is the other half.** A small, open-source app on your own
-machine (macOS, Linux, WSL2) that connects to a brain in the cloud. You talk
-to it from your dashboard; it reasons about the task, then *actually does
-it*: checks disk space, restarts a service, finds a file, opens an app, runs
-a cleanup — and streams every step back so you can watch it think and act in
-real time.
+**mona-agent is the other half.**
 
-## The five promises
+It is an **open-source AI agent** that runs on your own computer —
+macOS, Linux, WSL2 or a Raspberry Pi — and gives an **agentic AI** brain
+real hands on your hardware. You talk to it from your dashboard or your
+terminal; it reasons about the task, then actually does it: checks disk
+space, restarts a service, finds a file, opens an app, runs a cleanup,
+schedules a job — and streams every step back so you can watch it think
+and act in real time.
 
-1. **Saves you money.** Your AI keys live in one encrypted vault on
-   agent.mona.expert — never on your devices. Tasks are routed to the
-   cheapest model that can handle them (simple → cheap, complex → deep),
-   with per-run token and cost traces. No wasteful loops, no hidden spend.
-2. **Zero API keys on device.** The only thing stored locally is your
-   agent.mona.expert token, in a `0600` file. No OpenAI, Anthropic or other
-   provider keys ever touch your machine. Steal the laptop — you lose
-   nothing but a revocable token.
-3. **Fully transparent.** Every task streams: reasoning steps, tool calls,
-   tool results, token usage, model, latency. Everything is recorded in an
-   append-only audit trail on your control plane. You can always see *what*
-   it did and *why*.
-4. **Never loops silently.** The agent works in a bounded
-   plan → act → reflect → verify loop. Every step emits progress
-   (step N of M), every tool call is streamed, and when the step budget is
-   reached it is forced to conclude with an answer. A task can never spin
-   in the background without visible output.
-5. **Yours, and only yours.** Control happens exclusively through your
-   account at agent.mona.expert. Authenticated dashboard, per-user data
-   isolation, CSRF-protected API, revocable device tokens, rate limits and
-   a full audit trail. No third party, no backdoor, no telemetry.
+It is an **LLM agent** built around a bounded plan → act → reflect →
+verify loop. It is an **AI assistant** with genuine **computer use**
+capabilities — tool-based control of your machine through a sandboxed,
+allowlisted, policy-gated surface, never a raw prompt-to-shell pipe. And
+it is an **AI automation** engine: cron-style scheduling, background
+jobs, skills, memory, and multi-agent orchestration all come built in.
 
-## Quickstart — 60 seconds
+**The agent runs on your hardware. The brain lives in the cloud you
+control at [agent.mona.expert](https://agent.mona.expert).** Your AI keys
+never touch your device — they sit in an AES-256-encrypted vault — and
+the device holds only a single revocable token. A bring-your-own-key
+local transport (Anthropic, OpenAI-compatible, Ollama) is on the
+roadmap, so the same agent will run fully on-device too.
 
-```bash
-# 1. Install the agent on your computer (macOS / Linux / WSL2)
-curl -fsSL https://agent.mona.expert/install.sh | bash
+## Why it matters
 
-# 2. Log in with a token from your dashboard (Devices → Generate token)
-MONA_CLOUD=https://agent.mona.expert mona-agent login
+- **It does, it doesn't just say.** Chatbots produce words. mona-agent
+  produces outcomes — on your machine, under your policy.
+- **Every step is visible.** Reasoning, tool calls, results, token usage,
+  model, latency — streamed live and recorded in an append-only audit
+  trail. Nothing runs in the dark.
+- **It never loops silently.** Step budgets, corrective nudges, forced
+  conclusions. A task can never spin in the background without output.
+- **It is yours.** MIT-licensed, runs on hardware you own, egress-only
+  networking, revocable access, one runtime dependency.
 
-# 3. Start it
-mona-agent start        # or: mona-agent gui  (live terminal dashboard)
-```
+## What you can build with it
 
-Then open **https://agent.mona.expert/mona** — build an agent, chat with it,
-schedule it (cron), watch it work on your device, and revoke access any time
-with one click.
+mona-agent is a small but real agent platform, and it is yours to build
+on. Here is a taste of what people use it for — and what you can build
+tonight:
 
-## What it can do
+| You want… | You build it with… |
+|---|---|
+| An **AutoGPT-style autonomous agent** | the `goal` tool — persistent multi-round objectives that keep going across rounds until genuinely complete, then stop |
+| Your own **AI Jarvis** for a **home lab** | a Raspberry Pi, `mona-agent start`, `sysinfo`/`shell`/`notify`, and the SDK |
+| A **computer use agent** on your machine | tool-based control: commands, files, network, apps, browser — every step visible |
+| An **AI DevOps agent / AI sysadmin** | the `disk-health` and `briefing` skills, `jobs` for long-running commands, cron scheduling |
+| **AI workflow automation** | the `workflow` tool — multi-phase pipelines with barriers and phase-to-phase context |
+| A **multi-agent system** | the `delegate` tool — up to 6 concurrent sub-agents sharing the same policy and budget |
+| **AI automation** for your own tasks | cron from the dashboard, skills, background `jobs`, persistent memory |
+| Your own tools | the `defineTool()` SDK — declarative, versioned, schema-checked, provider-agnostic |
+| Third-party extensions | hot-loadable plugins — ship tools as packages, no fork required |
+| A **self-hosted AI agent** | the daemon runs entirely on hardware you own, egress-only — a BYO-key brain is on the way |
+| A **private AI assistant** | zero API keys on device, revocable tokens, per-user data isolation |
+| A **monitoring watchdog** | `disk-health` skill + `notify` + cron — alerted before volumes fill up |
+| A **research assistant** | `web-research` skill + vector memory — sources indexed and recalled by meaning |
+| A **fleet of device agents** | multi-device task claiming — each task runs on exactly one winning device |
+
+## Everything it can do
 
 | Capability | How |
 |---|---|
-| Run commands | guarded, argv-based shell — every executable allowlisted, no string-to-shell, env scrubbed |
-| Manage files | sandboxed workspace — path-traversal, symlink and TOCTOU escapes rejected; deletes go to trash |
+| Run commands | argv-based, allowlisted shell — no string-to-shell, env scrubbed, output capped |
+| Manage files | sandboxed workspace — traversal, symlink and TOCTOU escapes rejected; deletes go to trash |
 | Web research | search + page fetch (no API key needed) |
-| Launch apps | open/quit desktop applications |
+| Launch apps | open/quit desktop applications (`open -a Calendar`) |
 | Browser | open URLs / run searches in your default browser |
-| Persistent memory | remembers across tasks and restarts |
-| Vector memory + file index | dependency-free local vector index — notes and workspace files are searched by meaning (cosine over hashed embeddings), and the closest hits are injected into every task's prompt |
+| System insight | CPU, memory, disk, load, uptime — streamed live to the dashboard |
 | Notifications | desktop alerts (macOS / Linux / Windows) |
+| Persistent memory | remembers across tasks and restarts |
+| **Vector memory + file index** | dependency-free local vector search by meaning; closest hits injected into every prompt |
+| **Background jobs** | `jobs start/status/output/wait/kill` — long-running work outlives the task loop |
+| **Delegation** | fan out to up to 6 concurrent sub-agents, verify each result, then answer |
+| **Goals** | persistent multi-round completion objectives (up to 16 rounds, resumable) |
+| **Workflows** | multi-phase pipelines (up to 8 phases × 6 tasks) with barriers and phase context |
+| **Dynamic plugins** | third-party tools hot-load via `defineTool()`, gated by your policy |
+| Skills | bundled `briefing`, `disk-health`, `web-research` — safe, read-only, composable |
 | Schedule runs | cron-style tasks from the dashboard |
 | Multi-device | agents claim tasks per device — never executed twice |
+| Self-update | `mona-agent update` / dashboard-driven version lifecycle |
 
-## How it stays safe
+## How it works, tool by tool
 
-- **Sandboxed tools** — files are confined to a workspace (boundary-checked,
-  symlink- and TOCTOU-guarded, 1 MB write cap); the shell is argv-based
-  with a realpath-resolved allowlist and always-blocked patterns (`sudo`,
-  `rm -rf /`, `mkfs`, pipe-to-shell downloads, …); the network tool is
-  SSRF-safe (private ranges and cloud metadata unreachable); every policy
-  decision lands in a hash-chained audit log.
-- **Egress-only networking** — the agent reaches out to your control plane;
-  nothing listens for inbound connections.
-- **Revocable access** — one click in the dashboard kills a device's token.
-- **Open source** — read every line; the code is the security documentation.
-- **Bounded work** — step limits, corrective nudges and forced conclusions
-  mean no infinite loops, no silent hangs.
+### Shell and commands
+
+A guarded, allowlisted command shell. Commands execute as **argv arrays,
+never as a string handed to a shell** — no `bash -c`, no `$()` injection
+surface. Every executable is resolved through a realpath allowlist, child
+environment variables are scrubbed, output is size-capped, and the whole
+process group is killed on timeout. Always-blocked patterns (`sudo`,
+`rm -rf /`, `mkfs`, pipe-to-shell downloads) never reach execution.
+
+```bash
+mona-agent chat "how full is my disk and what can I safely clean?"
+mona-agent exec shell cmd="df -h /"
+```
+
+### Files and workspace
+
+File operations are confined to a workspace with boundary checks,
+symlink-resolution guards and TOCTOU re-validation after open. Deletes go
+to the trash, not to oblivion. A 1 MB write cap keeps runaway output in
+check.
+
+### Network and research
+
+SSRF-safe by construction: the agent resolves DNS itself, CIDR-checks
+every resolved address, connects to the validated IP, re-validates every
+redirect hop (max 5), and blocks cloud-metadata endpoints. Web research
+needs no API key.
+
+### Memory and vector search
+
+A dependency-free local vector index (256-dim hashed embeddings, cosine
+similarity) searches your notes and workspace files **by meaning** — no
+API keys, no network, no npm dependencies. The closest hits are injected
+into every task's prompt, so the agent actually remembers what you asked
+it to remember. Legacy memory files keep working untouched.
+
+### Background jobs
+
+Long-running commands no longer block the task loop or die with a shell
+timeout. `jobs start <cmd>` returns a job id immediately; `status`,
+`output`, `list`, `wait` and `kill` manage it — through the *same*
+security surface as the shell tool, so a background command can never
+widen device policy.
+
+### Delegation — multi-agent fan-out
+
+The brain splits a task into up to **6 independent sub-tasks** that run
+concurrently as fresh, bounded loops with their own message context —
+sharing the same policy, budget and tool sandbox. Every sub-result
+returns status, answer, steps, usage and trace, so the parent verifies
+each piece before answering. Depth is limited to 2 levels: delegation can
+never nest into runaway recursion.
+
+### Goals — autonomous rounds with a finish line
+
+Start a long-running objective (`goal start {objective, maxRounds?}`)
+and it keeps going across **autonomous rounds** until it is genuinely
+complete — each round a normal, serial, non-interleaving task seeded with
+the objective and every previous round's summary, ending in an explicit
+`GOAL_COMPLETE: true|false` marker. Goals persist to disk, survive daemon
+restarts, and are capped (default 8, max 16 rounds). Reaching the cap
+without completion reports `blocked` — it never spins forever.
+
+### Workflows — multi-phase orchestration
+
+Ordered pipelines of up to **8 phases × 6 tasks**, each phase fanning out
+to concurrent sub-agents on the same machinery. A barrier sits between
+phases — a phase starts only after the previous phase's results exist —
+and a phase can declare `context: ["phaseName"]` to have earlier results
+injected into every sub-agent's prompt. Research → synthesize → verify, in
+one command.
+
+### Skills
+
+Safe, read-only, composable skill packages that steer the agent's
+behavior: `briefing` (morning summary), `disk-health` (flag volumes above
+85%, propose — never run — cleanups), `web-research` (search and
+synthesize). Skills are enabled or disabled by mode and by your control
+plane's per-agent capability profiles.
+
+## Build your own tools — the SDK
+
+Tools are declarative descriptors, not ad-hoc modules. Write one in a few
+lines and the registry discovers, schema-checks, sandboxes and exposes it
+to any LLM provider dialect:
+
+```js
+// your-tool/package.json → name: "mona-agent-tool-example"
+import { defineTool } from 'mona-agent';
+
+export default defineTool({
+  name: 'fs.snapshot', version: '1.0.0',
+  description: 'Snapshot a directory listing inside the workspace.',
+  input: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
+  capabilities: ['fs:read'], sideEffects: 'none', idempotent: true,
+  handler: async ({ path }, ctx) => { /* ... */ },
+});
+```
+
+Every descriptor is deep-frozen, name- and version-validated, and carries
+declared capabilities, side effects, idempotency, timeout and
+concurrency metadata. The registry refuses collisions — a plugin can
+never override a builtin or another plugin.
+
+## Plugins — extend without forking
+
+Third-party tools ship as packages (`mona-agent-tool-*` or any directory
+on `MONA_TOOL_PATH`) and are **hot-loaded at runtime** — at daemon start
+and on demand, no restart. Plugins are inert until your local policy
+allows them with an explicit `"tools": {"my.tool": "allow"}` rule, and
+the daemon advertises loaded plugins to your control plane on connect.
+`plugin list|load|reload|remove` manages them.
+
+## Build on a core that says no — the policy engine
+
+The strongest thing you can build on is a core that refuses politely. The
+policy engine (`~/.mona-agent/policy.json`) is the **device-side
+authority**: deny-by-default, first-match-wins rules with
+`when`-conditions, per-tool rate limits, daily budget caps, and presets
+(`strict` · `standard` · `permissive`). It is loaded once from local disk
+at startup, and the cloud can never widen it — the cloud only ever
+*asks*, the device *decides*.
+
+```bash
+mona-agent policy preset strict     # read-only agent
+mona-agent policy explain shell.run "df -h"   # why did that get allowed?
+mona-agent audit tail               # hash-chained, append-only
+mona-agent audit verify             # prove the trail was never tampered with
+```
+
+The **capability dial** puts the same idea one command away:
+
+```bash
+mona-agent mode set minimal   # read-only: no shell, no network writes
+mona-agent mode set standard  # balanced: core skills, shell/browser need approval
+mona-agent mode set full      # everything on + auto-start daemon (launchd/systemd)
+```
+
+Modes write the local policy file and enable the matching skills. They
+are a device-side authority — the cloud cannot change them.
 
 ## Architecture
 
 ```
-┌──────────────┐   WSS / SSE    ┌───────────────────────────────┐
-│  your device │ ◄────────────► │  agent.mona.expert            │
-│  mona-agent  │   tasks+steps  │  dashboard · API · vault      │
-│  (sandbox)   │                │  AES-256 encrypted AI keys    │
-└──────────────┘                │  cron runner · audit trail    │
-                                └───────────────────────────────┘
+┌────────────── Your device ──────────────┐   WSS / HTTPS   ┌──────────────────────────────┐
+│  mona-agent daemon                      │ ◄────────────► │  agent.mona.expert           │
+│  ├─ TaskLoop (bounded plan→act→reflect) │   tasks+steps  │  dashboard · API · vault     │
+│  ├─ Policy engine  ◄─ local, wins       │                │  AES-256 encrypted AI keys   │
+│  ├─ Tool registry (SDK + plugins)       │                │  cron runner · audit trail   │
+│  ├─ Vector memory · task queue          │                └──────────────────────────────┘
+│  └─ TUI / daemon / CLI                  │
+└─────────────────────────────────────────┘
 ```
 
-- `apps/desktop` — the device agent (daemon, tools, terminal UI). It is thin
-  on purpose: it supplies the cloud brain, the tools and the trace plumbing.
-- `packages/engine` — the agent core: bounded plan → act → reflect → answer
-  loop with policy-as-code, a budget governor (cheap-first degradation) and
-  structured memory. Zero dependencies, tested offline.
-- `packages/protocol` — the wire contract (versioned envelopes, message
-  types, close codes) shared by the daemon and the gateway.
-- `docs/` — architecture, compliance (GDPR, CRA, ISO 27001, IEC 62443),
-  threat model, tool reference, changelog
+- `apps/desktop` — the device agent: daemon, CLI, terminal UI, skills and
+  the tool sandbox. Thin on purpose: it supplies the brain, the tools and
+  the trace plumbing.
+- `packages/engine` (`@mona/engine`) — the agent core: the bounded
+  `TaskLoop`, policy engine, budget governor, memory + vector store,
+  delegation (`runSubtasks`), goals (`GoalStore`), workflows
+  (`runWorkflow`). **Zero runtime dependencies**, fully testable offline.
+- `packages/protocol` (`@mona/protocol`) — the versioned wire contract
+  shared by the daemon and the gateway.
+- `docs/` — [architecture](docs/ARCHITECTURE.md), [policy
+  grammar](docs/POLICY.md), [tools reference](docs/TOOLS.md), [compliance
+  mappings](docs/COMPLIANCE.md), [roadmap](docs/SPEC.md).
 
-Every loop guarantee lives in the engine and is tested once: policy checks
-before each tool call, corrective nudges on malformed replies, forced
-conclusion at the step limit (never hangs), and budget steering that shifts
-to cheaper reasoning profiles as daily caps approach. Every step — think,
-tool call, result, denial, profile switch — is streamed to your dashboard
-and recorded in the audit trail.
+Every loop keeps the agent honest: policy check before every tool call,
+corrective nudges on malformed replies, forced conclusion at the step
+limit, context compaction when history grows, and budget steering that
+degrades to cheaper reasoning profiles as daily caps approach. Every
+step — think, tool call, result, denial, profile switch — is streamed to
+your dashboard and recorded in the audit trail.
+
+## Quickstart — under a minute
+
+```bash
+# 1. Install the agent on your computer (macOS / Linux / WSL2 / Raspberry Pi)
+curl -fsSL https://agent.mona.expert/install.sh | bash
+
+# 2. Log in with a token from your dashboard (Devices → Generate token)
+mona-agent login
+
+# 3. Start it — headless daemon or live terminal dashboard
+mona-agent start        # background daemon
+mona-agent gui          # live terminal dashboard with scrollback
+```
+
+Then open **https://agent.mona.expert/mona** — build an agent, chat with
+it, schedule it (cron), watch it work on your device, and revoke access
+any time with one click. Requires **Node.js 20+**. Installer,
+prerequisites and troubleshooting: [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).
+
+## Security — the strongest claim, and the one we test hardest
+
+- **Local policy is the authority** — deny-by-default, cloud can never
+  widen it. Plugins are inert until you write an explicit allow rule.
+- **Sandboxed tools** — argv-only shell with a realpath-resolved
+  allowlist, workspace-confined files, SSRF-safe network (DNS resolved
+  locally, CIDR-checked, metadata endpoints blocked).
+- **Every decision audited** — hash-chained append-only trail;
+  `mona-agent audit verify` proves integrity.
+- **Egress-only networking** — nothing listens for inbound connections;
+  works behind NAT, firewalls and CGNAT.
+- **Bounded work** — step budgets, corrective nudges, forced conclusions.
+- **Revocable access** — one click in the dashboard kills a device token.
+- **Verified** — 160+ tests including a 58-case security red-team suite;
+  CI runs Node 20/22/24 on macOS and Ubuntu. Every claim maps to a test.
+
+## How it fits the agent landscape
+
+The agent space is crowded, and most of it is genuinely useful — here is
+where mona-agent sits, straight:
+
+- **AutoGPT** made autonomous, goal-driven agents famous. mona-agent
+  shares the ambition and adds the two things AutoGPT-era projects
+  struggled with: a **bounded, resumable goal loop** and a **local policy
+  engine** that says no. The `goal` tool gives you the autonomous agent
+  experience with a finish line.
+- **Computer use agents** (OpenAI's and Anthropic's tooling among them)
+  put AI in control of a machine. mona-agent does the same through a
+  **tool-based surface** — commands, files, network, apps — rather than
+  pixel-watching, which keeps it fast, deterministic and auditable.
+- **Personal assistants like ChatGPT** live in the cloud and answer
+  questions. mona-agent is the assistant you can also ask to *do*
+  things on the machine you're standing in front of — chat from the
+  dashboard, act on the device, every step streamed.
+- **Coding agents** (Copilot and friends) live inside the IDE. mona-agent
+  is broader and simpler: it automates *your computer*, not your
+  editor — though `git`, `npm` and test runners are perfectly within its
+  reach.
+- **Agent frameworks** like LangChain and CrewAI are rich libraries for
+  building agent software. mona-agent is a smaller, dependency-free
+  platform with a working policy gate, an SDK, and a running daemon — the
+  two are complementary: build on mona-agent for anything that touches a
+  real machine.
+- **MCP** is becoming the standard way to connect agents to tools; an MCP
+  transport for mona-agent is on the roadmap.
+
+## Frequently asked questions
+
+**Is mona-agent free?** Yes — MIT licensed, free forever, one runtime
+dependency (`ws`). The agent.mona.expert cloud has a free tier.
+
+**Do I need an API key?** One: your device token from the dashboard. AI
+provider keys (OpenAI, Anthropic, …) live only in the cloud vault —
+never on your device.
+
+**Can it run on a Raspberry Pi?** Yes — any Node.js 20+ machine, headless
+(`mona-agent start`), small footprint. Perfect home-lab material.
+
+**Does it work on Windows?** In WSL2 or Git Bash, yes. Native PowerShell
+is not a target today.
+
+**Can it run fully offline?** The agent itself is 100% on your hardware
+with egress-only networking; the brain is cloud-hosted today, and a
+bring-your-own-key local transport (Anthropic, OpenAI-compatible, Ollama)
+is on the roadmap.
+
+**How do I update it?** `mona-agent update` — or the dashboard's Update
+button. The installer replaces the agent in place; credentials are
+untouched.
+
+**How do I uninstall?** `rm -rf ~/.mona-agent ~/.local/bin/mona-agent`.
+
+**What does it send to the cloud?** Only to the cloud you logged into:
+device metrics, tool results, and your chat messages. Nothing to third
+parties. Details in [SECURITY.md](SECURITY.md).
+
+**Can the agent damage my machine?** The sandbox is layered and the
+policy engine is deny-by-default; start with `mona-agent policy preset
+strict` for a read-only agent, and treat it like any user with shell
+access: grant what you trust. Every decision is audited.
+
+## Design principles
+
+1. **Do, then show.** Action with a visible trail beats confident text.
+2. **Local policy wins.** The cloud may ask; your device decides.
+3. **Bounded autonomy.** Goals, sub-agents and workflows all have caps —
+   autonomy with a finish line.
+4. **One dependency.** Zero build step, zero runtime bloat; the code is
+   the documentation.
+5. **Honest claims.** Every security property in this README maps to a
+   test in the red-team suite.
+
+## Roadmap
+
+The [SPEC.md](docs/SPEC.md) is a working document. Shipped: the tool SDK
+(P2), policy rules engine (P3), delegation, goals, workflows, jobs,
+plugins, vector memory and secure mode. Next: bring-your-own-key local
+transport (Anthropic / OpenAI-compatible / Ollama), MCP transport,
+service units, signed installer, Docker images and OTel observability.
 
 ## Documentation
 
 - [Getting started](docs/GETTING-STARTED.md)
 - [Architecture](docs/ARCHITECTURE.md)
-- [Tools reference](docs/TOOLS.md)
+- [Tools reference + SDK](docs/TOOLS.md)
+- [Policy grammar & presets](docs/POLICY.md)
 - [Compliance & trust](docs/COMPLIANCE.md)
-- [Changelog](docs/CHANGELOG.md)
+- [Changelog](CHANGELOG.md)
 - [FAQ](docs/FAQ.md)
+- [Examples](examples/README.md) — launchd, systemd, health checks
+
+## Contributing
+
+Bug reports, security issues and pull requests are welcome. Please read
+[CONTRIBUTING.md](CONTRIBUTING.md) and report vulnerabilities per
+[SECURITY.md](SECURITY.md) (90-day coordinated disclosure, CRA-aligned).
 
 ## License
 
-MIT — free to read, fork and run. Your machine, your data, your keys.
+MIT — free to read, fork and run. Your machine, your data, your keys, and
+a local policy file that says what the cloud may and may not ask of you.
