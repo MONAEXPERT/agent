@@ -280,6 +280,39 @@ same policy, same budget, same tool sandbox, same depth limit (max 2
 levels of nesting). Sub-events are recorded in the hash-chained audit log
 under `kind: workflow`.
 
+## plugin
+
+Dynamic tool plugins, managed at runtime. Third parties ship extra tools as
+packages named `mona-agent-tool-*` (or any directory on `MONA_TOOL_PATH`)
+that export `defineTool()` descriptors — the agent SDK. They are hot-loaded
+without forking the core.
+
+| Action | Behaviour |
+|---|---|
+| `list` | Every tool with source (`builtin`/`plugin`) + policy status |
+| `load <path>` | Discover + register a plugin directory right now |
+| `reload` | Re-run discovery for `MONA_TOOL_PATH` + `node_modules` |
+| `remove <name>` | Unregister a plugin tool until the next load |
+
+**Security:** a plugin tool is **denied by default** — it runs through the
+same policy choke point as builtins. The owner explicitly allows one in
+`~/.mona-agent/policy.json`:
+
+```json
+{ "tools": { "my.tool": "allow" } }
+```
+
+`plugin list` prints the exact rule each plugin needs. Plugins can never
+override builtins or each other (collision = hard error). The daemon
+advertises loaded plugins to the cloud when it connects.
+
+Example — load and check a plugin directory:
+
+```json
+{"tool":"plugin","args":{"action":"load","path":"/opt/mona-tools"}}
+{"tool":"plugin","args":{"action":"list"}}
+```
+
 ## security
 
 The shell's security posture, advertised to the cloud in the `hello` handshake
