@@ -163,6 +163,45 @@ Example the agent might run for a long build:
 ```
 then poll with `{"tool":"jobs","args":{"action":"wait","id":"job-3","timeoutS":90}}`.
 
+## delegate
+
+Sub-agent fan-out — split a task into independent sub-tasks and run them
+**concurrently** as fresh, bounded sub-agents on the same device.
+
+| Field | Behaviour |
+|---|---|
+| `tasks` | Array of `{id, prompt}` (max 6) — each becomes a fresh sub-agent |
+| `concurrency` | How many sub-agents to run at once (1–4, default: all) |
+
+Every sub-agent gets its own message context (a focused system prompt + the
+sub-goal), obeys the **same policy and budget** as the parent, and shares the
+same tool sandbox. Each result returns:
+
+```json
+{ "id": "sub-1", "status": "done", "answer": "...", "steps": 3,
+  "usage": { "total": 412 }, "trace": [ ... ] }
+```
+
+`status` is `done`, `error` (sub-brain crashed or loop errored), or
+`blocked` (budget/policy limit). Failed sub-agents are reported — never
+silently dropped — and the parent is instructed to read every result before
+answering. Sub-events are written to the local hash-chained audit log under
+`kind: subtask`.
+
+**Safety:** delegation is depth-limited (max 2 levels), so a sub-agent can
+never fan out into runaway recursion; sub-loops enforce policy exactly like
+the main loop — a sub-agent cannot do anything the parent could not.
+
+Example the agent might run to compare three files:
+
+```json
+{"tool":"delegate","args":{"tasks":[
+  {"id":"a","prompt":"Summarise README.md in 3 bullets"},
+  {"id":"b","prompt":"Summarise CHANGELOG.md in 3 bullets"},
+  {"id":"c","prompt":"Summarise docs/TOOLS.md in 3 bullets"}
+],"concurrency":3}}
+```
+
 ## security
 
 The shell's security posture, advertised to the cloud in the `hello` handshake
