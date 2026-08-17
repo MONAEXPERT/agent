@@ -146,7 +146,7 @@ const MAX_CMD_LEN = 2_000;
 
 // Environment variables allowed to leak into child processes. Everything
 // else (API keys, tokens, secrets) is deliberately excluded.
-const SAFE_ENV_KEYS = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TMP', 'TERM', 'USER', 'LOGNAME', 'SHELL'];
+const SAFE_ENV_KEYS = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TMP', 'TEMP', 'TERM', 'USER', 'LOGNAME', 'USERNAME', 'SystemRoot', 'ComSpec', 'PATHEXT'];
 
 // $VAR expansion inside double quotes / bare words: only these are expanded,
 // so `echo $HOME` works but `echo $AWS_SECRET_ACCESS_KEY` stays literal.
@@ -301,7 +301,7 @@ function runStage(stage, { stdin = null, cwd, timeoutMs }) {
     const bin = r0.bin;
     const env = {};
     for (const k of SAFE_ENV_KEYS) if (process.env[k] !== undefined) env[k] = process.env[k];
-    env.PATH = cfg.path || env.PATH || '/usr/bin:/bin';
+    env.PATH = cfg.path || env.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
 
     const child = spawn(bin, stage.argv.slice(1), {
       env,
@@ -415,7 +415,7 @@ async function executeStages(stages, { cwd, timeoutMs }) {
           }
           const env = {};
           for (const key of SAFE_ENV_KEYS) if (process.env[key] !== undefined) env[key] = process.env[key];
-          env.PATH = cfg.path || env.PATH || '/usr/bin:/bin';
+          env.PATH = cfg.path || env.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
           const child = spawn(bin, group[k].argv.slice(1), { env, cwd, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
           if (prevOut) prevOut.pipe(child.stdin);
           else child.stdin.end();
@@ -532,7 +532,7 @@ export const shell = {
       const out = fs.openSync(logFile, 'a');
       const env = {};
       for (const k of SAFE_ENV_KEYS) if (process.env[k] !== undefined) env[k] = process.env[k];
-      env.PATH = cfg.path || env.PATH || '/usr/bin:/bin';
+      env.PATH = cfg.path || env.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
       const child = spawn(resolved.bin, first.argv.slice(1), {
         detached: true,
         stdio: ['ignore', out, out],
