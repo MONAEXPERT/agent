@@ -202,6 +202,45 @@ Example the agent might run to compare three files:
 ],"concurrency":3}}
 ```
 
+## goal
+
+Persistent multi-round completion objectives — the agent's "goal rounds".
+Start a long objective and it keeps running across autonomous rounds until
+it is genuinely complete (or the round cap is reached).
+
+| Action | Behaviour |
+|---|---|
+| `start {objective, maxRounds?}` | Creates the goal and runs round 1 immediately (rounds cap 1–16, default 8) |
+| `status <id>` | Status, rounds completed, last summary, full round history |
+| `list` | All goals, newest first |
+| `resume <id>` | Enqueue the next round now (active goals only) |
+| `abort <id>` | Stop — no further rounds run |
+
+Each round runs as a **normal queued task** (serial — steps never interleave
+with user tasks), seeded with the objective and every previous round's
+summary, and must end with exactly:
+
+```
+GOAL_COMPLETE: true|false
+GOAL_REASON: <one short sentence>
+```
+
+`true` only when the objective is genuinely finished and verified. If the
+round cap is reached without completion the goal becomes `blocked`; if the
+brain crashes mid-round the goal stays active and the next round can resume.
+
+**Durability:** goals persist to `~/.mona-agent/goals.json` (0600, atomic
+writes) and survive daemon restarts — the same durable-objective model a
+harness uses. Round outcomes are recorded in the local hash-chained audit
+log (`kind: goal`).
+
+Example the agent might run for a big cleanup job:
+
+```json
+{"tool":"goal","args":{"action":"start","objective":"Find and remove duplicate downloads, then verify disk space gained","maxRounds":5}}
+```
+then poll with `{"tool":"goal","args":{"action":"status","id":"goal_abc123"}}`.
+
 ## security
 
 The shell's security posture, advertised to the cloud in the `hello` handshake

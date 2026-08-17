@@ -21,9 +21,10 @@ import { setAgentRoots } from './tools/files.js';
 import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
-import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, runSubtasks, MAX_SUB_STEPS } from '@mona/engine';
+import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText } from '@mona/engine';
 import { TaskQueue } from './taskqueue.js';
 import { configureDelegateRunner } from './tools/delegate.js';
+import { configureGoalRunner } from './tools/goal.js';
 import { writePid, clearPid, alreadyRunning } from './daemon.js';
 import { VERSION } from './version.js';
 import { checkForUpdates, applyUpdate } from './update.js';
@@ -133,6 +134,9 @@ export class AgentDaemon extends EventEmitter {
   // Delegation: sub-agents spawned by the `delegate` tool. Depth-limited so
   // a sub-agent can never fan out into runaway nesting (max 2 levels deep).
   #delegateDepth = 0;
+  // Persistent multi-round goals (the `goal` tool). Rounds run as queued
+  // tasks, so they are serial like everything else and survive restarts.
+  #goals = new GoalStore({});
 
   constructor(creds) {
     super();
@@ -163,6 +167,11 @@ export class AgentDaemon extends EventEmitter {
 
     // The `delegate` tool dispatches through this daemon's brain/tools.
     configureDelegateRunner(async (req) => this.#runSubTasks(req));
+    // The `goal` tool starts/resumes rounds through this daemon's queue.
+    configureGoalRunner({
+      start: async (req) => this.#startGoal(req),
+      resume: async (req) => this.#resumeGoal(req),
+    });
 
     // Forward control events
     this.#control.on('connected',    ()    => this.emit('connected'));
@@ -204,7 +213,7 @@ export class AgentDaemon extends EventEmitter {
    * server still listing a claimed task as pending) is ignored, so a task can
    * never run twice on this device.
    */
-  #enqueueTask(runId, task, cloudTask = null) {
+  #enqueueTask(runId, task, cloudTask = null, meta = null) {
     if (!runId) runId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const now = Date.now();
     const seen = this.#recentTasks.get(runId);
@@ -222,7 +231,8 @@ export class AgentDaemon extends EventEmitter {
       runId,
       task,
       cloudTask,
-      run: (job) => this.#runTask(job.task, job.runId, job.cloudTask || null),
+      meta,
+      run: (job) => this.#runTask(job.task, job.runId, job.cloudTask || null, job.meta || null),
     });
   }
 
@@ -447,7 +457,7 @@ export class AgentDaemon extends EventEmitter {
     }
   }
 
-  async #runTask(task, runId, cloudTask = null) {
+  async #runTask(task, runId, cloudTask = null, meta = null) {
     if (!task) {
       this.#control.result(runId, { error: 'No task provided' });
       return;
@@ -568,7 +578,12 @@ export class AgentDaemon extends EventEmitter {
         const memoryCtx = loadMemoryContext();
         const recalled = this.#memory.recall(task, { limit: 5 }).map((e) => e.text).join('\n');
         const vectorCtx = loadVectorContext(task, { store: this.#getVectorStore() });
-        const systemPrompt = this.#toolsPrompt(cloudTask, brain, memoryCtx, recalled, vectorCtx);
+        // Goal rounds append the objective + every previous round's summary
+        // to the system prompt, and require a GOAL_COMPLETE marker at the end.
+        const goalCtx = meta?.goal
+          ? buildGoalRoundPrompt(this.#goals.get(meta.goal.id) || {}, meta.goal.roundNo)
+          : '';
+        const systemPrompt = this.#toolsPrompt(cloudTask, brain, memoryCtx, recalled, vectorCtx, goalCtx);
 
         // Loop events → dashboard + audit trace (never silent). Every event is
         // also written to the local hash-chained audit log (mona-agent audit),
@@ -758,6 +773,13 @@ export class AgentDaemon extends EventEmitter {
     this.#stats.tasks++;
     this.#stats.tokens += final.length;
 
+    // Goal rounds: persist the round outcome, strip the completion marker,
+    // and enqueue the next round when the objective is still open.
+    if (meta?.goal) {
+      const gf = this.#finalizeGoalRound(meta.goal, final, usageTotals, runId);
+      if (gf && gf.clean) final = gf.clean;
+    }
+
     // The agent that remembers: fold the finished task into structured memory
     // (deduped, TTL-capped, scored recall) so future tasks know what was done.
     try {
@@ -880,7 +902,76 @@ export class AgentDaemon extends EventEmitter {
     }
   }
 
-  #toolsPrompt(taskRow, brain = this.#brain, memoryCtx = '', agentMemory = '', vectorCtx = '') {
+  // ── Persistent multi-round goals (the `goal` tool) ──────────────
+  // A goal keeps running rounds through the serial task queue until the
+  // brain reports GOAL_COMPLETE: true or the round cap is reached. State
+  // persists in ~/.mona-agent/goals.json, so goals survive restarts.
+  async #startGoal({ objective, maxRounds }) {
+    const goal = this.#goals.create({ objective, maxRounds });
+    log.info(`Goal ${goal.id} started (${maxRounds} rounds max): ${objective.slice(0, 80)}`);
+    auditWrite({ kind: 'goal', event: 'start', goalId: goal.id, objective, maxRounds });
+    this.#control.step('goal.start', { goalId: goal.id, objective, maxRounds });
+    this.#enqueueGoalRound(goal.id, 1);
+    return goal;
+  }
+
+  async #resumeGoal({ id }) {
+    const goal = this.#goals.get(id);
+    if (!goal) throw new Error(`No such goal: ${id}`);
+    if (goal.status !== 'active') throw new Error(`goal ${id} is ${goal.status} — cannot resume`);
+    if (goal.roundsCompleted >= goal.maxRounds) throw new Error(`goal ${id} reached its round cap (${goal.maxRounds})`);
+    this.#enqueueGoalRound(id, goal.roundsCompleted + 1);
+    return goal;
+  }
+
+  #enqueueGoalRound(goalId, roundNo) {
+    const goal = this.#goals.get(goalId);
+    if (!goal || goal.status !== 'active') return;
+    const runId = `goal_${goalId}_r${roundNo}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    // Round runs as a normal queued task (serial — never interleaves with
+    // user tasks); meta.goal tells #runTask to seed the goal context.
+    this.#enqueueTask(runId, goalRoundTaskText(goal, roundNo), null, { goal: { id: goalId, roundNo } });
+  }
+
+  #finalizeGoalRound(goalMeta, rawFinal, usage, runId) {
+    try {
+      const goal = this.#goals.get(goalMeta.id);
+      if (!goal || goal.status !== 'active') return null;
+      const { complete, reason, clean } = parseGoalMarker(rawFinal);
+      const summary = (clean || String(rawFinal || '')).slice(0, 2000);
+      const fresh = this.#goals.recordRound(goalMeta.id, {
+        round: goalMeta.roundNo,
+        summary,
+        tokens: usage?.total || 0,
+      });
+      auditWrite({
+        kind: 'goal', event: complete ? 'complete' : 'round', goalId: goalMeta.id,
+        round: goalMeta.roundNo, complete, reason,
+        roundsCompleted: fresh?.roundsCompleted ?? goal.roundsCompleted,
+      });
+      this.#control.step('goal.round', { goalId: goalMeta.id, round: goalMeta.roundNo, complete, reason });
+      log.info(`Goal ${goalMeta.id} round ${goalMeta.roundNo} ${complete ? 'COMPLETE' : 'continuing'}: ${reason || summary.slice(0, 80)}`);
+      if (!complete) {
+        if (goalMeta.roundNo >= goal.maxRounds) {
+          this.#goals.block(goalMeta.id, `round cap (${goal.maxRounds}) reached without completion`);
+          auditWrite({ kind: 'goal', event: 'blocked', goalId: goalMeta.id, reason: 'round cap reached' });
+          this.#control.step('goal.blocked', { goalId: goalMeta.id, reason: 'round cap reached' });
+        } else {
+          this.#enqueueGoalRound(goalMeta.id, goalMeta.roundNo + 1);
+        }
+      } else {
+        this.#goals.setStatus(goalMeta.id, { complete: true, reason });
+        auditWrite({ kind: 'goal', event: 'done', goalId: goalMeta.id, rounds: goalMeta.roundNo, reason });
+        this.#control.step('goal.done', { goalId: goalMeta.id, rounds: goalMeta.roundNo });
+      }
+      return { clean };
+    } catch (err) {
+      log.warn(`Goal finalize failed: ${err.message}`);
+      return null; // never let goal bookkeeping break the task result
+    }
+  }
+
+  #toolsPrompt(taskRow, brain = this.#brain, memoryCtx = '', agentMemory = '', vectorCtx = '', goalCtx = '') {
     const toolList = this.#activeTools || tools.list();
     const rows = toolList
       .map((t) => `- ${t.name}: ${t.description}${t.args ? ` (args: ${JSON.stringify(t.args)})` : ''}`)
@@ -942,6 +1033,9 @@ Rules:
     }
     if (brain.extraRules) {
       p += `\n\n## Owner's rules (always follow)\n${brain.extraRules}`;
+    }
+    if (goalCtx) {
+      p += `\n\n${goalCtx}`;
     }
     return p;
   }

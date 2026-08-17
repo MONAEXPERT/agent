@@ -16,8 +16,9 @@ import { notify } from './notify.js';
 import { vector } from './vector.js';
 import { jobs } from './jobs.js';
 import { delegate } from './delegate.js';
+import { goal } from './goal.js';
 
-const BUILTIN = [sysinfo, shell, files, net, apps, browser, web, memory, notify, vector, jobs, delegate];
+const BUILTIN = [sysinfo, shell, files, net, apps, browser, web, memory, notify, vector, jobs, delegate, goal];
 const TIMEOUT_MS = 30_000;
 
 // Policy choke point: EVERY tool invocation (daemon, brain loop, CLI exec)
