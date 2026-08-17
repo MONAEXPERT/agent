@@ -4,6 +4,38 @@ All notable changes to mona-agent are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.11.0] — 2026-08-17
+
+### Added
+- **`mona-agent doctor`** (`apps/desktop/src/doctor.js`): one-shot local
+  diagnostics — node version, ~/.mona-agent state, credentials, policy
+  parse, audit-chain verify, workspace, BYO provider, control-plane
+  reachability, installed version, update availability. Non-zero exit on
+  any failed check.
+- **Localhost health + metrics** (`apps/desktop/src/metrics.js`):
+  `MONA_METRICS_PORT` starts `/healthz` and Prometheus-text `/metrics`
+  bound to 127.0.0.1 only — systemd/Docker healthchecks and local
+  scrapers; the daemon stays egress-only.
+- **HTTP MCP transport**: `mona-agent mcp --http [--port N]` — POST /mcp
+  JSON-RPC + GET info/healthz, localhost-bound.
+- **Optional OTel spans** (`apps/desktop/src/otel.js`): `task.run` and
+  `tool.*` spans when `@opentelemetry/api` is installed; complete no-op
+  otherwise (no new dependencies).
+- **Hardened systemd unit** (via `mona-agent daemon install`):
+  NoNewPrivileges, PrivateTmp, ProtectSystem=strict,
+  ProtectHome=read-only + ReadWritePaths=%h/.mona-agent, MemoryMax=1G.
+- **Installer hardening** (`apps/desktop/install.sh`): `--version <tag>`
+  pins a release, SHA-256 verification against the release SHA256SUMS
+  asset (`MONA_REQUIRE_CHECKSUM=1` hard-fails), extracted-version check,
+  `--dry-run`, refuses root unless `--allow-root`.
+- **Docker**: non-root multi-stage `Dockerfile` (HEALTHCHECK on
+  /healthz) + `docker-compose.yml` (read-only rootfs, tmpfs, persistent
+  state volume, host-loopback metrics port).
+- **`.github/workflows/release.yml`**: on tag push, packs the source
+  tarball, computes SHA256SUMS and attaches both to the GitHub release.
+- Tests: metrics (4), doctor (5), otel (2), mcp-http (1) — suite 339
+  green.
+
 ## [2.10.1] — 2026-08-17
 
 ### Added
