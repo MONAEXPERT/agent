@@ -41,3 +41,5 @@ Enterprise and compliance documentation (ISO, IEC, CRA, GDPR):
 More content:
 
 - [Use cases](USE-CASES.md)
+- [Product and engineering goals](GOALS.md) — strategic direction and measurable outcomes
+- [Project plan](PROJECT-PLAN.md) — sequenced initiatives, dependencies, and exit evidence

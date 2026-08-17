@@ -467,6 +467,8 @@ Windows-native support.
 - [Policy grammar & presets](docs/POLICY.md)
 - [Compliance & trust](docs/COMPLIANCE.md)
 - [Changelog](CHANGELOG.md)
+- [Product and engineering goals](docs/GOALS.md)
+- [Project plan](docs/PROJECT-PLAN.md)
 - [FAQ](docs/FAQ.md)
 - [Examples](examples/README.md) — launchd, systemd, health checks
 
