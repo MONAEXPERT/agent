@@ -498,28 +498,11 @@ export const shell = {
       return { error: err.message };
     }
 
-    // Windows: cmd built-ins (dir, type, echo) are not executables — keep the
-    // existing PowerShell path with first-token allowlist + scrubbed env.
-    if (PLATFORM === 'win32') {
-      const base = cmd.split(/[;\s|&]/)[0].trim().split('/').pop().split('\\').pop();
-      if (!allowHas(base) && !UNSAFE) {
-        return { error: `Command '${base}' not in allowlist`, allowed: effectiveAllowlist(), platform: PLATFORM };
-      }
-      const env = {};
-      for (const k of SAFE_ENV_KEYS) if (process.env[k] !== undefined) env[k] = process.env[k];
-      const { execFile } = await import('node:child_process');
-      return new Promise((resolve) => {
-        execFile(cfg.shell, ['-NoProfile', '-NonInteractive', '-Command', cmd], {
-          timeout: TIMEOUT_MS, maxBuffer: STDOUT_CAP, env,
-        }, (err, stdout, stderr) => {
-          if (err) {
-            resolve({ exitCode: err.code ?? 1, stdout: (stdout || '').slice(0, RESULT_STDOUT), stderr: (stderr || '').slice(0, RESULT_STDERR), error: err.killed ? 'Command timed out (15s)' : err.message, platform: PLATFORM });
-          } else {
-            resolve({ exitCode: 0, stdout: (stdout || '').slice(0, RESULT_STDOUT), stderr: (stderr || '').slice(0, RESULT_STDERR), platform: PLATFORM });
-          }
-        });
-      });
-    }
+    // Windows intentionally follows the exact argv path below. In particular,
+    // do not pass a user-controlled string to PowerShell -Command: that would
+    // reintroduce substitutions, redirects, and pipe semantics outside the
+    // parser/policy. Shell built-ins are therefore unsupported; use an allowed
+    // executable (for example `cmd.exe` is not implicitly trusted either).
 
     // Background mode: GUI apps / long-running processes (e.g. tkinter
     // windows) must not block the task or die with the 15s timeout.

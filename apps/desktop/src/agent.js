@@ -22,7 +22,7 @@ import { setAgentRoots } from './tools/files.js';
 import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
-import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, runWorkflow } from '@mona/engine';
+import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, runWorkflow, RunStore } from '@mona/engine';
 import { TaskQueue } from './taskqueue.js';
 import { configureDelegateRunner } from './tools/delegate.js';
 import { configureGoalRunner } from './tools/goal.js';
@@ -141,6 +141,9 @@ export class AgentDaemon extends EventEmitter {
   // Persistent multi-round goals (the `goal` tool). Rounds run as queued
   // tasks, so they are serial like everything else and survive restarts.
   #goals = new GoalStore({});
+  // Durable local run ledger: lifecycle, checkpoints, approvals, and
+  // side-effect attempt contracts survive daemon restarts.
+  #runs = new RunStore({});
   // BYO brain: when a provider.json exists (or MONA_TRANSPORT=local forces
   // it), reasoning runs on-device against the user's own keys — the cloud
   // keeps coordinating (queue, cron, audit) but never sees a prompt.
@@ -168,6 +171,19 @@ export class AgentDaemon extends EventEmitter {
       dailyCostUsd: this.#policy.dailyCostUsd,
     });
     this.#memory = new MemoryStore({});
+
+    // Incomplete read-only runs can safely be resumed after a crash. Runs
+    // containing unfinished side effects remain visible in the ledger but are
+    // deliberately held for manual review rather than replayed automatically.
+    for (const recovery of this.#runs.recoverable()) {
+      if (recovery.action === 'manual_review') {
+        log.warn(`Durable run ${recovery.run.id} needs manual recovery review: ${recovery.reason}`);
+        auditWrite({ kind: 'run', event: 'recovery_manual_review', runId: recovery.run.id, reason: recovery.reason });
+      } else {
+        log.info(`Durable run ${recovery.run.id} is eligible for safe resume`);
+        auditWrite({ kind: 'run', event: 'recovery_resume_available', runId: recovery.run.id });
+      }
+    }
 
     // Tasks run strictly one at a time. A task that arrives while another is
     // running waits in the queue and reports its position to the dashboard.
@@ -565,6 +581,16 @@ export class AgentDaemon extends EventEmitter {
       return;
     }
 
+    const durableRun = this.#runs.get(runId) || this.#runs.create({
+      id: runId,
+      task: String(task),
+      correlationId: String(runId),
+      policyRevision: String(this.#policy.version || ''),
+      checkpoint: { phase: 'starting' },
+    });
+    if (durableRun.status === 'created' || durableRun.status === 'planned' || durableRun.status === 'awaiting_approval') {
+      this.#runs.transition(runId, 'running', { checkpoint: { phase: 'starting', task: truncate(String(task), 500) } });
+    }
     this.#currentTask = { task, runId, startedAt: Date.now(), tokens: 0 };
     this.#control.step('task.start', { task, runId });
     this.emit('task:start', { ...this.#currentTask, locked: this.#locked });
@@ -675,7 +701,10 @@ export class AgentDaemon extends EventEmitter {
         // also written to the local hash-chained audit log (mona-agent audit),
         // so the device keeps its own tamper-evident copy of what was done.
         const wireLoop = (loop) => {
-          loop.on('step', (i, m) => this.emit('task:step', i, m));
+          loop.on('step', (i, m) => {
+            this.#runs.checkpoint(runId, { phase: 'thinking', step: i, maxSteps: m });
+            this.emit('task:step', i, m);
+          });
           loop.on('profile', (prof) => {
             this.emit('task:profile', prof);
             trace('profile', { summary: prof.reason || prof.profile, detail: JSON.stringify(prof) });
@@ -690,6 +719,7 @@ export class AgentDaemon extends EventEmitter {
             auditWrite({ kind: 'task', event: 'compact', runId, ...info });
           });
           loop.on('tool', (name, args) => {
+            this.#runs.checkpoint(runId, { phase: 'tool', tool: name, args: truncate(JSON.stringify(args || {}), 1000) });
             steps.push({ type: 'tool.call', tool: name, args });
             this.#control.step('tool.call', { tool: name });
             this.emit('tool:start', name, args);
@@ -761,7 +791,14 @@ export class AgentDaemon extends EventEmitter {
 
         const loop = new TaskLoop({
           think: loopThink,
-          runTool: (name, args) => tools.run(name, args, agentCaps ? { agent: agentCaps } : undefined),
+          runTool: (name, args) => tools.run(name, args, {
+            ...(agentCaps ? { agent: agentCaps } : {}),
+            runId,
+            // Deterministic per task/tool invocation. Tool registry refuses
+            // side effects without this durable retry contract.
+            idempotencyKey: `${runId}:${name}:${traceStepNo + 1}`,
+            policyRevision: String(this.#policy.version || ''),
+          }),
           policy: this.#policy,
           budget: this.#budget,
           maxSteps: brain.maxSteps,
@@ -775,6 +812,10 @@ export class AgentDaemon extends EventEmitter {
           // Context guard: long tasks compress old tool results instead of
           // silently exceeding the brain's context window.
           maxChars: 60000,
+          resume: meta?.resume?.checkpoint || null,
+          onCheckpoint: async (snapshot) => {
+            this.#runs.checkpoint(runId, { phase: snapshot.phase, step: snapshot.stepNo, loop: snapshot });
+          },
           conclude: async (messages) => {
             // Never give up: one forced conclusion when steps run out.
             messages.push({ role: 'user', content: 'Step limit reached. Reply {"reasoning":"brief summary of what you did","answer":"..."} — or plain text. No more tools.' });
@@ -842,6 +883,7 @@ export class AgentDaemon extends EventEmitter {
       this.#control.step('task.error', { error: err.message });
       this.emit('task:error', err);
       log.error(`Think failed: ${err.message}`);
+      try { this.#runs.transition(runId, 'failed', { reason: err.message, checkpoint: { phase: 'error' } }); } catch { /* durable record is best-effort */ }
       auditWrite({ kind: 'task', event: 'error', runId, error: truncate(err.message, 500) });
       await this.#debugSnapshot(runId, 'task error: ' + err.message);
       const msg = `I hit an error and could not complete the task: ${err.message}. A debug snapshot was captured — retry the request or check the activity feed.`;
@@ -864,6 +906,12 @@ export class AgentDaemon extends EventEmitter {
       return;
     }
 
+    try {
+      this.#runs.transition(runId, 'verifying', { checkpoint: { phase: 'verifying', answer: truncate(final, 1000) } });
+      this.#runs.transition(runId, 'succeeded', { checkpoint: { phase: 'complete' } });
+    } catch (err) {
+      log.warn(`Durable run completion record failed: ${err.message}`);
+    }
     this.#stats.tasks++;
     this.#stats.tokens += final.length;
     setSpanAttrs(taskSpan, { tokens: usageTotals.total, costUsd: usageTotals.costUsd, steps: steps.length });

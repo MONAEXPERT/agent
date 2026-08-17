@@ -228,15 +228,21 @@ export class TaskLoop extends EventEmitter {
    *                                 step budget runs out so the caller can force one
    *                                 last brain call ("never give up"); falls back to a
    *                                 static conclusion when absent or failing.
+   * @param {object} [opts.resume]     previously checkpointed {messages,usage,trace};
+   *                                 only owned JSON data is accepted.
+   * @param {Function} [opts.onCheckpoint] async snapshot callback. A callback failure
+   *                                 never stops the task; persistence is advisory here.
    */
-  async run(task, { system, profile = 'standard', maxSteps, maxChars = 40000, conclude } = {}) {
+  async run(task, { system, profile = 'standard', maxSteps, maxChars = 40000, conclude, resume = null, onCheckpoint = null } = {}) {
     const steps = Math.min(this.maxSteps, Number(maxSteps) || this.maxSteps);
-    const usage = { input: 0, output: 0, total: 0, costUsd: 0 };
-    const trace = [];
+    const usage = { input: 0, output: 0, total: 0, costUsd: 0, ...(resume?.usage && typeof resume.usage === 'object' ? resume.usage : {}) };
+    const trace = Array.isArray(resume?.trace) ? resume.trace.slice(-200) : [];
     let final = '';
     let corrections = 0;
 
-    const messages = [];
+    let messages = Array.isArray(resume?.messages)
+      ? resume.messages.filter((m) => m && typeof m.role === 'string' && typeof m.content === 'string').slice(-500)
+      : [];
 
     if (!this.budget.canRun()) {
       const s = this.budget.summary();
@@ -244,8 +250,22 @@ export class TaskLoop extends EventEmitter {
       return { answer: `Daily budget exhausted (${s.tokens} tokens, $${s.costUsd.toFixed(4)}). Budget resets tomorrow.`, steps: 0, usage, trace, blocked: 'budget', messages };
     }
 
-    if (system) messages.push({ role: 'system', content: String(system) });
-    messages.push({ role: 'user', content: String(task) });
+    if (!messages.length) {
+      if (system) messages.push({ role: 'system', content: String(system) });
+      messages.push({ role: 'user', content: String(task) });
+    } else {
+      // A resumed task continues from its existing conversation without
+      // duplicating the original user instruction or a completed tool call.
+      messages.push({ role: 'user', content: 'RESUME: Continue safely from the recorded checkpoint. Do not repeat a completed side effect; inspect prior tool results first.' });
+    }
+
+    const checkpoint = async (stepNo, phase) => {
+      const snapshot = { messages: messages.slice(-500), usage: { ...usage }, trace: trace.slice(-200), stepNo, phase };
+      this.emit('checkpoint', snapshot);
+      if (typeof onCheckpoint === 'function') {
+        try { await onCheckpoint(snapshot); } catch { /* durable callback must not break execution */ }
+      }
+    };
 
     for (let i = 0; i < steps; i++) {
       this.emit('step', i + 1, steps);
@@ -334,6 +354,7 @@ export class TaskLoop extends EventEmitter {
             (anyFailed ? '\n\nOne or more tools errored. Diagnose and retry with a different approach.' : '') +
             '\n\nREFLECT: if the goal is met, answer now. Otherwise take the next action.',
         });
+        await checkpoint(i + 1, 'after_tools');
         continue;
       }
 
@@ -376,6 +397,7 @@ export class TaskLoop extends EventEmitter {
       trace.push(forced);
     }
 
+    await checkpoint(Math.min(steps, trace.length || 1), final ? 'final' : 'stopped');
     this.emit('answer', final);
     return { answer: final, steps: trace.length, usage, trace, blocked: '', messages };
   }

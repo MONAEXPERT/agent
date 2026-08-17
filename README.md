@@ -61,6 +61,27 @@ language:
   <img src="https://img.shields.io/badge/tests-160%2B%20incl.%20red--team-brightgreen.svg" alt="160+ tests incl. security red-team suite">
 </p>
 
+## Release verification
+
+Every tagged release publishes a source archive, `SHA256SUMS`, and `sbom.cyclonedx.json`. Verify downloaded artifacts before use:
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+GitHub release provenance is attested during the release workflow; inspect it with GitHub's artifact-attestation tooling before production deployment. See [Implementation backlog](docs/IMPLEMENTATION-BACKLOG.md) for remaining supply-chain work.
+
+## Capability status
+
+The project is actively evolving. The table below separates features implemented in this repository from features that are experimental, cloud-dependent, or still planned. It is a product-status statement, not a security guarantee; configure local policy before enabling a tool with side effects.
+
+| Status | Capabilities | Evidence |
+|---|---|---|
+| **Available now** | Local policy enforcement, bounded task loop, workspace-confined files, argv-based shell execution, SSRF-safe network fetch, audit chain, jobs, skills, vector memory, delegation, goals, workflows, MCP, and plugin discovery. | [Architecture](docs/ARCHITECTURE.md), [Tools](docs/TOOLS.md), and the automated test suite. |
+| **Cloud-dependent** | Hosted control-plane task delivery, cloud model routing, dashboard streaming, device token verification, and cloud-side audit/conversation storage. | [Architecture](docs/ARCHITECTURE.md) |
+| **Experimental / operator-managed** | Third-party plugin tools, local provider endpoints, and platform-specific service/install flows. Use restrictive policy and validate in a non-production environment first. | [Policy](docs/POLICY.md), [Windows status](docs/WINDOWS.md) |
+| **Planned / evidence required** | Durable recoverable runs, verified operations runbooks, signed plugin packages, enterprise identity/fleet controls, and complete Windows operational lifecycle support. | [Implementation backlog](docs/IMPLEMENTATION-BACKLOG.md), [Project plan](docs/PROJECT-PLAN.md) |
+
 ## What is an AI agent for your computer?
 
 Most AI assistants live in a chat window. They can write you a script —
