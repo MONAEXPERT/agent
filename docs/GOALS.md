@@ -107,7 +107,33 @@ The first commercial wedge should be **AI IT operations**, with AI SRE as the ad
 
 **Acceptance measures:** tenant isolation and authorization tests; device credential revocation/rotation tests; staged rollout can pause and roll back; documented data residency and retention behavior.
 
-## Goal 7 — Make audit evidence trustworthy and useful
+## Goal 7 — Support Windows safely across actively supported releases
+
+**Objective:** Make Windows a first-class supported endpoint platform without weakening the security boundary or promising unsupported legacy systems.
+
+**Support policy:**
+
+- Support only Windows versions that are within Microsoft’s active security-support lifecycle at release time.
+- Track Microsoft lifecycle dates in a versioned support matrix and CI configuration.
+- “All Windows versions” means all currently supported Windows editions/releases that satisfy the published prerequisites—not every historical Windows release.
+- Do not support end-of-life Windows versions for production use. A compatibility mode may exist for evaluation only, must be clearly marked unsupported, and may be disabled when security controls cannot be guaranteed.
+- Require current cumulative security updates, supported architecture, secure transport, and a supported PowerShell/runtime baseline.
+- Define an end-of-support process with advance notice, last-compatible agent version, upgrade guidance, and emergency security cutoff where necessary.
+
+**Implementation areas:**
+
+- Native Windows service lifecycle, clean install/uninstall, upgrade, rollback, and recovery.
+- Windows credential protection using Credential Manager/DPAPI or an equivalent OS-backed secret store; never plaintext provider keys.
+- Windows Event Log integration, service hardening, least-privilege account, ACLs, and executable/signature verification.
+- PowerShell and process execution with explicit argv/argument handling, constrained capabilities, job objects, cancellation, timeouts, and environment scrubbing.
+- Windows filesystem, reparse-point/symlink, ACL, path normalization, and junction escape tests.
+- Windows Firewall/network posture documentation and outbound-only connectivity verification.
+- CI coverage for every supported Windows release/architecture and representative Server editions.
+- Signed MSI/MSIX or equivalent installer, signed updates, provenance, SBOM, and rollback validation.
+
+**Acceptance evidence:** each supported release passes install, upgrade, policy, filesystem, process, network, cancellation, audit, and uninstall tests; unsupported releases are blocked or clearly labelled; lifecycle metadata is reviewed every release.
+
+## Goal 8 — Make audit evidence trustworthy and useful
 
 **Objective:** Extend the existing hash-chained local audit concept into verifiable enterprise evidence.
 
@@ -117,7 +143,7 @@ The first commercial wedge should be **AI IT operations**, with AI SRE as the ad
 
 **Acceptance measures:** an auditor can reconstruct a run end-to-end; tampering is detectable; exports preserve verification metadata; sensitive values are redacted before model context and external export.
 
-## Goal 8 — Productize local policy as AI action governance
+## Goal 9 — Productize local policy as AI action governance
 
 **Objective:** Make the local device policy the final authority and expose it as an explainable, testable product surface.
 
@@ -133,7 +159,7 @@ The first commercial wedge should be **AI IT operations**, with AI SRE as the ad
 
 **Acceptance measures:** every tool call has a recorded decision; the same policy evaluator is used by local enforcement and simulation; policy changes are reviewable and reversible.
 
-## Goal 9 — Build a safe, certified integration ecosystem
+## Goal 10 — Build a safe, certified integration ecosystem
 
 **Objective:** Turn the tool SDK into a platform with compatibility and trust signals rather than an unbounded collection of connectors.
 
@@ -143,7 +169,7 @@ The first commercial wedge should be **AI IT operations**, with AI SRE as the ad
 
 **Acceptance measures:** SDK contract tests, compatibility guarantees, certification checklist, signed releases, and a public catalogue separating read-only, production-safe, destructive, and sensitive-data tools.
 
-## Goal 10 — Measure customer value, not token activity
+## Goal 11 — Measure customer value, not token activity
 
 **Objective:** Make the economic case legible to operators and executives.
 
@@ -151,7 +177,7 @@ The first commercial wedge should be **AI IT operations**, with AI SRE as the ad
 
 **Acceptance measures:** every pilot has a baseline and a review cadence; metrics are derived from immutable run events rather than vanity counters; pricing can be tied primarily to managed devices, successful workflows, governance, retention, and support—not raw tokens alone.
 
-## Goal 11 — Earn trust before scaling claims
+## Goal 12 — Earn trust before scaling claims
 
 **Objective:** Treat security and compliance as product requirements and distribution advantages.
 
@@ -159,7 +185,7 @@ The first commercial wedge should be **AI IT operations**, with AI SRE as the ad
 
 **Honest rule:** documentation, badges, and roadmap items must be labelled separately from independently verified controls. “Compliant” is not a substitute for evidence. Keep supported-version tables and platform claims current.
 
-## Goal 12 — Create an adoption and developer loop
+## Goal 13 — Create an adoption and developer loop
 
 **Objective:** Keep the local daemon genuinely useful on its own while making shared governance and fleet outcomes compelling upgrades.
 
@@ -172,6 +198,7 @@ The first commercial wedge should be **AI IT operations**, with AI SRE as the ad
 ### Next 90 days
 
 - Confirm AI IT operations as the beachhead with interviews and design partners.
+- Publish a Windows support and lifecycle matrix; begin Windows CI and native service/install work.
 - Inventory actual versus documented capabilities; remove or qualify unsupported platform claims.
 - Run the full test suite and record a baseline.
 - Specify trust-boundary, transport, durable-run, idempotency, verification, and approval contracts.

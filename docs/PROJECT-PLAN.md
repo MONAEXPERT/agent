@@ -77,7 +77,7 @@ Start with the least ambiguous, most measurable workflows:
 
 **Exit evidence:** third-party tool can be developed, tested, installed, policy-evaluated, and upgraded without editing core registry files.
 
-### P5 — Fleet and identity foundation
+### P5 — Fleet, identity, and Windows endpoint foundation
 
 **Supports:** fleet and identity operations.
 
@@ -86,8 +86,13 @@ Start with the least ambiguous, most measurable workflows:
 - [ ] Short-lived credentials and rotation.
 - [ ] Tenant boundaries, RBAC, and SSO/OIDC foundation.
 - [ ] Staged upgrades, rollback, and quarantine design.
+- [ ] Publish a Windows support matrix tied to Microsoft active security-support dates.
+- [ ] Support every currently supported Windows release/edition selected for the product, including representative Windows Server releases, rather than historical end-of-life versions.
+- [ ] Ship signed Windows installer and updates, native service lifecycle, OS-backed credential storage, Event Log integration, least privilege, ACL/reparse-point protections, and PowerShell/process cancellation controls.
+- [ ] Add Windows CI for installation, upgrade, rollback, policy, filesystem, process, network, audit, and uninstall behavior.
+- [ ] Block or clearly label unsupported/EOL Windows versions; never recommend insecure production deployment on them.
 
-**Exit evidence:** authorization/isolation tests plus a repeatable enrollment-to-revocation lifecycle.
+**Exit evidence:** authorization/isolation tests plus a repeatable enrollment-to-revocation lifecycle; every published Windows version passes the platform suite and lifecycle metadata is reviewed each release.
 
 ### P6 — Central audit and operator value
 
@@ -102,18 +107,25 @@ Start with the least ambiguous, most measurable workflows:
 
 ## Later: platform scale after the wedge works
 
-### P7 — Enterprise deployment modes
+### P7 — Enterprise control-plane deployment modes
+
+- [ ] Organizations, tenants, teams, projects, environments, quotas, and strict tenant isolation.
+- [ ] SAML/OIDC SSO, SCIM provisioning, MFA enforcement, RBAC/ABAC, service accounts, JIT access, and credential rotation.
+- [ ] Approval workflows: single/two-person, role-based, expiring, escalation, and break-glass with complete attribution.
+- [ ] Dedicated/private control plane, self-hosted deployment, air-gapped/offline operation, regional data residency, and customer-managed keys.
+- [ ] Disaster recovery, backup/restore, RPO/RTO targets, incident response, support SLAs, and tenant deletion/export.
 
 - [ ] Dedicated/private control plane.
 - [ ] Self-hosted deployment.
 - [ ] Air-gapped/offline operation.
 - [ ] Regional data residency and customer-managed keys where justified by demand.
 
-### P8 — Certified ecosystem and marketplace
+### P8 — Certified ecosystem, supply chain, and marketplace
 
-- [ ] Signed tool/runbook packages.
-- [ ] Review badges with explicit scope.
+- [ ] Signed tool/runbook packages with provenance and permission manifests.
+- [ ] Review badges with explicit scope and expiry.
 - [ ] Public catalogue and version compatibility.
+- [ ] CI matrix, pinned actions, artifact signing, SBOM, provenance, dependency scanning, and release rollback.
 - [ ] Marketplace economics only after SDK adoption and support burden are understood.
 
 ### P9 — Adjacent vertical packs
@@ -146,3 +158,5 @@ For each active item, record:
 5. Every meaningful action is attributable and auditable.
 6. Preserve useful open-source local operation.
 7. Prefer evidence from real runs over roadmap language.
+8. Support Windows releases only while they receive active security updates; lifecycle status is a release gate.
+9. Never normalize EOL operating systems as secure production targets.
