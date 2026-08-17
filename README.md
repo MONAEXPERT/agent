@@ -55,7 +55,7 @@ language:
 <p align="center">
   <a href="https://github.com/MONAEXPERT/agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg" alt="Node.js 20+"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-informational.svg" alt="Platforms: macOS, Linux, WSL2, Raspberry Pi">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20%7C%20WSL2-informational.svg" alt="Platforms: macOS, Linux, Windows, WSL2, Raspberry Pi">
   <img src="https://img.shields.io/badge/api%20keys-on%20device-0-red.svg" alt="Zero API keys on device">
   <img src="https://img.shields.io/badge/version-2.10.x-blueviolet.svg" alt="Version 2.10.x">
   <img src="https://img.shields.io/badge/tests-160%2B%20incl.%20red--team-brightgreen.svg" alt="160+ tests incl. security red-team suite">
@@ -70,7 +70,7 @@ your logs. They can suggest a cleanup — but they can't do it.
 **mona-agent is the other half.**
 
 It is an **open-source AI agent** that runs on your own computer —
-macOS, Linux, WSL2 or a Raspberry Pi — and gives an **agentic AI** brain
+macOS, Linux, Windows, WSL2 or a Raspberry Pi — and gives an **agentic AI** brain
 real hands on your hardware. You talk to it from your dashboard or your
 terminal; it reasons about the task, then actually does it: checks disk
 space, restarts a service, finds a file, opens an app, runs a cleanup,
@@ -413,8 +413,25 @@ never on your device. Or bring your own keys on-device with
 **Can it run on a Raspberry Pi?** Yes — any Node.js 20+ machine, headless
 (`mona-agent start`), small footprint. Perfect home-lab material.
 
-**Does it work on Windows?** In WSL2 or Git Bash, yes. Native PowerShell
-is not a target today.
+**Does it work on Windows?** Yes, with native PowerShell/Node foreground
+execution and a Windows Service Control Manager adapter:
+
+```powershell
+mona-agent start
+mona-agent daemon install   # elevated PowerShell
+mona-agent daemon status
+mona-agent daemon stop
+mona-agent daemon uninstall
+```
+
+The service is named `MonaAgent`, uses delayed automatic start and restart
+recovery, and does not place API keys in its command line. Windows support is
+limited to Windows releases receiving active Microsoft security updates; EOL
+releases are not production targets. Native service operations have been
+implemented and are covered by the Windows CI path, but this development
+machine is macOS, so elevated SCM installation has not been executed locally.
+See [Windows support](docs/WINDOWS.md) for the exact boundary and remaining
+certification work.
 
 **Can it run fully offline?** Yes. `mona-agent provider set ollama` +
 `MONA_TRANSPORT=local` runs the brain on Ollama at
@@ -454,10 +471,14 @@ The [SPEC.md](docs/SPEC.md) is a working document. Shipped: the tool SDK
 plugins, vector memory, secure mode, the BYO-key local brain (P5 —
 Anthropic / OpenAI-compatible / Ollama), MCP transports (stdio + HTTP),
 `mona-agent doctor`, localhost `/healthz` + `/metrics`
-(`MONA_METRICS_PORT`), optional OTel spans, hardened systemd/launchd
-service units, a checksum-verified version-pinned installer, and a
-non-root Docker image with compose. Next: OTel SDK bundle helpers and
-Windows-native support.
+(`MONA_METRICS_PORT`), optional OTel spans, hardened systemd/launchd units,
+native Windows Service Control Manager integration, Windows support preflight,
+Windows-safe executable resolution, credential-store abstraction, bounded
+replay protection for commands, bounded cancellable task queues, a
+checksum-verified version-pinned installer, and a non-root Docker image with
+compose. Remaining Windows certification work includes elevated SCM validation
+on real Windows builds, signed MSI/MSIX packaging, native Credential Manager
+or DPAPI packaging, and Job Object process-tree validation.
 
 ## Documentation
 
@@ -466,6 +487,9 @@ Windows-native support.
 - [Tools reference + SDK](docs/TOOLS.md)
 - [Policy grammar & presets](docs/POLICY.md)
 - [Compliance & trust](docs/COMPLIANCE.md)
+- [Windows support](docs/WINDOWS.md)
+- [Product and engineering goals](docs/GOALS.md)
+- [Project plan](docs/PROJECT-PLAN.md)
 - [Changelog](CHANGELOG.md)
 - [Product and engineering goals](docs/GOALS.md)
 - [Project plan](docs/PROJECT-PLAN.md)
