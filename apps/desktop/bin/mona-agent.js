@@ -33,7 +33,8 @@ import { MODES, MODE_NAMES, applyMode, modeSummary, currentMode, POLICY_PATH } f
 import { daemonStatus, daemonInstall, daemonUninstall, alreadyRunning, stopRunningDaemon, DAEMON_PATHS, writePid, clearPid } from '../src/daemon.js';
 import { SkillsManager } from '../src/skills.js';
 import { loadProviderConfig, saveProviderConfig, removeProviderConfig, PROVIDERS, providerTest, pricesFor } from '../src/transport/local.js';
-import { runMcpServer } from '../src/transport/mcp.js';
+import { runMcpServer, runMcpHttpServer } from '../src/transport/mcp.js';
+import { runDoctor, formatDoctor } from '../src/doctor.js';
 
 const [cmd, ...args] = process.argv.slice(2);
 
@@ -979,8 +980,25 @@ async function providerCmd() {
 
 // ── mcp (Model Context Protocol server over stdio) ────────────────
 async function mcpCmd() {
+  if (args.includes('--http')) {
+    const portIdx = args.indexOf('--port');
+    const port = portIdx >= 0 && args[portIdx + 1] ? Number(args[portIdx + 1]) : 4301;
+    const stop = await runMcpHttpServer({ registry: tools, port, log: (m) => log.info(m) });
+    process.on('SIGINT', () => stop().then(() => process.exit(0)));
+    process.on('SIGTERM', () => stop().then(() => process.exit(0)));
+    return;
+  }
   log.info('MCP server starting (stdio)');
   await runMcpServer({ registry: tools, log });
+}
+
+// ── doctor (diagnose the local install) ───────────────────────────
+async function doctorCmd() {
+  console.log(`\n  ${BOLD}mona-agent doctor${RESET}\n`);
+  const report = await runDoctor();
+  console.log(`  ${report.checks.map((c) => `${c.ok ? GREEN + '●' : RED + '✖'}${RESET} ${c.name.padEnd(12)} ${DIM}${c.detail}${RESET}`).join('\n  ')}`);
+  console.log(`\n  ${report.healthy ? GREEN + 'All checks passed.' : RED + 'Some checks failed — see above.'}${RESET}\n`);
+  if (!report.healthy) process.exitCode = 1;
 }
 
 // ── Dispatch ──────────────────────────────────────────────────────
@@ -1000,6 +1018,7 @@ switch (cmd) {
   case 'skills':              await skillsCmd(); break;
   case 'provider':            await providerCmd(); break;
   case 'mcp':                 await mcpCmd(); break;
+  case 'doctor':              await doctorCmd(); break;
   case 'tools':               await toolsCmd(); break;
   case 'update':              await updateCmd(); break;
   case 'version':             versionCmd(); break;

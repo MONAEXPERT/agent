@@ -148,3 +148,38 @@ export async function runMcpServer({ registry, input = process.stdin, output = p
     }
   }
 }
+
+/**
+ * Run the MCP server over HTTP (localhost only): POST /mcp with a
+ * JSON-RPC message, GET / for server info, GET /healthz for health.
+ * Streamable HTTP transport (application/json responses).
+ */
+export async function runMcpHttpServer({ registry, port = 4301, host = '127.0.0.1', log = () => {} }) {
+  const http = await import('node:http');
+  const server = createMcpServer({ registry });
+
+  const srv = http.createServer(async (req, res) => {
+    if (req.method === 'GET' && (req.url === '/' || req.url === '/healthz')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ name: 'mona-agent', protocolVersion: MCP_PROTOCOL_VERSION, version: SERVER_VERSION, transport: 'http' }));
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/mcp') {
+      let body = '';
+      req.on('data', (c) => { body += c; });
+      req.on('end', async () => {
+        let msg = null;
+        try { msg = JSON.parse(body); } catch { /* parse error below */ }
+        const resp = msg === null ? jsonRpcError(null, -32700, 'Parse error') : await server.handle(msg);
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(resp ?? { jsonrpc: '2.0', id: null, result: null }));
+      });
+      return;
+    }
+    res.writeHead(404, { 'content-type': 'application/json' });
+    res.end('{"error":"not found"}');
+  });
+
+  srv.listen(port, host, () => log(`MCP http://${host}:${port}/mcp`));
+  return () => new Promise((resolve) => srv.close(() => resolve()));
+}

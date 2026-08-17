@@ -15,7 +15,7 @@ fs.mkdirSync(path.dirname(process.env.MONA_POLICY), { recursive: true });
 fs.writeFileSync(process.env.MONA_POLICY, JSON.stringify({ version: 1, tools: { shell: 'deny', net: 'deny' } }));
 
 const { tools: allowRegistry } = await import('../src/tools/index.js');
-const { createMcpServer, argsToSchema, toolToMcpSchema } = await import('../src/transport/mcp.js');
+const { createMcpServer, argsToSchema, toolToMcpSchema, runMcpHttpServer } = await import('../src/transport/mcp.js');
 const allowServer = createMcpServer({ registry: allowRegistry });
 
 describe('MCP transport', () => {
@@ -87,5 +87,31 @@ describe('MCP transport', () => {
     const s = toolToMcpSchema({ name: 'fs.read', description: 'read', args: { path: 'string — path' } });
     assert.equal(s.name, 'fs.read');
     assert.equal(s.inputSchema.properties.path.type, 'string');
+  });
+
+  it('HTTP transport serves JSON-RPC over POST /mcp', async () => {
+    const stop = await runMcpHttpServer({ registry: allowRegistry, port: 4398 });
+    try {
+      const info = await fetch('http://127.0.0.1:4398/');
+      assert.equal(info.status, 200);
+      const infoJ = await info.json();
+      assert.equal(infoJ.name, 'mona-agent');
+
+      const r = await fetch('http://127.0.0.1:4398/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 100, method: 'tools/list' }),
+      });
+      const j = await r.json();
+      assert.equal(j.id, 100);
+      assert.ok(Array.isArray(j.result.tools));
+      assert.ok(j.result.tools.some((t) => t.name === 'sysinfo'));
+
+      const bad = await fetch('http://127.0.0.1:4398/mcp', { method: 'POST', body: 'not json' });
+      const bj = await bad.json();
+      assert.equal(bj.error.code, -32700);
+    } finally {
+      await stop();
+    }
   });
 });
