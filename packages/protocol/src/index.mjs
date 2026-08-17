@@ -78,3 +78,45 @@ export function checkVersion(msg) {
   if (msg.v === undefined) return false;          // v1 tolerated as "implicit v1"? No: v is mandatory.
   return Number(msg.v) === PROTOCOL_VERSION;
 }
+
+const COMMAND_MAX_AGE_MS = 5 * 60 * 1000;
+const COMMAND_MAX_FUTURE_MS = 30 * 1000;
+const COMMAND_MAX_ENTRIES = 2048;
+
+/**
+ * Validate and replay-protect a versioned command frame.
+ * `seen` is a caller-owned Map so each control channel has an isolated cache.
+ */
+export function validateCommandFrame(msg, {
+  now = Date.now(),
+  seen = new Map(),
+  maxAgeMs = COMMAND_MAX_AGE_MS,
+  maxFutureMs = COMMAND_MAX_FUTURE_MS,
+  maxEntries = COMMAND_MAX_ENTRIES,
+} = {}) {
+  if (!msg || typeof msg !== 'object' || !checkVersion(msg) || msg.type !== TYPES.COMMAND) {
+    return { ok: false, reason: 'invalid-command-frame' };
+  }
+  if (!Number.isFinite(msg.ts) || msg.ts < now - maxAgeMs || msg.ts > now + maxFutureMs) {
+    return { ok: false, reason: 'stale-command-frame' };
+  }
+  const data = msg.data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { ok: false, reason: 'invalid-command-data' };
+  }
+  if (typeof data.id !== 'string' || data.id.length === 0 || data.id.length > 256 ||
+      typeof data.requestId !== 'string' || data.requestId.length === 0 || data.requestId.length > 256) {
+    return { ok: false, reason: 'missing-command-identity' };
+  }
+  const key = `${data.id}:${data.requestId}`;
+  const previous = seen.get(key);
+  if (previous !== undefined && previous > now - maxAgeMs) {
+    return { ok: false, reason: 'replayed-command' };
+  }
+  seen.set(key, now);
+  for (const [entry, timestamp] of seen) {
+    if (timestamp <= now - maxAgeMs) seen.delete(entry);
+  }
+  while (seen.size > maxEntries) seen.delete(seen.keys().next().value);
+  return { ok: true, key };
+}

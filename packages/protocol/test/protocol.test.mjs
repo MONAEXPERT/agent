@@ -13,6 +13,7 @@ import {
   envelope,
   parseFrame,
   checkVersion,
+  validateCommandFrame,
 } from '../src/index.mjs';
 
 describe('protocol envelope', () => {
@@ -57,6 +58,31 @@ describe('protocol versioning', () => {
     assert.equal(checkVersion({ v: 2 }), false);
     assert.equal(checkVersion({ v: 99 }), false);
     assert.equal(checkVersion({}), false);
+  });
+});
+
+describe('command validation and replay protection', () => {
+  const command = (overrides = {}) => envelope(TYPES.COMMAND, {
+    id: 'command-1', requestId: 'request-1', tool: 'sysinfo', args: {}, ...overrides.data,
+  }, { ts: 1_000, ...overrides });
+
+  it('accepts a fresh identified command once', () => {
+    const seen = new Map();
+    const result = validateCommandFrame(command(), { now: 1_000, seen });
+    assert.equal(result.ok, true);
+    assert.equal(validateCommandFrame(command(), { now: 1_000, seen }).reason, 'replayed-command');
+  });
+
+  it('rejects missing identity and stale/future commands', () => {
+    assert.equal(validateCommandFrame(envelope(TYPES.COMMAND, { requestId: 'r' }, { ts: 1_000 }), { now: 1_000 }).reason, 'missing-command-identity');
+    assert.equal(validateCommandFrame(command(), { now: 400_000 }).reason, 'stale-command-frame');
+    assert.equal(validateCommandFrame(command({ ts: 40_000 }), { now: 1_000 }).reason, 'stale-command-frame');
+  });
+
+  it('keeps replay state bounded', () => {
+    const seen = new Map();
+    for (let i = 0; i < 4; i++) validateCommandFrame(command({ data: { id: `c-${i}`, requestId: `r-${i}` } }), { now: 1_000, seen, maxEntries: 2 });
+    assert.equal(seen.size, 2);
   });
 });
 
