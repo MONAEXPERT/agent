@@ -11,6 +11,17 @@ export { runSubtasks, buildSubSystemPrompt, MAX_SUBTASKS, MAX_SUB_PROMPT, MAX_SU
 export { runWorkflow, validatePhases, buildPhaseContext, MAX_PHASES } from './workflow.js';
 export { GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, normaliseGoal, MAX_GOAL_ROUNDS, MAX_OBJECTIVE } from './goal.js';
 export { RunStore, normaliseRun, retryDecision, RUN_STATUSES, ACTIVE_RUN_STATUSES, TERMINAL_RUN_STATUSES } from './run-state.js';
+export { JitAccess, ROLES, normaliseGrant } from './jit.js';
+export { DeviceRegistry, DEVICE_HEALTH, hashCredential, normaliseDevice } from './device-registry.js';
+export { computeRunMetrics, evaluateAlerts } from './metrics.js';
+export { hashManifest, generateSigningKeyPair, normalisePluginManifest, signManifest, verifyManifest, checkCapabilities } from './plugin-manifest.js';
+export { UpgradeOrchestrator, UPGRADE_STATES, normaliseUpgrade } from './upgrade.js';
+export { FleetController } from './fleet.js';
+export { buildRunEvidence, readAuditEntries, queryAudit } from './evidence.js';
+export { PackageLifecycle, PKG_STATES, normalisePackage } from './package-lifecycle.js';
+export { toNdjson, exportAuditNdjson, exportRunEvidenceNdjson } from './siem.js';
+export { AdminApi } from './admin-api.js';
+export { normaliseMarketplaceIndex, hashMarketplaceIndex, signMarketplaceIndex, verifyMarketplaceIndex } from './marketplace-index.js';
 export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
 
 /**

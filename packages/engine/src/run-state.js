@@ -5,6 +5,16 @@
 // making it safe to use for task orchestration, CLI work, or cloud requests.
 // It provides a conservative retry decision: a side effect never becomes
 // retryable merely because a process restarted.
+//
+// Recovery model:
+//   - every `checkpoint` appends an immutable recovery point (history) while
+//     keeping `checkpoint` as the current point for backward compatibility;
+//   - `rollback` restores an earlier recovery point, records a compensation
+//     event, and moves the run to the terminal `rolled_back` state;
+//   - `resume` reactivates an interrupted active run without duplicating work;
+//   - `cancel` terminates an active run with a reason;
+//   - `startAttempt` refuses a side-effecting retry beyond a bounded attempt
+//     count or without an idempotency contract.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -13,6 +23,9 @@ import { join, dirname } from 'node:path';
 const DEFAULT_STORE = process.env.MONA_RUNS_STORE || join(homedir(), '.mona-agent', 'runs.json');
 const MAX_RUNS = 500;
 const MAX_TEXT = 4000;
+const MAX_ATTEMPTS = 10;
+const MAX_CHECKPOINTS = 100;
+const MAX_ROLLBACKS = 100;
 const ACTIVE = new Set(['created', 'planned', 'awaiting_approval', 'running', 'verifying', 'rollback_required']);
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled', 'rolled_back']);
 const TRANSITIONS = {
@@ -45,6 +58,24 @@ export function normaliseRun(raw = {}) {
     ts: a?.ts || nowIso(),
     updatedAt: a?.updatedAt || a?.ts || nowIso(),
   })) : [];
+  // Immutable recovery points: append-only history for rollback. The current
+  // checkpoint is the last entry, but `checkpoint` remains authoritative for
+  // backward compatibility with callers that write it directly.
+  const checkpoints = Array.isArray(raw.checkpoints) ? raw.checkpoints.slice(-MAX_CHECKPOINTS).map((c, i) => ({
+    index: Number.isInteger(c?.index) ? c.index : i,
+    ts: c?.ts || nowIso(),
+    data: c?.data && typeof c.data === 'object' ? c.data : {},
+  })) : [];
+  // Compensation events recorded by explicit rollback.
+  const rollbacks = Array.isArray(raw.rollbacks) ? raw.rollbacks.slice(-MAX_ROLLBACKS).map((r) => ({
+    ts: r?.ts || nowIso(),
+    fromIndex: Number.isInteger(r?.fromIndex) ? r.fromIndex : null,
+    toIndex: Number.isInteger(r?.toIndex) ? r.toIndex : null,
+    reason: truncate(r?.reason, 1000),
+  })) : [];
+  const checkpoint = raw.checkpoint && typeof raw.checkpoint === 'object'
+    ? raw.checkpoint
+    : (checkpoints.length ? checkpoints[checkpoints.length - 1].data : {});
   return {
     id: String(raw.id || runId()),
     task: truncate(raw.task, MAX_TEXT),
@@ -52,7 +83,9 @@ export function normaliseRun(raw = {}) {
     correlationId: truncate(raw.correlationId || raw.id || '', 300),
     policyRevision: truncate(raw.policyRevision, 200),
     planRevision: truncate(raw.planRevision, 200),
-    checkpoint: raw.checkpoint && typeof raw.checkpoint === 'object' ? raw.checkpoint : {},
+    checkpoint,
+    checkpoints,
+    rollbacks,
     approvals: Array.isArray(raw.approvals) ? raw.approvals.slice(-100) : [],
     attempts,
     reason: truncate(raw.reason, 1000),
@@ -133,14 +166,72 @@ export class RunStore {
     }
     run.status = status;
     if (reason) run.reason = truncate(reason, 1000);
-    if (checkpoint && typeof checkpoint === 'object') run.checkpoint = checkpoint;
+    if (checkpoint && typeof checkpoint === 'object') {
+      run.checkpoint = checkpoint;
+      run.checkpoints.push({ index: run.checkpoints.length, ts: nowIso(), data: checkpoint });
+    }
     return this.#put(run);
   }
 
   checkpoint(id, checkpoint) {
     const run = this.get(id);
     if (!run) return null;
-    run.checkpoint = checkpoint && typeof checkpoint === 'object' ? checkpoint : {};
+    const data = checkpoint && typeof checkpoint === 'object' ? checkpoint : {};
+    run.checkpoint = data;
+    run.checkpoints.push({ index: run.checkpoints.length, ts: nowIso(), data });
+    return this.#put(run);
+  }
+
+  /** List immutable recovery points (checkpoint history) for a run. */
+  recoveryPoints(id) {
+    const run = this.get(id);
+    return run ? run.checkpoints : [];
+  }
+
+  /** Terminate an active run with a reason; terminal runs are left unchanged. */
+  cancel(id, { reason = 'cancelled by operator' } = {}) {
+    const run = this.get(id);
+    if (!run) return null;
+    if (TERMINAL.has(run.status)) return run;
+    return this.transition(id, 'cancelled', { reason });
+  }
+
+  /**
+   * Reactivate an interrupted run that is not yet terminal. Unlike `transition`,
+   * this is intentionally lenient: any active state may resume, since recovery
+   * is driven by the persisted attempts rather than the previous state label.
+   */
+  resume(id) {
+    const run = this.get(id);
+    if (!run) return null;
+    if (TERMINAL.has(run.status)) throw new Error(`cannot resume terminal run: ${run.status}`);
+    if (run.status === 'running') return run;
+    run.status = 'running';
+    run.reason = truncate(run.reason || 'resumed after interruption', 1000);
+    return this.#put(run);
+  }
+
+  /**
+   * Roll a run back to an earlier recovery point and record the compensation
+   * event. Defaults to the previous recovery point; pass `toIndex` to target a
+   * specific one. Moves the run to the terminal `rolled_back` state.
+   */
+  rollback(id, { toIndex = null, reason = '' } = {}) {
+    const run = this.get(id);
+    if (!run) return null;
+    if (run.status === 'succeeded' || run.status === 'cancelled') {
+      throw new Error(`cannot roll back from terminal status ${run.status}`);
+    }
+    if (!run.checkpoints.length) throw new Error('no recovery point to roll back to');
+    const target = toIndex === null ? Math.max(0, run.checkpoints.length - 2) : toIndex;
+    if (!Number.isInteger(target) || target < 0 || target >= run.checkpoints.length) {
+      throw new Error(`invalid recovery point index ${target}`);
+    }
+    const cp = run.checkpoints[target];
+    run.checkpoint = cp.data;
+    run.rollbacks.push({ ts: nowIso(), fromIndex: run.checkpoints.length - 1, toIndex: target, reason: truncate(reason || `rolled back to recovery point ${target}`, 1000) });
+    run.status = 'rolled_back';
+    run.reason = truncate(reason || `rolled back to recovery point ${target}`, 1000);
     return this.#put(run);
   }
 
@@ -156,6 +247,7 @@ export class RunStore {
     const run = this.get(id);
     if (!run) return null;
     if (!tool) throw new TypeError('attempt tool is required');
+    if (run.attempts.length >= MAX_ATTEMPTS) throw new Error(`max attempts (${MAX_ATTEMPTS}) reached`);
     // A freshly requested side effect must declare an idempotency key before
     // execution. It may still be non-idempotent, but then any interrupted
     // attempt is deliberately sent to manual review rather than retried.

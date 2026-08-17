@@ -2,6 +2,24 @@
 
 This backlog turns the repository assessment into deliverable work. It is ordered by risk reduction and customer evidence, not by feature breadth. Each item has an explicit completion signal.
 
+## Status (branch `enterprise-run-skel`)
+
+Implemented and tested in `packages/engine/src` (all committed with unit tests):
+
+- **P0.1 Durable run lifecycle** — `run-state.js`: recovery points, rollback, cancel, resume, bounded retries, safe retry decisions.
+- **P0.2 Honest capability status** — capability matrix in `README.md` (unchanged, still authoritative).
+- **P0.3 Repeatable release evidence** — SBOM/SHA256/provenance in `.github/workflows/release.yml`; added CodeQL + secret scan + reproducibility gate in `ci.yml`.
+- **P1.4 / Goal 7 supply-chain** — `plugin-manifest.js`: Ed25519 signing/verification + deny-by-default capabilities.
+- **P2.1 Device & identity lifecycle** — `device-registry.js`: enrollment, revocation, rotation, health, tenant isolation; `jit.js`: role-scoped JIT access.
+- **P2.2 Central evidence & value metrics** — `evidence.js` (run reconstruction + audit export), `metrics.js` (value metrics + alerts).
+- **Goal 6 deployment** — `upgrade.js` (health-gated staged rollout), `package-lifecycle.js` (install/upgrade/rollback).
+- **Integration** — `fleet.js` composes the above into one operator entry point; `admin-api.js` supplies a JSON-safe control-plane boundary.
+- **Goal 7 marketplace trust primitive** — `marketplace-index.js`: deterministic Ed25519-signed plugin index that verifies the publisher index and every included plugin manifest fail-closed.
+- **Goal 8 SIEM exporter** — `siem.js`: NDJSON audit/evidence export with hash-chain verification, metrics, and alerts.
+- **Lifecycle acceptance** — CI dry-runs the Linux and Windows installers and runs the package lifecycle state-machine acceptance test.
+
+Remaining: configure real Authenticode and GPG signing credentials in GitHub Actions secrets (P1.3), deploy an authenticated admin-console transport/UI, and implement a hosted marketplace distribution service. These require operational credentials and infrastructure and are intentionally not fabricated in source control.
+
 ## P0 — Trust foundation
 
 ### P0.1 Durable run lifecycle and recovery
