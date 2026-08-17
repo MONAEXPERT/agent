@@ -14,6 +14,7 @@ export { RunStore, normaliseRun, retryDecision, RUN_STATUSES, ACTIVE_RUN_STATUSE
 export { JitAccess, ROLES, normaliseGrant } from './jit.js';
 export { DeviceRegistry, DEVICE_HEALTH, hashCredential, normaliseDevice } from './device-registry.js';
 export { computeRunMetrics, evaluateAlerts } from './metrics.js';
+export { hashManifest, generateSigningKeyPair, normalisePluginManifest, signManifest, verifyManifest, checkCapabilities } from './plugin-manifest.js';
 export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
 
 /**
