@@ -196,6 +196,15 @@ export class AgentDaemon extends EventEmitter {
     log.info(`Agent starting`, { agentId: this.#creds.agentId });
     log.info(`Tools: ${tools.names().join(', ')}`);
     writePid();
+    // Dynamic plugins: hot-load mona-agent-tool-* packages + MONA_TOOL_PATH
+    // so the tool list advertised to the cloud includes them. Best-effort —
+    // a broken plugin never blocks startup.
+    tools.loadExternalTools()
+      .then((n) => {
+        if (n > 0) log.info(`${n} plugin tool(s) loaded`);
+        this.#control.syncTools(tools.list());
+      })
+      .catch((err) => log.warn(`Plugin load failed: ${err.message}`));
     this.#control.connect();
     this.#startTaskPoll();
     return this;

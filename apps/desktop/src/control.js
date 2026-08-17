@@ -63,6 +63,18 @@ export class ControlChannel extends EventEmitter {
     this.#metricsIntervalMs = metricsIntervalMs || DEFAULTS.metricsIntervalMs;
   }
 
+  /**
+   * Update the advertised tool list (dynamic plugins loaded after connect).
+   * Takes effect on the next hello/reconnect — the running session keeps
+   * its initial list, which is fine because the gateway re-queries tools
+   * per task anyway.
+   */
+  syncTools(toolsList) {
+    if (toolsList && this.#capabilities && typeof this.#capabilities === 'object') {
+      this.#capabilities.tools = toolsList;
+    }
+  }
+
   /** Connect (or reconnect) to the cloud. Returns this for chaining. */
   connect() {
     if (this.#closing || this.#stopped) return this;
