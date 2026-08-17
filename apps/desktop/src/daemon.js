@@ -16,6 +16,7 @@ import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { PATHS } from './config.js';
+import { runtimeSupport } from './platform.js';
 
 export const PID_FILE = join(PATHS.dir, 'daemon.pid');
 
@@ -159,6 +160,7 @@ export function daemonStatus() {
     serviceRunning: st.running,
     serviceSupported: st.supported !== false,
     serviceReason: st.reason || null,
+    runtimeSupport: runtimeSupport(),
     pid: pid?.pid ?? null,
     pidAlive: pid ? pidAlive(pid.pid) : false,
   };

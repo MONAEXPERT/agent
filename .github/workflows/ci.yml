@@ -34,6 +34,11 @@ jobs:
       - name: Run full test suite (unit + security red-team)
         run: npm test
 
+      - name: Windows CLI smoke test
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: node apps/desktop/bin/mona-agent.js status
+
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest

@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { VERSION } from './version.js';
+import { createCredentialStore } from './credentials.js';
 
 const DIR = join(homedir(), '.mona-agent');
 const CRED_FILE = join(DIR, 'credentials.json');
@@ -87,22 +88,19 @@ export const DEFAULTS = Object.freeze({
 });
 
 // ── Credential management ─────────────────────────────────────────
+const credentialStore = createCredentialStore({ homeDir: homedir(), allowFileFallback: true });
+
 export function loadCreds() {
-  if (!existsSync(CRED_FILE)) return null;
-  try {
-    const raw = JSON.parse(readFileSync(CRED_FILE, 'utf8'));
-    if (!raw.apiKey) return null;
-    return { apiKey: raw.apiKey, agentId: raw.agentId || null };
-  } catch {
-    return null;
-  }
+  return credentialStore.load();
 }
 
 export function saveCreds(creds) {
-  mkdirSync(DIR, { recursive: true });
-  const safe = { apiKey: creds.apiKey, agentId: creds.agentId || null };
-  writeFileSync(CRED_FILE, JSON.stringify(safe, null, 2), { mode: 0o600 });
+  credentialStore.save(creds);
   return CRED_FILE;
+}
+
+export function credentialStatus() {
+  return credentialStore.metadata();
 }
 
 export function requireCreds() {
