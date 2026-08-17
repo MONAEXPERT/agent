@@ -25,17 +25,32 @@ const MAX_WRITE_BYTES = 1_000_000; // 1 MB
 // there, in which case the symlink check happens via lstat instead.
 const O_NOFOLLOW = FSC.O_NOFOLLOW || 0;
 
-const root = () => path.resolve(WORKSPACE);
+// Per-agent allowed file roots — set by the daemon before each task from the
+// agent's capability profile (e.g. ~/Desktop, ~/Documents). The workspace
+// stays a root; extra roots only ADD places the files tool may touch.
+let AGENT_ROOTS = null;
+export function setAgentRoots(roots) {
+  AGENT_ROOTS = Array.isArray(roots) && roots.length
+    ? roots.map((p) => (String(p).startsWith('~/') ? path.join(homedir(), String(p).slice(2)) : String(p))).map((p) => path.resolve(p))
+    : null;
+}
+function activeRoots() {
+  return AGENT_ROOTS && AGENT_ROOTS.length ? AGENT_ROOTS : [path.resolve(WORKSPACE)];
+}
+
+const root = () => activeRoots()[0];
 
 /** Resolve a user path inside the workspace. */
 function safePath(p) {
-  const r = root();
-  const resolved = path.resolve(r, p);
-  // Boundary-aware containment: /ws/foo is inside, /ws-evil is not.
-  if (resolved !== r && !resolved.startsWith(r + path.sep)) {
-    throw new Error(`Path traversal denied: ${p}`);
+  const rs = activeRoots();
+  // Relative paths resolve inside the first (workspace) root; absolute paths
+  // are checked against every allowed root.
+  const resolved = path.resolve(rs[0], p);
+  for (const r of rs) {
+    if (resolved === r) return resolved;
+    if (resolved.startsWith(r + path.sep)) return resolved;
   }
-  return resolved;
+  throw new Error(`Path traversal denied: ${p} (outside allowed paths)`);
 }
 
 /**
@@ -49,10 +64,12 @@ async function guardSymlinks(target) {
   for (;;) {
     try {
       const real = await fs.realpath(cur);
-      const r = await fs.realpath(WORKSPACE);
-      if (real !== r && !real.startsWith(r + path.sep)) {
-        throw new Error(`Symlink escape denied: ${cur}`);
+      const rs = activeRoots();
+      for (const r of rs) {
+        const rr = await fs.realpath(r);
+        if (real === rr || real.startsWith(rr + path.sep)) return;
       }
+      throw new Error(`Symlink escape denied: ${cur}`);
       return;
     } catch (err) {
       if (err && err.code === 'ENOENT' && stack.length < 64) {

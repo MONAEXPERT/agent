@@ -53,6 +53,23 @@ const ALLOW = new Set(
     .split(',').map(s => s.trim()).filter(Boolean)
 );
 
+// Per-agent command allowlist — set by the daemon before each task from the
+// agent's capability profile (cloud can only ever ADD commands for an agent;
+// the base allowlist and the always-blocked patterns stay the device-side
+// authority). Reset to null after the task.
+let AGENT_ALLOW = null;
+export function setAgentAllow(cmds) {
+  AGENT_ALLOW = Array.isArray(cmds) && cmds.length
+    ? new Set(cmds.map((s) => String(s).trim()).filter(Boolean))
+    : null;
+}
+function allowHas(base) {
+  return ALLOW.has(base) || Boolean(AGENT_ALLOW && AGENT_ALLOW.has(base));
+}
+export function effectiveAllowlist() {
+  return [...ALLOW, ...(AGENT_ALLOW ? [...AGENT_ALLOW] : [])].sort();
+}
+
 // Unrestricted mode comes from policy (shell.unsafe) — never from a silent
 // parent-process env flag. MONA_SHELL_UNSAFE=1 is a deprecated fallback.
 const POLICY = Policy.load();
@@ -73,6 +90,7 @@ export const security = {
   unsafe: UNSAFE,
   platform: PLATFORM,
   mode: 'argv',
+  get effectiveAllowlist() { return effectiveAllowlist(); },
 };
 
 // ── Blocked patterns (always denied; defence-in-depth, NOT the primary
@@ -229,8 +247,8 @@ function parseCommand(cmd) {
 // ── Binary resolution: realpath + allowlist ───────────────────────
 function resolveBinary(name) {
   const base = name.split('/').pop().split('\\').pop();
-  if (!ALLOW.has(base) && !UNSAFE) {
-    return { error: `Command '${base}' not in allowlist`, allowed: [...ALLOW].sort() };
+  if (!allowHas(base) && !UNSAFE) {
+    return { error: `Command '${base}' not in allowlist`, allowed: effectiveAllowlist() };
   }
   let candidates = [];
   if (name.includes('/')) {
@@ -448,8 +466,8 @@ export const shell = {
     // existing PowerShell path with first-token allowlist + scrubbed env.
     if (PLATFORM === 'win32') {
       const base = cmd.split(/[;\s|&]/)[0].trim().split('/').pop().split('\\').pop();
-      if (!ALLOW.has(base) && !UNSAFE) {
-        return { error: `Command '${base}' not in allowlist`, allowed: [...ALLOW].sort(), platform: PLATFORM };
+      if (!allowHas(base) && !UNSAFE) {
+        return { error: `Command '${base}' not in allowlist`, allowed: effectiveAllowlist(), platform: PLATFORM };
       }
       const env = {};
       for (const k of SAFE_ENV_KEYS) if (process.env[k] !== undefined) env[k] = process.env[k];
