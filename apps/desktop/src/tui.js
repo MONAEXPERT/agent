@@ -264,8 +264,8 @@ export class Dashboard {
     });
 
     agent.on('task:start', (t) => {
-      this.#state.task = { text: t.task, tail: '', tokens: 0, startedAt: Date.now() };
-      this.#log('task', `Task: "${truncate(t.task, 60)}"`);
+      this.#state.task = { text: t.task, tail: '', tokens: 0, startedAt: Date.now(), locked: t.locked === true };
+      this.#log('task', `${t.locked === true ? '🔒 SECURE ' : ''}Task: "${truncate(t.task, 60)}"`);
     });
 
     agent.on('task:token', (delta) => {

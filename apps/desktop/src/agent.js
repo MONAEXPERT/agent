@@ -88,6 +88,7 @@ export class AgentDaemon extends EventEmitter {
   #stats = { tasks: 0, tokens: 0, toolCalls: 0, errors: 0 };
   #activeTools = null;   // per-task tool filter from the agent capability profile
   #activeSkills = null;  // per-task skill docs (name/description/instructions)
+  #locked = false;       // 🔒 secure-mode: read-only, workspace-only, minimal tools
   #currentTask = null;
   #taskPoll = null;
   #polling = false;
@@ -391,7 +392,7 @@ export class AgentDaemon extends EventEmitter {
 
     this.#currentTask = { task, runId, startedAt: Date.now(), tokens: 0 };
     this.#control.step('task.start', { task, runId });
-    this.emit('task:start', this.#currentTask);
+    this.emit('task:start', { ...this.#currentTask, locked: this.#locked });
     log.info(`Task: "${task.slice(0, 100)}"`);
 
     const steps = [];
@@ -416,12 +417,21 @@ export class AgentDaemon extends EventEmitter {
     const agentCaps = cloudTask?.capabilities && typeof cloudTask.capabilities === 'object'
       ? cloudTask.capabilities : null;
     const taskSkills = Array.isArray(cloudTask?.skills) ? cloudTask.skills : [];
-    setAgentShellAllow(agentCaps?.shell?.allow || null);
-    setAgentRoots(agentCaps?.paths?.allow || null);
-    this.#activeTools = agentCaps && Array.isArray(agentCaps.tools) && agentCaps.tools.length
-      ? tools.list().filter((t) => agentCaps.tools.includes(t.name))
-      : null;
-    this.#activeSkills = taskSkills;
+    // 🔒 Secure mode: the cloud may only ever RESTRICT the device policy.
+    // capabilities.security === 'locked' forces the most restrictive run —
+    // read-only shell baseline, workspace-only files, no network/browser/
+    // apps/notify tools, no extra commands, no extra roots, no skills.
+    const locked = agentCaps?.security === 'locked';
+    const LOCKED_TOOLS = ['sysinfo', 'files', 'memory'];
+    setAgentShellAllow(locked ? [] : (agentCaps?.shell?.allow || null));
+    setAgentRoots(locked ? [] : (agentCaps?.paths?.allow || null));
+    this.#activeTools = locked
+      ? tools.list().filter((t) => LOCKED_TOOLS.includes(t.name))
+      : (agentCaps && Array.isArray(agentCaps.tools) && agentCaps.tools.length
+        ? tools.list().filter((t) => agentCaps.tools.includes(t.name))
+        : null);
+    this.#activeSkills = locked ? [] : taskSkills;
+    this.#locked = locked;
     const t0 = Date.now();
     const usageTotals = { input: 0, output: 0, total: 0, reasoning: 0, cacheRead: 0, cacheCreation: 0 };
     let lastModel = '';
@@ -619,6 +629,7 @@ export class AgentDaemon extends EventEmitter {
     setAgentRoots(null);
     this.#activeTools = null;
     this.#activeSkills = null;
+    this.#locked = false;
     this.#currentTask = null;
       this.#control.step('task.error', { error: err.message });
       this.emit('task:error', err);
@@ -722,12 +733,14 @@ export class AgentDaemon extends EventEmitter {
       .map((t) => `- ${t.name}: ${t.description}${t.args ? ` (args: ${JSON.stringify(t.args)})` : ''}`)
       .join('\n');
     const caps = taskRow?.capabilities && typeof taskRow.capabilities === 'object' ? taskRow.capabilities : null;
-    const capsNote = caps
-      ? `\n## Your capabilities for this task\n` +
-        (Array.isArray(caps.tools) && caps.tools.length ? `- Allowed tools: ${caps.tools.join(', ')}. Do NOT call tools outside this list.\n` : '') +
-        (Array.isArray(caps.shell?.allow) && caps.shell.allow.length ? `- Extra shell commands you may run: ${caps.shell.allow.join(', ')} (plus the standard allowlist).\n` : '') +
-        (Array.isArray(caps.paths?.allow) && caps.paths.allow.length ? `- You may also read/write files under: ${caps.paths.allow.join(', ')} (paths outside the workspace need these to be listed).\n` : '')
-      : '';
+    const capsNote = caps?.security === 'locked'
+      ? `\n## 🔒 SECURE MODE (locked down)\nThis agent is running in secure mode. Read-only shell commands only, files only inside the agent workspace, no network, no browser, no web, no app launching, no notifications, no skills, and no extra commands or paths. Do not attempt any action outside these limits, and do not try to escalate — policy is enforced at run time; attempting to work around it is forbidden.`
+      : (caps
+        ? `\n## Your capabilities for this task\n` +
+          (Array.isArray(caps.tools) && caps.tools.length ? `- Allowed tools: ${caps.tools.join(', ')}. Do NOT call tools outside this list.\n` : '') +
+          (Array.isArray(caps.shell?.allow) && caps.shell.allow.length ? `- Extra shell commands you may run: ${caps.shell.allow.join(', ')} (plus the standard allowlist).\n` : '') +
+          (Array.isArray(caps.paths?.allow) && caps.paths.allow.length ? `- You may also read/write files under: ${caps.paths.allow.join(', ')} (paths outside the workspace need these to be listed).\n` : '')
+        : '');
     let p = `You are mona-agent — the AI agent controlling this device (${process.platform}). You reason deeply and act precisely: plan, act, observe, reflect, then answer.
 
 ## Reasoning protocol
