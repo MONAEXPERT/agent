@@ -9,7 +9,7 @@ import os from 'node:os';
 import { statfsSync } from 'node:fs';
 import { CLOUD, DEFAULTS } from './config.js';
 import { log } from './log.js';
-import { envelope, TYPES, isTerminalClose, parseFrame, checkVersion, CLOSE_CODES } from '@mona/protocol';
+import { envelope, TYPES, isTerminalClose, parseFrame, checkVersion, validateCommandFrame, CLOSE_CODES } from '@mona/protocol';
 
 // ── Versioned frames ──────────────────────────────────────────────
 // Every outbound frame is built with the shared wire contract
@@ -54,6 +54,7 @@ export class ControlChannel extends EventEmitter {
   #closing = false;
   #stopped = false;
   #wsSkipped = false;
+  #commandReplay = new Map();
 
   constructor(apiKey, agentId, capabilities = null, { metricsIntervalMs } = {}) {
     super();
@@ -136,6 +137,11 @@ export class ControlChannel extends EventEmitter {
       if (msg.type === TYPES.LLM_RESPONSE || msg.type === TYPES.LLM_ERROR) {
         this.#resolveLlm(msg);
       } else if (msg.type === TYPES.COMMAND) {
+        const validation = validateCommandFrame(msg, { seen: this.#commandReplay });
+        if (!validation.ok) {
+          log.warn(`Rejected command frame: ${validation.reason}`);
+          return;
+        }
         this.emit('command', msg);
       } else if (CLOUD.platform === 'docker' && msg.type === TYPES.CHAT) {
         // Docker dashboard chat  same run flow as a command.
