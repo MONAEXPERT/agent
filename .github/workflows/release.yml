@@ -1,0 +1,35 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build tarball + SHA256SUMS for ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Pack source tarball
+        run: |
+          TAG="${{ github.ref_name }}"
+          tar --exclude-vcs --exclude=node_modules --exclude='.github' \
+            -czf "mona-agent-${TAG}.tar.gz" .
+
+      - name: Checksums
+        run: |
+          TAG="${{ github.ref_name }}"
+          sha256sum "mona-agent-${TAG}.tar.gz" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@c06208fe532ec0f6b2b7e9eb2ddbd3d90c8c8ff7 # v2
+        with:
+          files: |
+            mona-agent-${{ github.ref_name }}.tar.gz
+            SHA256SUMS
