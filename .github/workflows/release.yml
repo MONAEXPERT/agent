@@ -44,6 +44,33 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
+  signing-readiness:
+    name: Signing readiness (GPG / Authenticode)
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Validate signing configuration
+        shell: pwsh
+        env:
+          MONA_WINDOWS_CERTIFICATE_B64: ${{ secrets.MONA_WINDOWS_CERTIFICATE_B64 }}
+          MONA_WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.MONA_WINDOWS_CERTIFICATE_PASSWORD }}
+          MONA_GPG_PRIVATE_KEY: ${{ secrets.MONA_GPG_PRIVATE_KEY }}
+        run: |
+          $windowsConfigured = $env:MONA_WINDOWS_CERTIFICATE_B64 -and $env:MONA_WINDOWS_CERTIFICATE_PASSWORD
+          $gpgConfigured = $env:MONA_GPG_PRIVATE_KEY
+          if (-not $windowsConfigured -or -not $gpgConfigured) {
+            Write-Warning 'Release signing credentials are not configured. Artifacts will remain checksum- and provenance-attested but unsigned.'
+            'signing=not-configured' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          } else {
+            'signing=configured' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
+
   release:
     name: Build tarball, checksums, and provenance for ${{ github.ref_name }}
     needs: verify
