@@ -42,7 +42,16 @@ jobs:
       - name: Windows CLI smoke test
         if: runner.os == 'Windows'
         shell: pwsh
-        run: node apps/desktop/bin/mona-agent.js status
+        run: |
+          node apps/desktop/bin/mona-agent.js status
+          # Service adapter argument building + output parsing run on every OS
+          # (portable unit tests); the SCM script itself is parameterized only.
+          if (Get-Content apps/desktop/src/windows-service.ps1 -Raw | Select-String '-Command') {
+            throw 'windows-service.ps1 must never accept raw -Command input'
+          }
+          if (Get-Content apps/desktop/src/tools/shell.js -Raw | Select-String "powershell.exe', \[.*-Command") {
+            throw 'shell.js must never pass a user string to PowerShell'
+          }
 
   audit:
     name: Dependency audit
