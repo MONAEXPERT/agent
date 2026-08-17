@@ -14,6 +14,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { think, pollTasks, claimTask, taskResult, postActivity, runStart, runStep, runFinish } from './cloud.js';
+import { loadProviderConfig, localThink, transportMode, requireLocalProvider } from './transport/local.js';
 import { ControlChannel } from './control.js';
 import { tools } from './tools/index.js';
 import { setAgentAllow as setAgentShellAllow } from './tools/shell.js';
@@ -138,10 +139,20 @@ export class AgentDaemon extends EventEmitter {
   // Persistent multi-round goals (the `goal` tool). Rounds run as queued
   // tasks, so they are serial like everything else and survive restarts.
   #goals = new GoalStore({});
+  // BYO brain: when a provider.json exists (or MONA_TRANSPORT=local forces
+  // it), reasoning runs on-device against the user's own keys — the cloud
+  // keeps coordinating (queue, cron, audit) but never sees a prompt.
+  #localConfig = null;
 
   constructor(creds) {
     super();
     this.#creds = creds;
+
+    // BYO-key local brain: MONA_TRANSPORT=local fails fast when nothing is
+    // configured; otherwise a provider.json enables it automatically.
+    const mode = transportMode();
+    if (mode === 'local') this.#localConfig = requireLocalProvider();
+    else this.#localConfig = loadProviderConfig();
 
     // Policy file (MONA_POLICY or ~/.mona-agent/policy.json) governs tool
     // authorization and budget caps; safe defaults apply when absent.
@@ -195,6 +206,11 @@ export class AgentDaemon extends EventEmitter {
     }
     log.info(`Agent starting`, { agentId: this.#creds.agentId });
     log.info(`Tools: ${tools.names().join(', ')}`);
+    if (this.#localConfig) {
+      log.info(`Brain: BYO local (${this.#localConfig.provider}/${this.#localConfig.model}) — prompts never leave this device`);
+    } else {
+      log.info(`Brain: cloud (agent.mona.expert)`);
+    }
     writePid();
     // Dynamic plugins: hot-load mona-agent-tool-* packages + MONA_TOOL_PATH
     // so the tool list advertised to the cloud includes them. Best-effort —
@@ -344,13 +360,40 @@ export class AgentDaemon extends EventEmitter {
   }
 
   // ── Task execution (cloud reasoning + local tools) ──────────────
+  /**
+   * Single brain dispatch: cloud think() or the BYO local provider.
+   * Both return the same contract — { text, usage, model, provider } —
+   * so the engine loop, budget governor and traces never care which
+   * brain answered. Local mode keeps every prompt on-device; the cloud
+   * still coordinates tasks, cron and the audit trail.
+   */
+  async #brainThink({ messages, tools: toolList, temperature, profile, onChunk, onUsage }) {
+    if (this.#localConfig) {
+      return localThink({
+        config: this.#localConfig,
+        messages,
+        temperature,
+        onChunk,
+        onUsage,
+      });
+    }
+    return think({
+      apiKey:  this.#creds.apiKey,
+      messages,
+      tools:   toolList,
+      temperature,
+      profile,
+      onChunk,
+      onUsage,
+    });
+  }
+
   /** think() with auto-retry for transient failures — fail is never allowed. */
   async #thinkWithRetry(messages, runId, opts = {}) {
     let lastErr = null;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        return await think({
-          apiKey:  this.#creds.apiKey,
+        return await this.#brainThink({
           messages,
           tools:   this.#activeTools || tools.list(),
           temperature: opts.temperature ?? this.#brain.temperature,
@@ -540,7 +583,7 @@ export class AgentDaemon extends EventEmitter {
     this.#activeSkills = locked ? [] : taskSkills;
     this.#locked = locked;
     const t0 = Date.now();
-    const usageTotals = { input: 0, output: 0, total: 0, reasoning: 0, cacheRead: 0, cacheCreation: 0 };
+    const usageTotals = { input: 0, output: 0, total: 0, reasoning: 0, cacheRead: 0, cacheCreation: 0, costUsd: 0 };
     let lastModel = '';
     let lastProvider = '';
     let traceStepNo = 0;
@@ -563,6 +606,7 @@ export class AgentDaemon extends EventEmitter {
       usageTotals.reasoning += +u.reasoning || 0;
       usageTotals.cacheRead += +u.cacheRead || 0;
       usageTotals.cacheCreation += +u.cacheCreation || 0;
+      usageTotals.costUsd += +u.costUsd || 0;
     };
 
     if (sngine && runId) {
@@ -878,8 +922,7 @@ export class AgentDaemon extends EventEmitter {
     try {
       const parent = this.#currentTask;
       const subThink = async (messages, prof) => {
-        const res = await think({
-          apiKey: this.#creds.apiKey,
+        const res = await this.#brainThink({
           messages,
           tools: tools.list(),
           temperature: prof?.temperature ?? this.#brain.temperature,
@@ -927,8 +970,7 @@ export class AgentDaemon extends EventEmitter {
     try {
       const parent = this.#currentTask;
       const subThink = async (messages, prof) => {
-        const res = await think({
-          apiKey: this.#creds.apiKey,
+        const res = await this.#brainThink({
           messages,
           tools: tools.list(),
           temperature: prof?.temperature ?? this.#brain.temperature,

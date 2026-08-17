@@ -7,6 +7,8 @@
 //   connect      Test / force connection to control plane
 //   chat <msg>   Send a message via API
 //   exec <tool>  Execute a tool locally
+//   provider     BYO-key local brain (anthropic | openai | ollama)
+//   mcp          Model Context Protocol server (stdio)
 //   debug        Debug mode — verbose logging
 //   status       Show connection info
 //   help         Show usage
@@ -30,6 +32,8 @@ import { Policy, auditVerify } from '@mona/engine';
 import { MODES, MODE_NAMES, applyMode, modeSummary, currentMode, POLICY_PATH } from '../src/modes.js';
 import { daemonStatus, daemonInstall, daemonUninstall, alreadyRunning, stopRunningDaemon, DAEMON_PATHS, writePid, clearPid } from '../src/daemon.js';
 import { SkillsManager } from '../src/skills.js';
+import { loadProviderConfig, saveProviderConfig, removeProviderConfig, PROVIDERS, providerTest, pricesFor } from '../src/transport/local.js';
+import { runMcpServer } from '../src/transport/mcp.js';
 
 const [cmd, ...args] = process.argv.slice(2);
 
@@ -840,6 +844,15 @@ function help() {
     mona-agent update check     ${DIM}# latest available?${RESET}
     mona-agent update           ${DIM}# self-update from GitHub${RESET}
 
+    ${DIM}# Bring your own LLM (BYO keys — prompts stay on this device)${RESET}
+    mona-agent provider set anthropic ${DIM}# or: openai / ollama${RESET}
+    mona-agent provider set openai --url http://localhost:1234/v1 --model llama-3
+    mona-agent provider test
+    MONA_TRANSPORT=local mona-agent start
+
+    ${DIM}# Model Context Protocol — expose the tools to other agents${RESET}
+    mona-agent mcp
+
   ${BOLD}ENVIRONMENT${RESET}
 
     MONA_CLOUD        Cloud base URL     ${DIM}(default: ${CLOUD.base})${RESET}
@@ -848,6 +861,11 @@ function help() {
     MONA_POLICY       Policy file path   ${DIM}(default: ~/.mona-agent/policy.json)${RESET}
     MONA_WORKSPACE    File tool sandbox  ${DIM}(default: ~/.mona-agent/workspace)${RESET}
     MONA_SHELL_UNSAFE ${YELLOW}DEPRECATED${RESET}        ${DIM}— set "shell": {"unsafe": true} in policy.json instead${RESET}
+    MONA_TRANSPORT    ${DIM}local | auto${RESET}   ${DIM}(local = BYO provider only, fail fast when unset)${RESET}
+    MONA_PROVIDER     ${DIM}anthropic | openai | ollama${RESET}
+    MONA_PROVIDER_KEY ${DIM}provider API key${RESET}        ${DIM}(never leaves the device)${RESET}
+    MONA_PROVIDER_URL ${DIM}provider base URL${RESET}       ${DIM}(OpenAI-compatible endpoints, Ollama, …)${RESET}
+    MONA_PROVIDER_MODEL ${DIM}model name override${RESET}
 
   ${BOLD}QUICK START${RESET}
 
@@ -860,8 +878,109 @@ function help() {
     ${DIM}# 3. Start the dashboard${RESET}
     mona-agent gui
 
-  ${DIM}All reasoning runs on ${BOLD}${CLOUD.base}${RESET}${DIM}. No LLM keys stored locally.${RESET}
+  ${DIM}Cloud reasoning runs on ${BOLD}${CLOUD.base}${RESET}${DIM}; BYO providers run on-device.${RESET}
 `);
+}
+
+// ── provider (BYO-key local brain management) ─────────────────────
+async function providerCmd() {
+  const sub = (args[0] || 'status').toLowerCase();
+
+  if (sub === 'status') {
+    const cfg = loadProviderConfig();
+    console.log(`\n  ${BOLD}mona-agent provider${RESET}\n`);
+    if (!cfg) {
+      console.log(`  ${DIM}No BYO provider configured — the cloud brain is in use.${RESET}`);
+      console.log(`  ${DIM}Bring your own keys:${RESET} ${CYAN}mona-agent provider set <anthropic|openai|ollama>${RESET}\n`);
+      return;
+    }
+    console.log(`  ${DIM}Provider:${RESET} ${cfg.provider}`);
+    console.log(`  ${DIM}Model:${RESET}    ${cfg.model}`);
+    console.log(`  ${DIM}Base URL:${RESET} ${cfg.baseUrl}`);
+    console.log(`  ${DIM}API key:${RESET}  ${cfg.apiKey ? cfg.apiKey.slice(0, 8) + '…' : '(none — local provider)'}`);
+    const p = pricesFor(cfg.provider, cfg.model, cfg.prices);
+    console.log(`  ${DIM}Pricing:${RESET}  $${p.input}/M in · $${p.output}/M out`);
+    console.log(`  ${DIM}Brain:${RESET}    ${cfg.enabled === false ? 'disabled (cloud in use)' : 'BYO local — prompts stay on this device'}\n`);
+    return;
+  }
+
+  if (sub === 'unset') {
+    const removed = removeProviderConfig();
+    console.log(`\n  ${removed ? GREEN + 'BYO provider removed — cloud brain restored.' : DIM + 'Nothing to remove.'}${RESET}\n`);
+    return;
+  }
+
+  if (sub === 'test') {
+    const cfg = loadProviderConfig();
+    if (!cfg) {
+      console.log(`\n  ${RED}No provider configured.${RESET} Run: ${CYAN}mona-agent provider set <provider>${RESET}\n`);
+      process.exit(1);
+    }
+    const prompt = args.slice(1).join(' ') || 'Reply with exactly: OK';
+    console.log(`\n  ${BOLD}mona-agent provider test${RESET}\n`);
+    console.log(`  ${DIM}Provider:${RESET} ${cfg.provider} · ${DIM}Model:${RESET} ${cfg.model}\n`);
+    process.stdout.write(`  ${MAGENTA}Calling…${RESET}`);
+    try {
+      const r = await providerTest(cfg, prompt);
+      process.stdout.write(`\r  ${GREEN}OK${RESET} (${r.durationMs}ms, ${r.usage?.total || 0} tokens, $${(r.usage?.costUsd || 0).toFixed(6)})\n\n`);
+      console.log(`  ${r.text}\n`);
+    } catch (err) {
+      process.stdout.write(`\r  ${RED}Failed:${RESET} ${err.message}\n\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (sub === 'set') {
+    const provider = (args[1] || '').toLowerCase();
+    if (!PROVIDERS.includes(provider)) {
+      console.log(`\n  ${BOLD}mona-agent provider set${RESET}\n`);
+      console.log(`  ${DIM}Usage:${RESET} mona-agent provider set ${CYAN}<anthropic|openai|ollama>${RESET} ${DIM}[--key KEY] [--url URL] [--model MODEL]${RESET}\n`);
+      console.log(`  ${DIM}Providers:${RESET}`);
+      console.log(`    ${CYAN}anthropic${RESET}  Claude (api.anthropic.com)`);
+      console.log(`    ${CYAN}openai${RESET}     OpenAI or any compatible endpoint (OpenRouter, Groq, LM Studio, vLLM…)`);
+      console.log(`    ${CYAN}ollama${RESET}     local models at http://127.0.0.1:11434 — fully offline, $0\n`);
+      console.log(`  ${DIM}Key comes from --key or MONA_PROVIDER_KEY. Prompts stay on this device.${RESET}\n`);
+      return;
+    }
+    const opt = (name) => {
+      const i = args.indexOf(name);
+      return i >= 0 && args[i + 1] ? args[i + 1] : null;
+    };
+    let apiKey = opt('--key') || process.env.MONA_PROVIDER_KEY || null;
+    if (provider !== 'ollama' && !apiKey) {
+      const rl = createInterface({ input: stdin, output: stdout });
+      apiKey = (await rl.question(`  API key for ${provider}: `)).trim();
+      rl.close();
+    }
+    if (provider !== 'ollama' && !apiKey) {
+      console.log(`\n  ${RED}No key given.${RESET}\n`);
+      process.exit(1);
+    }
+    const cfg = saveProviderConfig({
+      provider,
+      ...(apiKey ? { apiKey } : {}),
+      ...(opt('--url') ? { baseUrl: opt('--url') } : {}),
+      ...(opt('--model') ? { model: opt('--model') } : {}),
+    });
+    console.log(`\n  ${GREEN}BYO brain configured.${RESET}`);
+    console.log(`  ${DIM}Provider:${RESET} ${cfg.provider}`);
+    console.log(`  ${DIM}Model:${RESET}    ${cfg.model}`);
+    console.log(`  ${DIM}Base URL:${RESET} ${cfg.baseUrl}`);
+    console.log(`  ${DIM}Saved:${RESET}    ${cfg.file} ${DIM}(0600)${RESET}`);
+    console.log(`\n  ${DIM}Test it:${RESET}   ${CYAN}mona-agent provider test${RESET}`);
+    console.log(`  ${DIM}Apply:${RESET}    stop/start the daemon — the provider is read at start`);
+    console.log(`  ${DIM}Force local:${RESET} ${CYAN}MONA_TRANSPORT=local mona-agent start${RESET}\n`);
+    return;
+  }
+
+  console.log(`\n  ${DIM}Unknown subcommand "${sub}". Try: ${CYAN}mona-agent provider [status|set|unset|test]${RESET}\n`);
+}
+
+// ── mcp (Model Context Protocol server over stdio) ────────────────
+async function mcpCmd() {
+  log.info('MCP server starting (stdio)');
+  await runMcpServer({ registry: tools, log });
 }
 
 // ── Dispatch ──────────────────────────────────────────────────────
@@ -879,6 +998,8 @@ switch (cmd) {
   case 'mode':                await modeCmd(); break;
   case 'daemon':              await daemonCmd(); break;
   case 'skills':              await skillsCmd(); break;
+  case 'provider':            await providerCmd(); break;
+  case 'mcp':                 await mcpCmd(); break;
   case 'tools':               await toolsCmd(); break;
   case 'update':              await updateCmd(); break;
   case 'version':             versionCmd(); break;
