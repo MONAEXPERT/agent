@@ -145,6 +145,8 @@ tonight:
 | **Goals** | persistent multi-round completion objectives (up to 16 rounds, resumable) |
 | **Workflows** | multi-phase pipelines (up to 8 phases × 6 tasks) with barriers and phase context |
 | **Dynamic plugins** | third-party tools hot-load via `defineTool()`, gated by your policy |
+| **MCP** | `mona-agent mcp` (stdio) / `--http` — expose every tool to other agents |
+| **Diagnostics** | `mona-agent doctor` one-shot health report; localhost `/healthz` + Prometheus `/metrics` |
 | Skills | bundled `briefing`, `disk-health`, `web-research` — safe, read-only, composable |
 | Schedule runs | cron-style tasks from the dashboard |
 | Multi-device | agents claim tasks per device — never executed twice |
@@ -345,6 +347,11 @@ it, schedule it (cron), watch it work on your device, and revoke access
 any time with one click. Requires **Node.js 20+**. Installer,
 prerequisites and troubleshooting: [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).
 
+The installer verifies release tarballs against the GitHub SHA256SUMS
+manifest and refuses to run as root. Containers: `docker compose up -d`
+(non-root, read-only rootfs, healthcheck). Diagnose anything with
+`mona-agent doctor`.
+
 ## Security — the strongest claim, and the one we test hardest
 
 - **Local policy is the authority** — deny-by-default, cloud can never
@@ -389,9 +396,9 @@ where mona-agent sits, straight:
   two are complementary: build on mona-agent for anything that touches a
   real machine.
 - **MCP** is becoming the standard way to connect agents to tools.
-  mona-agent ships one: `mona-agent mcp` exposes the whole tool registry
-  to any Model Context Protocol client over stdio — policy-gated like
-  every other call.
+  mona-agent ships it: `mona-agent mcp` (stdio) or `mona-agent mcp
+  --http` exposes the whole tool registry to any Model Context Protocol
+  client — policy-gated like every other call.
 
 ## Frequently asked questions
 
@@ -445,8 +452,12 @@ access: grant what you trust. Every decision is audited.
 The [SPEC.md](docs/SPEC.md) is a working document. Shipped: the tool SDK
 (P2), policy rules engine (P3), delegation, goals, workflows, jobs,
 plugins, vector memory, secure mode, the BYO-key local brain (P5 —
-Anthropic / OpenAI-compatible / Ollama) and the MCP transport. Next:
-service units, signed installer, Docker images and OTel observability.
+Anthropic / OpenAI-compatible / Ollama), MCP transports (stdio + HTTP),
+`mona-agent doctor`, localhost `/healthz` + `/metrics`
+(`MONA_METRICS_PORT`), optional OTel spans, hardened systemd/launchd
+service units, a checksum-verified version-pinned installer, and a
+non-root Docker image with compose. Next: OTel SDK bundle helpers and
+Windows-native support.
 
 ## Documentation
 
