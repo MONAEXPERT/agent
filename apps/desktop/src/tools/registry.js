@@ -12,7 +12,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { log } from '../log.js';
-import { Policy } from '@mona/engine';
+import { Policy, RunStore } from '@mona/engine';
 import { defineTool, isTool } from './define.js';
 import { sysinfo } from './sysinfo.js';
 import { shell } from './shell.js';
@@ -26,6 +26,15 @@ import { notify } from './notify.js';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const POLICY = Policy.load();
+const RUNS = new RunStore({});
+
+// Builtins that can alter local state. Third-party tools must explicitly
+// declare sideEffects/idempotent in defineTool() to get the same protection.
+const LEGACY_SIDE_EFFECTS = new Set(['shell', 'files', 'apps', 'browser', 'notify']);
+function sideEffecting(tool) {
+  return ['local', 'external', 'destructive', 'write'].includes(tool.sideEffects) ||
+    (tool.sideEffects !== 'none' && LEGACY_SIDE_EFFECTS.has(tool.name));
+}
 
 /**
  * Registry class.
@@ -94,8 +103,8 @@ export class ToolRegistry {
    * Run a tool by name with timeout + policy gate + concurrency.
    * @param {string} name
    * @param {Record<string, unknown>} [args]
-   * @param {{ agent?: Record<string, unknown> }} [overrides] — per-task
-   *   agent capability profile ({ tools, shell.allow, paths.allow }).
+   * @param {{ agent?: Record<string, unknown>, runId?: string, idempotencyKey?: string, policyRevision?: string }} [overrides] — per-task
+   *   agent capability profile and optional durable-run execution metadata.
    */
   async run(name, args = {}, overrides = {}) {
     const tool = this.#tools.get(name);
@@ -113,6 +122,26 @@ export class ToolRegistry {
     const verdict = POLICY.check(name, args);
     if (verdict.tier !== 'allow') {
       return { error: verdict.reason, policy: verdict.tier };
+    }
+
+    const hasSideEffects = sideEffecting(tool);
+    const durableRunId = overrides?.runId ? String(overrides.runId) : '';
+    let attempt = null;
+    if (durableRunId && hasSideEffects) {
+      const run = RUNS.get(durableRunId) || RUNS.create({ id: durableRunId, task: '', policyRevision: overrides?.policyRevision || '' });
+      if (run.status === 'created') RUNS.transition(run.id, 'running');
+      try {
+        const started = RUNS.startAttempt(durableRunId, {
+          tool: name,
+          idempotencyKey: String(overrides?.idempotencyKey || ''),
+          sideEffects: true,
+          idempotent: Boolean(tool.idempotent),
+          compensation: Boolean(tool.compensation),
+        });
+        attempt = started?.attempt || null;
+      } catch (err) {
+        return { error: err.message, durableRun: durableRunId };
+      }
     }
 
     log.info(`Tool: ${name}`, args);
@@ -136,12 +165,14 @@ export class ToolRegistry {
       if (tool.redact) {
         try { result = tool.redact(result); } catch { /* keep original */ }
       }
+      if (attempt) RUNS.finishAttempt(durableRunId, attempt.id, { status: result?.error ? 'failed' : 'succeeded', result: result?.error ? { error: String(result.error).slice(0, 500) } : { ok: true } });
       return result;
     } catch (err) {
-      if (err?.name === 'AbortError') {
-        return { error: `Tool '${name}' timed out (${timeoutMs / 1000}s)` };
-      }
-      return { error: err?.message || String(err) };
+      const result = err?.name === 'AbortError'
+        ? { error: `Tool '${name}' timed out (${timeoutMs / 1000}s)` }
+        : { error: err?.message || String(err) };
+      if (attempt) RUNS.finishAttempt(durableRunId, attempt.id, { status: 'failed', result: { error: String(result.error).slice(0, 500) } });
+      return result;
     } finally {
       clearTimeout(timer);
     }

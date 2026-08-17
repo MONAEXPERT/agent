@@ -5,12 +5,54 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build tarball + SHA256SUMS for ${{ github.ref_name }}
+  verify:
+    name: Verify release candidate
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify tag matches package version
+        run: |
+          test "${GITHUB_REF_NAME#v}" = "$(node -p \"require('./package.json').version\")"
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Run test suite
+        run: npm test
+
+      - name: Validate declaration tests
+        run: npx tsd
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  release:
+    name: Build tarball, checksums, and provenance for ${{ github.ref_name }}
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      attestations: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -18,18 +60,26 @@ jobs:
       - name: Pack source tarball
         run: |
           TAG="${{ github.ref_name }}"
-          tar --exclude-vcs --exclude=node_modules --exclude='.github' \
+          tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+            --exclude-vcs --exclude=node_modules --exclude='.github' \
             -czf "mona-agent-${TAG}.tar.gz" .
 
       - name: Checksums
         run: |
           TAG="${{ github.ref_name }}"
           sha256sum "mona-agent-${TAG}.tar.gz" > SHA256SUMS
+          sha256sum sbom.cyclonedx.json >> SHA256SUMS
           cat SHA256SUMS
+
+      - name: Attest source archive provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: mona-agent-${{ github.ref_name }}.tar.gz
 
       - name: Attach to release
         uses: softprops/action-gh-release@c06208fe532ec0f6b2b7e9eb2ddbd3d90c8c8ff7 # v2
         with:
           files: |
             mona-agent-${{ github.ref_name }}.tar.gz
+            sbom.cyclonedx.json
             SHA256SUMS

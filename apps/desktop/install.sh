@@ -47,9 +47,11 @@ CHECKSUM_URL=""
 TARBALL_NAME=""
 if [ -n "$VERSION_REQ" ]; then
   REF="$VERSION_REQ"
-  URL="https://github.com/$REPO/archive/refs/tags/$VERSION_REQ.tar.gz"
-  CHECKSUM_URL="https://github.com/$REPO/releases/download/$VERSION_REQ/SHA256SUMS"
+  # Release tags install the exact asset covered by SHA256SUMS, never
+  # GitHub's separately generated source archive.
   TARBALL_NAME="mona-agent-$VERSION_REQ.tar.gz"
+  URL="https://github.com/$REPO/releases/download/$VERSION_REQ/$TARBALL_NAME"
+  CHECKSUM_URL="https://github.com/$REPO/releases/download/$VERSION_REQ/SHA256SUMS"
 fi
 
 echo ""
@@ -141,7 +143,7 @@ fi
 
 # ── Dependencies ────────────────────────────────────────────────
 echo -e "  ${DIM}Installing dependencies${RESET}"
-( cd "$TMP_DIR" && npm install --omit=dev --no-audit --no-fund --silent )
+( cd "$TMP_DIR" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent )
 
 # ── Copy into place (clean replace; config lives outside agent/) ─
 rm -rf "$INSTALL_DIR/agent"
