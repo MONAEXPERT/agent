@@ -114,6 +114,30 @@ CPU, memory, disk and load — and a chat window connected to the cloud brain.
 | Metrics stream, chat replies "No API key configured" | Add an AI provider key in the dashboard  Settings (the cloud brain needs one) |
 | Firewall / corporate proxy | Set `MONA_CLOUD=https://agent.mona.expert` and check HTTPS egress |
 
+## Bring your own LLM (BYO keys)
+
+Since v2.10.1 the brain can run on-device with **your** keys instead of
+the cloud vault — prompts never leave the machine.
+
+```bash
+mona-agent provider set anthropic                          # asks for the key
+mona-agent provider set openai --model gpt-4o-mini
+mona-agent provider set openai --url http://localhost:1234/v1 --model llama-3   # LM Studio / vLLM
+mona-agent provider set ollama --model llama3.2            # fully offline, $0
+mona-agent provider test                                   # one-shot smoke test
+MONA_TRANSPORT=local mona-agent start                      # local brain only, fail-fast
+```
+
+Config lives in `~/.mona-agent/provider.json` (0600, never sent to the
+cloud). BYO tokens are priced locally so the budget governor and cost
+traces keep working — see `mona-agent provider status`. Templates:
+[examples/providers](../examples/providers/README.md).
+
+## MCP — expose the tools to other agents
+
+`mona-agent mcp` serves the tool registry to any Model Context Protocol
+client over stdio. Every call passes the local policy gate.
+
 ## Uninstall
 
 ```bash

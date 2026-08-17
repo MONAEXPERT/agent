@@ -247,6 +247,13 @@ gated behind `detail: "full"` + policy allow).
   audited.
 
 ### P5 — Transport hardening + adapters
+
+> **Status: partially shipped (v2.10.1).** `apps/desktop/src/transport/local.js`
+> (BYO-key on-device brain: anthropic / openai-compatible / ollama) and
+> `apps/desktop/src/transport/mcp.js` (MCP stdio server over the registry)
+> are implemented and tested. Signed commands, replay cache and the
+> HTTP MCP transport remain.
+
 `src/transport/index.js` interface:
 `{ name, connect(opts), send(msg), on(event, fn), close(), health() }`
 
