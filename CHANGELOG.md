@@ -87,6 +87,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `MemoryStore` recall is vector-based while keeping the same on-disk format
   and public API — existing memory files work untouched.
 - Tools list now advertises `vector` to the cloud brain.
+- **End-to-end engine integration test** (`apps/desktop/test/e2e-engine.test.mjs`):
+  the real `TaskLoop` drives the real tool registry through the real policy
+  gate — a scripted brain starts and waits on a background job, queries
+  plugins, then answers, proving the whole smartness chain works as the
+  daemon uses it.
 
 ## [2.8.3] — 2026-08-16
 
