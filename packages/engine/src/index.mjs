@@ -19,6 +19,7 @@ export { UpgradeOrchestrator, UPGRADE_STATES, normaliseUpgrade } from './upgrade
 export { FleetController } from './fleet.js';
 export { buildRunEvidence, readAuditEntries, queryAudit } from './evidence.js';
 export { PackageLifecycle, PKG_STATES, normalisePackage } from './package-lifecycle.js';
+export { toNdjson, exportAuditNdjson, exportRunEvidenceNdjson } from './siem.js';
 export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
 
 /**
