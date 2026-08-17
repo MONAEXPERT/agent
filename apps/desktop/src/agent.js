@@ -16,6 +16,8 @@ import { homedir } from 'node:os';
 import { think, pollTasks, claimTask, taskResult, postActivity, runStart, runStep, runFinish } from './cloud.js';
 import { ControlChannel } from './control.js';
 import { tools } from './tools/index.js';
+import { setAgentAllow as setAgentShellAllow } from './tools/shell.js';
+import { setAgentRoots } from './tools/files.js';
 import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
@@ -84,6 +86,8 @@ export class AgentDaemon extends EventEmitter {
   #control;
   #messages = [];
   #stats = { tasks: 0, tokens: 0, toolCalls: 0, errors: 0 };
+  #activeTools = null;   // per-task tool filter from the agent capability profile
+  #activeSkills = null;  // per-task skill docs (name/description/instructions)
   #currentTask = null;
   #taskPoll = null;
   #polling = false;
@@ -241,7 +245,7 @@ export class AgentDaemon extends EventEmitter {
         return await think({
           apiKey:  this.#creds.apiKey,
           messages,
-          tools:   tools.list(),
+          tools:   this.#activeTools || tools.list(),
           temperature: opts.temperature ?? this.#brain.temperature,
           profile: opts.profile ?? null,
           onChunk: (delta) => {
@@ -403,6 +407,21 @@ export class AgentDaemon extends EventEmitter {
       profile: null,
       ...(cloudTask?.brain || {}),
     };
+
+    // Per-agent capability profile (sent by the control plane with the task):
+    //   { tools?: string[], skills?: {name,description,instructions}[],
+    //     shell?: { allow?: string[] }, paths?: { allow?: string[] } }
+    // The profile can only ADD device permissions — the local policy file
+    // remains the final authority (cloud can never widen policy).
+    const agentCaps = cloudTask?.capabilities && typeof cloudTask.capabilities === 'object'
+      ? cloudTask.capabilities : null;
+    const taskSkills = Array.isArray(cloudTask?.skills) ? cloudTask.skills : [];
+    setAgentShellAllow(agentCaps?.shell?.allow || null);
+    setAgentRoots(agentCaps?.paths?.allow || null);
+    this.#activeTools = agentCaps && Array.isArray(agentCaps.tools) && agentCaps.tools.length
+      ? tools.list().filter((t) => agentCaps.tools.includes(t.name))
+      : null;
+    this.#activeSkills = taskSkills;
     const t0 = Date.now();
     const usageTotals = { input: 0, output: 0, total: 0, reasoning: 0, cacheRead: 0, cacheCreation: 0 };
     let lastModel = '';
@@ -527,7 +546,7 @@ export class AgentDaemon extends EventEmitter {
 
         const loop = new TaskLoop({
           think: loopThink,
-          runTool: (name, args) => tools.run(name, args),
+          runTool: (name, args) => tools.run(name, args, agentCaps ? { agent: agentCaps } : undefined),
           policy: this.#policy,
           budget: this.#budget,
           maxSteps: brain.maxSteps,
@@ -596,7 +615,11 @@ export class AgentDaemon extends EventEmitter {
       }
     } catch (err) {
       this.#stats.errors++;
-      this.#currentTask = null;
+      setAgentShellAllow(null);
+    setAgentRoots(null);
+    this.#activeTools = null;
+    this.#activeSkills = null;
+    this.#currentTask = null;
       this.#control.step('task.error', { error: err.message });
       this.emit('task:error', err);
       log.error(`Think failed: ${err.message}`);
@@ -694,9 +717,17 @@ export class AgentDaemon extends EventEmitter {
   }
 
   #toolsPrompt(taskRow, brain = this.#brain, memoryCtx = '', agentMemory = '') {
-    const rows = tools.list()
+    const toolList = this.#activeTools || tools.list();
+    const rows = toolList
       .map((t) => `- ${t.name}: ${t.description}${t.args ? ` (args: ${JSON.stringify(t.args)})` : ''}`)
       .join('\n');
+    const caps = taskRow?.capabilities && typeof taskRow.capabilities === 'object' ? taskRow.capabilities : null;
+    const capsNote = caps
+      ? `\n## Your capabilities for this task\n` +
+        (Array.isArray(caps.tools) && caps.tools.length ? `- Allowed tools: ${caps.tools.join(', ')}. Do NOT call tools outside this list.\n` : '') +
+        (Array.isArray(caps.shell?.allow) && caps.shell.allow.length ? `- Extra shell commands you may run: ${caps.shell.allow.join(', ')} (plus the standard allowlist).\n` : '') +
+        (Array.isArray(caps.paths?.allow) && caps.paths.allow.length ? `- You may also read/write files under: ${caps.paths.allow.join(', ')} (paths outside the workspace need these to be listed).\n` : '')
+      : '';
     let p = `You are mona-agent — the AI agent controlling this device (${process.platform}). You reason deeply and act precisely: plan, act, observe, reflect, then answer.
 
 ## Reasoning protocol
@@ -726,7 +757,10 @@ You have a persistent memory tool. Read it at the start of relevant tasks, and s
 
 Available tools:
 ${rows}
-
+${this.#activeSkills && this.#activeSkills.length
+  ? '\n## Your enabled skills\n' + this.#activeSkills.map((s) => `### Skill: ${s.name}\n${s.description ? s.description + '\n' : ''}${s.instructions || ''}`).join('\n\n')
+  : ''}
+${capsNote || ''}
 Rules:
 - GUI apps, servers, and long-running programs (e.g. a Python tkinter window) MUST use the shell tool with "background":true so they keep running.
 - To create a Python GUI window, generate a tkinter script and run it with "python3 -c '...'" in the background.

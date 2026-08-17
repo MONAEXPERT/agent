@@ -58,7 +58,7 @@ export class ToolRegistry {
         name: tool.name,
         version: '1.0.0',
         description: tool.description || tool.name,
-        handler: async (input, ctx) => tool.run(input, ctx?.signal),
+        handler: async (input, ctx) => tool.run(input, ctx),
       });
       if (this.#tools.has(desc.name)) {
         throw new Error(`Tool registry collision: "${desc.name}" is already registered — refusing to override.`);
@@ -94,11 +94,20 @@ export class ToolRegistry {
    * Run a tool by name with timeout + policy gate + concurrency.
    * @param {string} name
    * @param {Record<string, unknown>} [args]
+   * @param {{ agent?: Record<string, unknown> }} [overrides] — per-task
+   *   agent capability profile ({ tools, shell.allow, paths.allow }).
    */
-  async run(name, args = {}) {
+  async run(name, args = {}, overrides = {}) {
     const tool = this.#tools.get(name);
     if (!tool) {
       return { error: `Unknown tool: ${name}`, available: this.names() };
+    }
+
+    // Per-agent tool gating: if the agent's profile lists tools, only those
+    // may run. Absent profile = device defaults (no extra restriction).
+    const agent = overrides?.agent || null;
+    if (agent && Array.isArray(agent.tools) && agent.tools.length && !agent.tools.includes(name)) {
+      return { error: `Tool "${name}" is not enabled for this agent`, enabledTools: agent.tools };
     }
 
     const verdict = POLICY.check(name, args);
@@ -118,9 +127,10 @@ export class ToolRegistry {
         logger: log,
         workspace: process.env.MONA_WORKSPACE || process.cwd(),
         emit: () => {},
-        invoke: (n, i) => this.run(n, i),
+        invoke: (n, i) => this.run(n, i, overrides),
         secrets: { get: async () => undefined },
         limits: { memoryMb: 512, wallMs: timeoutMs, outputBytes: 1_048_576 },
+        agent,
       };
       let result = await tool.handler(args, ctx);
       if (tool.redact) {
