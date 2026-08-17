@@ -49,6 +49,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   land in the local hash-chained audit log (`kind: subtask`). Delegation is
   depth-limited (max 2 levels) so it can never nest into runaway recursion,
   and sub-loops respect policy exactly like the main loop.
+- **`goal` tool — persistent multi-round objectives** (`packages/engine/src/goal.js` +
+  `apps/desktop/src/tools/goal.js`): the brain starts a long-running
+  completion objective (`goal start {objective, maxRounds?}`) that keeps
+  going across **autonomous rounds** until it is genuinely complete — each
+  round runs as a normal queued task (serial, never interleaving with user
+  tasks) seeded with the objective + every previous round's summary, and
+  must end with a `GOAL_COMPLETE: true|false` marker. `goal status/list/
+  resume/abort` manage it; goals persist to `~/.mona-agent/goals.json`
+  (0600, atomic writes, per-path in-process singleton so the tool and the
+  daemon always agree) and survive daemon restarts. Round cap reached
+  without completion → `blocked`.
 
 ### Changed
 - `MemoryStore` recall is vector-based while keeping the same on-disk format
