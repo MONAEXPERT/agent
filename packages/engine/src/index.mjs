@@ -13,6 +13,7 @@ export { GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, no
 export { RunStore, normaliseRun, retryDecision, RUN_STATUSES, ACTIVE_RUN_STATUSES, TERMINAL_RUN_STATUSES } from './run-state.js';
 export { JitAccess, ROLES, normaliseGrant } from './jit.js';
 export { DeviceRegistry, DEVICE_HEALTH, hashCredential, normaliseDevice } from './device-registry.js';
+export { computeRunMetrics, evaluateAlerts } from './metrics.js';
 export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
 
 /**
