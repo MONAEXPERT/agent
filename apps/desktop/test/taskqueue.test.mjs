@@ -43,6 +43,50 @@ describe('TaskQueue', () => {
     assert.equal(q.running, false);
   });
 
+  it('cancels queued jobs and continues FIFO', async () => {
+    const q = new TaskQueue();
+    const cancelled = [];
+    const ran = [];
+    q.on('cancelled', (job) => cancelled.push(job.runId));
+    q.enqueue({ runId: 'first', run: async () => { await delay(30); } });
+    q.enqueue({ runId: 'skip', run: async () => { ran.push('skip'); } });
+    q.enqueue({ runId: 'last', run: async () => { ran.push('last'); } });
+    assert.equal(q.cancel('skip'), true);
+    await delay(100);
+    assert.deepEqual(cancelled, ['skip']);
+    assert.deepEqual(ran, ['last']);
+  });
+
+  it('aborts a running cooperative job and waits for it to settle', async () => {
+    const q = new TaskQueue();
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    let nextStarted = false;
+    q.enqueue({ runId: 'running', run: async ({ signal }) => {
+      await new Promise((resolve) => {
+        signal.addEventListener('abort', resolve, { once: true });
+      });
+      await gate;
+    } });
+    q.enqueue({ runId: 'next', run: async () => { nextStarted = true; } });
+    await delay(10);
+    assert.equal(q.cancel('running'), true);
+    await delay(10);
+    assert.equal(nextStarted, false);
+    release();
+    await delay(40);
+    assert.equal(nextStarted, true);
+  });
+
+  it('rejects jobs when the bounded queue is full', () => {
+    const q = new TaskQueue({ maxSize: 1 });
+    const rejected = [];
+    q.on('rejected', (event) => rejected.push(event.runId));
+    q.enqueue({ runId: 'one', run: async () => { await delay(20); } });
+    assert.equal(q.enqueue({ runId: 'two', run: async () => {} }), false);
+    assert.deepEqual(rejected, ['two']);
+  });
+
   it('enqueuing during a run does not skip or reorder', async () => {
     const q = new TaskQueue();
     const order = [];

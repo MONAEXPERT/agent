@@ -1,34 +1,56 @@
-// Serial task queue — tasks run one at a time, in arrival order.
-//
-// Before this queue existed, a task arriving while another was running would
-// overwrite the daemon's "current task" state and interleave its steps with
-// the running task's steps, mixing up the dashboard trace. The queue runs
-// each job to completion before the next starts, and reports queue position
-// so the UI always knows what is running and what is waiting.
-//
-// Events:
-//   'queued' ({ runId, position }) — a job joined the queue
-//   'start'  (job)                 — a job moved from queue to running
-//   'done'   (job, error?)         — a job finished (error undefined = ok)
-//
-// A job is { runId, run: async (job) => ... }. The run() promise resolves
-// when that job is finished; the queue never drops or reorders jobs.
+// Serial task queue with cooperative cancellation and bounded backpressure.
+// State is intentionally in-memory; persistence/checkpointing is a separate
+// runtime concern and must not be implied by this primitive.
 
 import { EventEmitter } from 'node:events';
 
 export class TaskQueue extends EventEmitter {
   #queue = [];
   #running = false;
+  #current = null;
+  #jobs = new Map();
+  #maxSize;
 
-  /** Enqueue a job. Returns the queue length after insertion (1 = running now). */
+  constructor({ maxSize = 100 } = {}) {
+    super();
+    if (!Number.isInteger(maxSize) || maxSize < 1) throw new TypeError('maxSize must be a positive integer');
+    this.#maxSize = maxSize;
+  }
+
+  /** Enqueue a job. Returns false instead of silently dropping on capacity. */
   enqueue(job) {
-    this.#queue.push(job);
-    // Position in the run order: the currently running job (if any) counts as
-    // "ahead", plus every job queued before this one, plus itself.
+    if (!job || typeof job.run !== 'function' || typeof job.runId !== 'string' || !job.runId) {
+      throw new TypeError('job requires runId and run()');
+    }
+    if (this.#jobs.has(job.runId)) return false;
+    if (this.#queue.length + (this.#running ? 1 : 0) >= this.#maxSize) {
+      this.emit('rejected', { runId: job.runId, reason: 'queue-capacity' });
+      return false;
+    }
+    const controller = job.controller || new AbortController();
+    const queuedJob = { ...job, controller, signal: controller.signal };
+    this.#queue.push(queuedJob);
+    this.#jobs.set(job.runId, queuedJob);
     const position = (this.#running ? 1 : 0) + this.#queue.length;
     this.emit('queued', { runId: job.runId, position });
     this.#drain();
     return this.#queue.length;
+  }
+
+  /** Cancel a queued job, or abort a running cooperative job. */
+  cancel(runId, reason = 'cancelled') {
+    const job = this.#jobs.get(runId);
+    if (!job) return false;
+    if (job === this.#current) {
+      job.controller.abort(reason);
+      return true;
+    }
+    const index = this.#queue.indexOf(job);
+    if (index === -1) return false;
+    this.#queue.splice(index, 1);
+    this.#jobs.delete(runId);
+    this.emit('cancelled', job, reason);
+    return true;
   }
 
   async #drain() {
@@ -37,24 +59,30 @@ export class TaskQueue extends EventEmitter {
     try {
       while (this.#queue.length) {
         const job = this.#queue.shift();
+        this.#current = job;
         this.emit('start', job);
-        let err = undefined;
+        let err;
         try {
           await job.run(job);
-        } catch (e) {
-          err = e;
-          this.emit('error', e, job);
+        } catch (error) {
+          err = error;
+          if (job.signal.aborted) this.emit('cancelled', job, job.signal.reason || 'cancelled');
+          else this.emit('error', error, job);
         }
+        this.#jobs.delete(job.runId);
         this.emit('done', job, err);
+        this.#current = null;
       }
     } finally {
+      this.#current = null;
       this.#running = false;
     }
   }
 
   /** Number of jobs waiting (not counting the one running). */
   get size() { return this.#queue.length; }
-
   /** True while a job is being executed. */
   get running() { return this.#running; }
+  /** Maximum number of running + queued jobs. */
+  get maxSize() { return this.#maxSize; }
 }
