@@ -36,6 +36,10 @@ const SHELL_CONFIG = {
   win32: {
     shell: 'powershell.exe',
     path:  '', // Windows uses system PATH
+    // Only real executables + the small in-process builtins (echo/type/cd)
+    // are allowed. cmd.exe builtins like dir/ver are intentionally absent:
+    // execution must stay argv-only with no user string ever reaching a shell.
+    builtins: new Set(['echo', 'type', 'cd']),
   },
 };
 
@@ -67,7 +71,7 @@ export function isExecutableFile(filePath, platform) {
 const DEFAULTS = {
   darwin: 'df,uptime,uname,whoami,date,hostname,vm_stat,top,cat,head,tail,wc,ls,pwd,echo,env,which,sw_vers,sysctl,open',
   linux:  'df,uptime,uname,whoami,date,hostname,free,ps,top,cat,head,tail,wc,ls,pwd,echo,env,which',
-  win32:  'whoami,date,hostname,dir,type,echo,ver,systeminfo,tasklist',
+  win32:  'whoami,date,hostname,echo,type,cd,systeminfo,tasklist,where',
 };
 
 const ALLOW = new Set(
@@ -294,6 +298,13 @@ function resolveBinary(name) {
 // ── Spawn one stage, collect capped output, kill group on timeout ─
 function runStage(stage, { stdin = null, cwd, timeoutMs }) {
   return new Promise((resolve) => {
+    const base = stage.argv[0].split('/').pop().split('\\').pop();
+    const builtin = PLATFORM === 'win32' && cfg.builtins?.has(base)
+      ? winBuiltin(stage.argv, { cwd, allow: allowHas(base) || UNSAFE })
+      : null;
+    if (builtin !== null) {
+      return resolve(builtin);
+    }
     const r0 = resolveBinary(stage.argv[0]);
     if (r0.error) {
       return resolve({ error: r0.error, allowed: r0.allowed, stage: stage.argv[0] });
@@ -459,12 +470,50 @@ async function executeStages(stages, { cwd, timeoutMs }) {
   };
 }
 
+// ── Windows in-process builtins ────────────────────────────────────
+// echo/type/cd run inside the agent process instead of a shell so no user
+// string ever reaches cmd.exe or PowerShell. They are still allowlist-gated.
+export function winBuiltin(argv, { cwd, allow } = {}) {
+  const name = argv[0];
+  if (!allow) {
+    return { exitCode: 1, stdout: '', stderr: `Command '${name}' not in allowlist`, error: `Command '${name}' not in allowlist`, allowed: effectiveAllowlist() };
+  }
+  if (name === 'echo') {
+    return { exitCode: 0, stdout: argv.slice(1).join(' ') + '\n', stderr: '' };
+  }
+  if (name === 'cd') {
+    if (argv.length > 2) return { exitCode: 1, stdout: '', stderr: 'cd takes at most one argument' };
+    const target = argv[1];
+    if (!target || target === '..') return { exitCode: 0, stdout: (target ? '..' : cwd || '') + '\n', stderr: '' };
+    return { exitCode: 0, stdout: '', stderr: 'cd only supports the current directory and its parent', error: 'cd argument not permitted' };
+  }
+  if (name === 'type') {
+    try {
+      // Windows path semantics even when unit-tested from POSIX.
+      const wp = path.win32;
+      const baseDir = wp.normalize(String(cwd || process.cwd()));
+      const requested = String(argv[1] || '');
+      const file = wp.isAbsolute(requested) ? wp.normalize(requested) : wp.resolve(baseDir, requested);
+      const inside = file.toLowerCase() === baseDir.toLowerCase() || file.toLowerCase().startsWith(baseDir.replace(/[\\/]+$/, '') + '\\');
+      if (argv.length !== 2 || !inside) {
+        return { exitCode: 1, stdout: '', stderr: 'type requires a file path inside the working directory', error: 'type requires a file path inside the working directory' };
+      }
+      const content = fs.readFileSync(file, 'utf8').slice(0, STDOUT_CAP);
+      return { exitCode: 0, stdout: content, stderr: '' };
+    } catch (err) {
+      return { exitCode: 1, stdout: '', stderr: err.message, error: err.message };
+    }
+  }
+  return null;
+}
+
 // ── Security surface exports ──────────────────────────────────────
 // Sibling tools (the `jobs` tool) MUST reuse exactly these primitives so
 // background commands get the same protection as foreground ones: argv
 // parsing (no shell string), allowlist + realpath resolution, blocked
 // patterns and scrubbed env. No background path may widen the surface.
 export { parseCommand, resolveBinary };
+export const winBuiltins = cfg.builtins || new Set();
 export const blockedPatterns = BLOCKED_PATTERNS;
 export const safeEnvKeys = SAFE_ENV_KEYS;
 export const platformHelpers = { platformPathEntries, executableCandidates, isExecutableFile };

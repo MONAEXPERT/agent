@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { platformPathEntries, executableCandidates } from '../src/tools/shell.js';
 import { daemonStatus, daemonInstall, daemonUninstall } from '../src/daemon.js';
+import { classifyWindowsBuild, runtimeSupport } from '../src/platform.js';
 
 describe('Windows platform helpers', () => {
   it('splits Windows PATH using semicolons', () => {
@@ -14,6 +15,31 @@ describe('Windows platform helpers', () => {
 
   it('does not require POSIX executable bits on Windows', () => {
     assert.equal(typeof platformPathEntries, 'function');
+  });
+});
+
+describe('Windows support matrix classification', () => {
+  it('supports current Windows 11 / Server builds', () => {
+    assert.equal(classifyWindowsBuild('10.0.26100').status, 'supported');
+    assert.equal(classifyWindowsBuild('10.0.22631').status, 'supported');
+    assert.equal(classifyWindowsBuild('10.0.20348').status, 'supported');
+    assert.equal(classifyWindowsBuild('10.0.19045').status, 'supported');
+  });
+
+  it('refuses end-of-life Windows builds for production', () => {
+    const eol = classifyWindowsBuild('10.0.19044');
+    assert.equal(eol.status, 'unsupported');
+    assert.match(eol.note, /end-of-life/i);
+  });
+
+  it('reports unknown status for unrecognized builds', () => {
+    assert.equal(classifyWindowsBuild('10.0.99999').status, 'unknown');
+    assert.equal(classifyWindowsBuild('garbage').status, 'unknown');
+  });
+
+  it('runtimeSupport reflects build classification on win32', () => {
+    assert.equal(runtimeSupport({ os: 'win32', osRelease: '10.0.19044' }).status, 'unsupported');
+    assert.equal(runtimeSupport({ os: 'win32', osRelease: '10.0.22631' }).status, 'supported');
   });
 });
 

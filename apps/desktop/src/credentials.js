@@ -23,24 +23,45 @@ export function memoryBackend() {
   };
 }
 
-export function windowsDpapiBackend({ account = 'default', command = 'powershell.exe', runner = spawnFileSync } = {}) {
-  const script = [
+/**
+ * DPAPI scope selection. Interactive CLI runs use CurrentUser. The Windows
+ * service context (MONA_SERVICE=windows-scm, LocalSystem/LocalService/
+ * NetworkService) must use LocalMachine, otherwise credentials saved by the
+ * interactive user can never be decrypted by the service and vice versa.
+ */
+export function dpapiScope({ service = false, scope } = {}) {
+  if (scope) return scope;
+  return service ? 'LocalMachine' : 'CurrentUser';
+}
+
+export function dpapiProtectScript(scope) {
+  return [
     '$ErrorActionPreference = "Stop"',
     '$raw = [Console]::In.ReadToEnd()',
     '$bytes = [Text.Encoding]::UTF8.GetBytes($raw)',
-    '$scope = [Security.Cryptography.DataProtectionScope]::CurrentUser',
+    `$scope = [Security.Cryptography.DataProtectionScope]::${scope}`,
     '$protected = [Security.Cryptography.ProtectedData]::Protect($bytes, $null, $scope)',
     '[Convert]::ToBase64String($protected)',
   ].join(';');
-  const unprotect = [
+}
+
+export function dpapiUnprotectScript(scope) {
+  return [
     '$ErrorActionPreference = "Stop"',
     '$raw = [Console]::In.ReadToEnd()',
     '$protected = [Convert]::FromBase64String($raw)',
-    '$scope = [Security.Cryptography.DataProtectionScope]::CurrentUser',
+    `$scope = [Security.Cryptography.DataProtectionScope]::${scope}`,
     '$bytes = [Security.Cryptography.ProtectedData]::Unprotect($protected, $null, $scope)',
     '[Text.Encoding]::UTF8.GetString($bytes)',
   ].join(';');
+}
+
+export function windowsDpapiBackend({ account = 'default', command = 'powershell.exe', runner = spawnFileSync, scope } = {}) {
+  const resolveScope = () => dpapiScope({ scope, service: Boolean(process.env.MONA_SERVICE) });
+  const protect = (s) => dpapiProtectScript(s);
+  const unprotect = (s) => dpapiUnprotectScript(s);
   let stored = null;
+  let storedScope = null;
   const run = (code, input) => {
     const result = runner(command, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'RemoteSigned', '-Command', code], { input, encoding: 'utf8' });
     if (result.status !== 0 || result.error) throw new Error('Windows DPAPI operation failed');
@@ -49,9 +70,21 @@ export function windowsDpapiBackend({ account = 'default', command = 'powershell
   return {
     name: 'windows-dpapi', secure: true,
     available: () => process.platform === 'win32',
-    load: () => { if (!stored) return null; try { return JSON.parse(run(unprotect, stored)); } catch { return null; } },
-    save: (_service, _account, value) => { stored = run(script, JSON.stringify(value)); },
-    clear: () => { stored = null; },
+    load: () => {
+      if (!stored) return null;
+      const current = resolveScope();
+      if (storedScope && storedScope !== current) {
+        return { error: 'DPAPI scope mismatch', savedScope: storedScope, currentScope: current };
+      }
+      try { return JSON.parse(run(unprotect(current), stored)); } catch { return null; }
+    },
+    save: (_service, _account, value) => {
+      const current = resolveScope();
+      stored = run(protect(current), JSON.stringify(value));
+      storedScope = current;
+    },
+    clear: () => { stored = null; storedScope = null; },
+    scope: resolveScope,
     account,
   };
 }
