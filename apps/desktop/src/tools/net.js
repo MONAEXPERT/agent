@@ -35,6 +35,10 @@ const BLOCKED_CIDRS = [
   // IPv6
   '::1/128', '::/128', 'fc00::/7', 'fe80::/10', '2001:db8::/32',
   '2001:10::/28', 'ff00::/8', '::ffff:0:0/96',
+  // IPv6 transition mechanisms that embed IPv4 (SSRF via 6to4/NAT64):
+  // 2002:V4ADDR:: is 6to4 (RFC 3056); 64:ff9b::/96 is the well-known
+  // NAT64 prefix (RFC 6052) — both smuggle a private IPv4 address.
+  '2002::/16', '64:ff9b::/96',
 ];
 
 // Metadata endpoints blocked by name (defence in depth — the CIDR list
