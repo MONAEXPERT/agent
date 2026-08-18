@@ -14,8 +14,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Prompt-injection trust-boundary rules separating user/policy authority from untrusted web, file, email, plugin, and tool content.
 - Security review scope, release distribution checklist, and public security-review intake artifacts.
 
+### Security
+- **Shell allowlist bypass via path-qualified binaries**: a user-writable file
+  named like an allowlisted binary (e.g. `/tmp/evil/ls`) no longer executes —
+  `resolveBinary` now requires a path-qualified call's realpath target to live
+  under a trusted system PATH entry.
+- **`shell.unsafe` denied instead of allowed**: the unsafe tier now returns
+  `allowed: true`, so the mode that is supposed to release the shell no longer
+  blocks it.
+- **Fail-open remote capability extension closed**: the control plane's
+  `capabilities.shell.allow` / `capabilities.paths.allow` fields were applied
+  directly. They are replaced by a signed, device-verified capability grant
+  that is intersected with an owner-configured ceiling (deny-by-default). See
+  `docs/DEVICE-LIFECYCLE.md`.
+- **MCP HTTP transport authenticated**: the localhost MCP server now requires
+  a per-start bearer token, whitelists the `Host` header (kills DNS rebinding)
+  and rejects browser `Origin` requests.
+- **Windows DPAPI credentials persisted**: the encrypted blob and its scope are
+  written to disk (0600, atomic) so credentials survive a restart, and legacy
+  migration only renames the old file after a verified disk read-back.
+
+### Fixed
+- Policy `when.includes` required every substring (a spread bug read only the
+  first); `explain()` no longer consumes a rate-limit token; the audit chain
+  tip is recovered from disk before each append so a daemon and CLI cannot
+  break the chain.
+- Tool policy was checked twice per call (daemon + `tools.run`); `tools.run`
+  is now the single choke point and also applies shell deny/approval patterns
+  on the MCP path.
+- Shell pipeline results now carry `timedOut`/`truncated`.
+- Plugin discovery no longer imports from `process.cwd()`; the installer
+  defaults to the latest release tag (branches require `--branch`).
+
 ### Verification
-- Full test suite: **437 passed, 0 failed**.
+- Full test suite: **472 passed, 0 failed**.
 - This release does not claim an independent security audit, hardware-backed key storage, complete SSO/SCIM integration, or external community validation.
 
 ## [2.11.0] — 2026-08-17
