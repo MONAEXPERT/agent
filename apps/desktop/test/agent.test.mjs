@@ -3,6 +3,18 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+// ── Isolate HOME so the shell/policy tools never read the real user config ──
+const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-agent-test-'));
+process.env.HOME = FAKE_HOME;
+process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
+
+after(() => {
+  try { fs.rmSync(FAKE_HOME, { recursive: true, force: true }); } catch { /* best effort */ }
+});
 
 // ── Tool tests ────────────────────────────────────────────────────
 

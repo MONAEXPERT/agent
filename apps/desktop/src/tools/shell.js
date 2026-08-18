@@ -301,7 +301,11 @@ function resolveBinary(name) {
     if (!isExecutableFile(c, PLATFORM)) continue;
     let real;
     try { real = fs.realpathSync(c); } catch { continue; }
-    if (!inSystemDir(real)) {
+    // A path-qualified call is the attack vector: its realpath target must be
+    // a trusted system binary. An unqualified name is looked up in the fixed
+    // system PATH, where symlinked binaries (e.g. Homebrew's Cellar) are
+    // legitimate even though their realpath lives outside the PATH entry.
+    if (qualified && !inSystemDir(real)) {
       return { error: `Refusing binary outside trusted system paths: ${name}` };
     }
     return { bin: real, base };
