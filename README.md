@@ -164,6 +164,33 @@ are some of the things people use it for:
 | A **research assistant** | `web-research` skill + vector memory — sources indexed and recalled by meaning |
 | A **fleet of device agents** | multi-device task claiming — each task runs on exactly one winning device |
 
+## One prompt, one shot
+
+Three demos, three single prompts. Each one was built end-to-end by mona-ai —
+plan, code, run, verify — with zero edits by hand. The stats come straight
+from the run trace.
+
+### Google Maps clone
+
+<p align="center"><img src="docs/assets/demos/mona-one-shot-maps.gif" width="720" alt="mona-ai builds a Google Maps clone from a single prompt — pan, zoom, search, places"></p>
+
+`deepseek-chat · 24 steps · 76.5k tokens · ≈ $0.04` — a working Maps clone
+with pan, zoom, search and place markers.
+
+### App Store–polish chess game
+
+<p align="center"><img src="docs/assets/demos/mona-one-shot-appstore-chess.gif" width="720" alt="mona-ai builds an App Store-quality chess game from a single prompt"></p>
+
+`deepseek-chat · 30 steps · 48.2k tokens · ≈ $0.02` — a chess game with the
+fit and finish of a store-ready app.
+
+### Chess game
+
+<p align="center"><img src="docs/assets/demos/mona-one-shot-chess.gif" width="720" alt="mona-ai builds a playable chess game from a single prompt"></p>
+
+`deepseek-chat · 9 steps · 24.2k tokens · ≈ $0.0079` — a playable chess game:
+board, pieces and rules in one shot.
+
 ## Everything it can do
 
 | Capability | How |

@@ -7,7 +7,7 @@ stream live metrics from anywhere.
 - [Getting started](GETTING-STARTED.md) — install in 60 seconds
 - [Architecture](ARCHITECTURE.md) — how the agent works
 - [Tools reference](TOOLS.md) — files, shell, net, sysinfo; policy, presets, audit
-- [Examples & recipes](EXAMPLES.md) — cron jobs, watchdogs, backups
+- [Examples & recipes](EXAMPLES.md) — cron jobs, watchdogs, backups, one-prompt app demos
 - [Integrations](INTEGRATIONS.md) — cloud API, scheduling, boot persistence
 - [FAQ](FAQ.md) — common questions
 - [Changelog](CHANGELOG.md) — release history

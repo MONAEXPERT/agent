@@ -2,6 +2,33 @@
 
 Real things people do with mona-agent. Copy, adapt, enjoy.
 
+## One prompt, one shot
+
+Three apps, three single prompts — each one planned, coded, run and verified
+by the agent end to end, with zero edits by hand. The stats are the recorded
+run traces.
+
+### Google Maps clone
+
+<p align="center"><img src="assets/demos/mona-one-shot-maps.gif" width="720" alt="mona-ai builds a Google Maps clone from a single prompt — pan, zoom, search, places"></p>
+
+`deepseek-chat · 24 steps · 76.5k tokens · ≈ $0.04` — a working Maps clone
+with pan, zoom, search and place markers.
+
+### App Store–polish chess game
+
+<p align="center"><img src="assets/demos/mona-one-shot-appstore-chess.gif" width="720" alt="mona-ai builds an App Store-quality chess game from a single prompt"></p>
+
+`deepseek-chat · 30 steps · 48.2k tokens · ≈ $0.02` — a chess game with the
+fit and finish of a store-ready app.
+
+### Chess game
+
+<p align="center"><img src="assets/demos/mona-one-shot-chess.gif" width="720" alt="mona-ai builds a playable chess game from a single prompt"></p>
+
+`deepseek-chat · 9 steps · 24.2k tokens · ≈ $0.0079` — a playable chess game:
+board, pieces and rules in one shot.
+
 ## Teach the agent your environment (vector memory)
 
 Index a folder of notes/configs in the workspace once, then ask questions in
