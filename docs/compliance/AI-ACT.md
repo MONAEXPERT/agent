@@ -1,5 +1,8 @@
 # EU AI Act — Transparency & Documentation
 
+> Mapping of repository controls to frameworks. No certification proof, no external audit.
+
+
 The EU AI Act (Regulation (EU) 2024/1689) sets obligations based on the
 **risk category** of an AI system. This document records the
 classification and the implemented transparency measures for mona-agent

@@ -85,8 +85,8 @@ For review planning, hardening suggestions, and non-sensitive documentation gaps
 ## Compliance
 
 - [docs/COMPLIANCE.md](docs/COMPLIANCE.md) — CRA, NIS2, AI Act, GDPR
-- [docs/AI-ACT.md](docs/AI-ACT.md) — AI Act transparency record
-- [docs/GDPR.md](docs/GDPR.md) — privacy & data processing
+- [docs/compliance/](docs/compliance/) — framework mappings (AI Act, GDPR,
+  ISO/IEC 27001, IEC 62443, CRA); no certification proof, no external audit
 - [docs/SBOM.md](docs/SBOM.md) — software bill of materials
 
 ## Hall of fame

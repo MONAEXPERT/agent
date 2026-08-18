@@ -13,7 +13,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { log } from '../log.js';
-import { Policy, RunStore } from '@mona/engine';
+import { Policy, RunStore, verifyManifest, checkCapabilities } from '@mona/engine';
 import { defineTool, isTool } from './define.js';
 import { sysinfo } from './sysinfo.js';
 import { shell } from './shell.js';
@@ -199,8 +199,35 @@ export class ToolRegistry {
  * package without a "monaAgent.tools" declaration is not a tool package, so
  * its top-level code must never run.
  */
-function verifyManifest(pkg) {
+function verifyManifestShape(pkg) {
   return Boolean(pkg && typeof pkg === 'object' && pkg.monaAgent && pkg.monaAgent.tools);
+}
+
+/**
+ * Supply-chain gate: when the owner pinned plugin signing keys in
+ * policy.json (`plugins.publicKeys`), a package loads ONLY when its signed
+ * manifest (`monaAgent.manifest`) verifies under a pinned key AND every
+ * declared capability is granted (`plugins.capabilities`). No manifest, no
+ * signature, no import — the module is never evaluated. Without pinned keys
+ * the legacy shape check applies (the tool policy still gates execution;
+ * pinning keys is what makes loading itself verifiable).
+ */
+function supplyChainGate(pkg) {
+  const policy = Policy.load();
+  const keys = policy.pluginPublicKeys || [];
+  const granted = policy.pluginCapabilities || [];
+  if (keys.length === 0) return { pass: verifyManifestShape(pkg), reason: 'no pinned plugin keys (legacy shape check)' };
+  const manifest = pkg?.monaAgent?.manifest;
+  if (!manifest) return { pass: false, reason: 'no signed manifest' };
+  let verified = false;
+  for (const key of keys) {
+    const v = verifyManifest(manifest, key);
+    if (v.ok) { verified = true; break; }
+  }
+  if (!verified) return { pass: false, reason: 'manifest signature invalid' };
+  const caps = checkCapabilities(manifest, granted);
+  if (!caps.allowed) return { pass: false, reason: caps.reason };
+  return { pass: true, reason: 'signed manifest verified + capabilities granted' };
 }
 
 /**
@@ -209,7 +236,7 @@ function verifyManifest(pkg) {
  *  - explicit paths from MONA_TOOL_PATH (comma separated)
  * Never from process.cwd() — importing a package runs its top-level code, so
  * discovery is confined to the installation directory and explicitly
- * configured paths.
+ * configured paths, and every import is preceded by the supply-chain gate.
  * @returns {Promise<any[]>}
  */
 export async function discoverExternalTools(extraPaths = []) {
@@ -226,11 +253,15 @@ export async function discoverExternalTools(extraPaths = []) {
       try {
         if (!existsSync(pkgPath)) continue;
         const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-        if (!verifyManifest(pkg)) continue;
+        const gate = supplyChainGate(pkg);
+        if (!gate.pass) {
+          log.warn(`Skipping tool package ${entry}: ${gate.reason}`);
+          continue;
+        }
         const mod = await awaitImport(join(dir, entry, pkg.main || 'index.js'));
         const tools = Array.isArray(mod?.default) ? mod.default : mod?.default ? [mod.default] : [];
         for (const t of tools) if (isTool(t)) found.push(t);
-        log.info(`Tool package discovered: ${entry} (${tools.length} tool(s))`);
+        log.info(`Tool package discovered: ${entry} (${tools.length} tool(s)) [${gate.reason}]`);
       } catch (e) {
         log.warn(`Skipping tool package ${entry}: ${e.message}`);
       }

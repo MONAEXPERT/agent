@@ -23,20 +23,24 @@ stream live metrics from anywhere.
 **Repo:** [MONAEXPERT/agent](https://github.com/MONAEXPERT/agent)
 
 
-## Additional Documents
+## Documentation evidence rule
 
-Enterprise and compliance documentation (ISO, IEC, CRA, GDPR):
+Every statement in this documentation set must point to a test, a code
+location, or be explicitly marked as intent. Compliance mappings are
+readiness maps, not certificates — they carry a mandatory header saying so.
 
-- [Compliance overview](additional-documents/COMPLIANCE.md)
-- [EU Cyber Resilience Act readiness](additional-documents/CRA-READINESS.md)
-- [ISO/IEC 27001 control mapping](additional-documents/ISO-27001-MAPPING.md)
-- [IEC 62443 alignment](additional-documents/IEC-62443.md)
+## Compliance & enterprise documents
+
+- [Compliance overview](COMPLIANCE.md)
+- [Compliance mappings](compliance/) — AI Act, GDPR, ISO/IEC 27001, IEC 62443,
+  CRA readiness. *Mapping of repository controls to frameworks. No
+  certification proof, no external audit.*
 - [Threat model (STRIDE)](additional-documents/THREAT-MODEL.md)
 - [Data flow & minimization](additional-documents/DATA-FLOW.md)
-- [Security self-audit guide](additional-documents/SECURITY-AUDIT.md)
+- [Security self-audit checklist](additional-documents/SELF-AUDIT-CHECKLIST.md)
 - [Enterprise deployment guide](additional-documents/DEPLOYMENT-GUIDE.md)
 - [Enterprise FAQ](additional-documents/ENTERPRISE-FAQ.md)
-- [Software bill of materials](additional-documents/SBOM.md)
+- [Software bill of materials](SBOM.md)
 
 More content:
 

@@ -445,6 +445,15 @@ export class Policy {
     this.rules = Array.isArray(r.rules) ? r.rules : null;
     this.defaultEffect = r.default === 'allow' ? 'allow' : 'deny';
 
+    // Plugin supply chain: the ONLY keys that may sign a plugin manifest,
+    // and the ONLY capabilities a plugin may declare. Both empty by default —
+    // no pinned keys, no granted capabilities → no plugin loads.
+    const plugins = r.plugins && typeof r.plugins === 'object' ? r.plugins : {};
+    this.pluginPublicKeys = (Array.isArray(plugins.publicKeys) ? plugins.publicKeys : [])
+      .map(String).filter(Boolean);
+    this.pluginCapabilities = (Array.isArray(plugins.capabilities) ? plugins.capabilities : [])
+      .map(String).filter(Boolean);
+
     // Deprecated env fallback: MONA_SHELL_UNSAFE=1 still works for one minor
     // version but is superseded by policy `shell.unsafe`. Prefer the policy file.
     if (!this.shellUnsafe && process.env.MONA_SHELL_UNSAFE === '1') {

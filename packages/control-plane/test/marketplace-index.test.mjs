@@ -2,7 +2,10 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 let generateSigningKeyPair, signManifest, signMarketplaceIndex, verifyMarketplaceIndex, normaliseMarketplaceIndex;
-before(async () => ({ generateSigningKeyPair, signManifest, signMarketplaceIndex, verifyMarketplaceIndex, normaliseMarketplaceIndex } = await import('../src/index.mjs')));
+before(async () => {
+  ({ signMarketplaceIndex, verifyMarketplaceIndex, normaliseMarketplaceIndex } = await import('../src/index.mjs'));
+  ({ generateSigningKeyPair, signManifest } = await import('@mona/engine'));
+});
 
 function signedPlugin(keys) {
   const base = {
