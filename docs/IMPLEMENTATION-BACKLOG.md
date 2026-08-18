@@ -2,7 +2,9 @@
 
 This backlog turns the repository assessment into deliverable work. It is ordered by risk reduction and customer evidence, not by feature breadth. Each item has an explicit completion signal.
 
-## Status (branch `enterprise-run-skel`)
+## Status (main, commit `38ffa36`)
+
+This status was refreshed after the security-hardening commits. The repository contains implementation and tests for cryptographic device enrollment, versioned policy controls, tenant-aware fleet administration, artifact checksum verification, prompt-injection trust-boundary guidance, and review/distribution workflows.
 
 Implemented and tested in `packages/engine/src` (all committed with unit tests):
 
@@ -10,7 +12,7 @@ Implemented and tested in `packages/engine/src` (all committed with unit tests):
 - **P0.2 Honest capability status** — capability matrix in `README.md` (unchanged, still authoritative).
 - **P0.3 Repeatable release evidence** — SBOM/SHA256/provenance in `.github/workflows/release.yml`; added CodeQL + secret scan + reproducibility gate in `ci.yml`.
 - **P1.4 / Goal 7 supply-chain** — `plugin-manifest.js`: Ed25519 signing/verification + deny-by-default capabilities.
-- **P2.1 Device & identity lifecycle** — `device-registry.js`: enrollment, revocation, rotation, health, tenant isolation; `jit.js`: role-scoped JIT access.
+- **P2.1 Device & identity lifecycle** — `device-registry.js`: Ed25519 identity generation, signed enrollment, tenant binding, fingerprints, credential issuance/expiration/revocation/rotation, health, tenant isolation; `jit.js`: role-scoped JIT access. Hardware-backed storage and hosted OIDC/SCIM remain external work.
 - **P2.2 Central evidence & value metrics** — `evidence.js` (run reconstruction + audit export), `metrics.js` (value metrics + alerts).
 - **Goal 6 deployment** — `upgrade.js` (health-gated staged rollout), `package-lifecycle.js` (install/upgrade/rollback).
 - **Integration** — `fleet.js` composes the above into one operator entry point; `admin-api.js` supplies a JSON-safe control-plane boundary.
