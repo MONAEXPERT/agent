@@ -156,6 +156,59 @@ const SAFE_ENV_KEYS = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TMP', 'TEMP'
 // so `echo $HOME` works but `echo $AWS_SECRET_ACCESS_KEY` stays literal.
 const EXPANDABLE_VARS = new Set(['HOME', 'PATH', 'USER', 'LANG', 'PWD', 'TMPDIR']);
 
+// ── Sensitive path deny-list ──────────────────────────────────────
+// Device-level guard: no allowlisted reader (cat/head/tail/...) may touch
+// credential or key material, no matter how the path is spelled. Every argv
+// element that looks like a path (/, \, ~, or an existing file) is
+// normalised (realpath when it exists, lexically otherwise) and checked
+// against this list BEFORE spawn, in every branch: foreground, pipe stages
+// and background mode. `cwd` is checked against the same list, and relative
+// arguments resolve against the command's cwd — never process.cwd() — so a
+// cwd of ~/.ssh plus `cat id_rsa` cannot slip through.
+const SENSITIVE_PATHS = [
+  '~/.ssh', '~/.gnupg', '~/.aws', '~/.azure', '~/.kube',
+  '~/.config/gh', '~/.docker/config.json', '~/.netrc',
+  '~/.mona-agent',   // the agent's own key material
+  '/etc/shadow', '/etc/sudoers', '/etc/ssh',
+  '/proc/self/environ',
+];
+
+export function expandTilde(p) {
+  if (p === '~') return os.homedir();
+  if (p.startsWith('~/')) return path.join(os.homedir(), p.slice(2));
+  return p;
+}
+
+/** Returns the deny-list entry `arg` resolves into, else null. */
+export function deniedPath(arg, baseDir = process.cwd()) {
+  if (typeof arg !== 'string' || arg.length === 0) return null;
+  const raw = expandTilde(arg);
+  const looksLikePath = /[/\\~]/.test(raw);
+  const abs = path.isAbsolute(raw) ? raw : path.resolve(baseDir, raw);
+  if (!looksLikePath && !fs.existsSync(abs)) return null;
+  let p;
+  try { p = fs.realpathSync(abs); } catch { p = path.resolve(abs); }
+  for (const entry of SENSITIVE_PATHS) {
+    // Realpath the root too: on macOS /var → /private/var, /etc →
+    // /private/etc — a lexically resolved root would never match a
+    // realpath'd argument.
+    let root;
+    try { root = fs.realpathSync(path.resolve(expandTilde(entry))); }
+    catch { root = path.resolve(expandTilde(entry)); }
+    if (p === root || p.startsWith(root + path.sep)) return entry;
+  }
+  return null;
+}
+
+/** First denied path among an argv (including argv[0]), else null. */
+export function deniedIn(argv, cwd = process.cwd()) {
+  for (const a of argv) {
+    const hit = deniedPath(a, cwd);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 // ── Quote-aware command parser ────────────────────────────────────
 // Splits a command string into pipeline stages. Each stage is an argv
 // array. Operators: && || ; | (top-level only). `>`, `<`, `$(` and
@@ -316,6 +369,10 @@ function resolveBinary(name) {
 // ── Spawn one stage, collect capped output, kill group on timeout ─
 function runStage(stage, { stdin = null, cwd, timeoutMs }) {
   return new Promise((resolve) => {
+    const denied = deniedIn(stage.argv, cwd);
+    if (denied) {
+      return resolve({ error: `Access to ${denied} is denied by device policy`, stage: stage.argv[0] });
+    }
     const base = stage.argv[0].split('/').pop().split('\\').pop();
     const builtin = PLATFORM === 'win32' && cfg.builtins?.has(base)
       ? winBuiltin(stage.argv, { cwd, allow: allowHas(base) || UNSAFE })
@@ -435,6 +492,14 @@ async function executeStages(stages, { cwd, timeoutMs }) {
         }
       } else {
         // Pipe: spawn concurrently, chain stdio.
+        // Deny-check EVERY stage's argv before spawning anything, so a
+        // sensitive path in stage 2+ is refused with no leaked children.
+        for (let k = 0; k < group.length; k++) {
+          const denied = deniedIn(group[k].argv, cwd);
+          if (denied) {
+            return { results, error: `Access to ${denied} is denied by device policy`, allowed: null, stdout: '', stderr: '' };
+          }
+        }
         const pipes = [];
         let prevOut = null;
         for (let k = 0; k < group.length; k++) {
@@ -541,6 +606,7 @@ export function winBuiltin(argv, { cwd, allow } = {}) {
 // parsing (no shell string), allowlist + realpath resolution, blocked
 // patterns and scrubbed env. No background path may widen the surface.
 export { parseCommand, resolveBinary };
+export const sensitivePaths = SENSITIVE_PATHS;
 export const winBuiltins = cfg.builtins || new Set();
 export const blockedPatterns = BLOCKED_PATTERNS;
 export const safeEnvKeys = SAFE_ENV_KEYS;
@@ -581,12 +647,22 @@ export const shell = {
     // parser/policy. Shell built-ins are therefore unsupported; use an allowed
     // executable (for example `cmd.exe` is not implicitly trusted either).
 
+    // cwd itself is checked against the same deny-list, so `cwd: ~/.ssh`
+    // plus a relative `id_rsa` is refused up front.
+    if (args.cwd) {
+      const hit = deniedPath(String(args.cwd));
+      if (hit) return { error: `Access to ${hit} is denied by device policy (cwd)`, platform: PLATFORM };
+    }
+
     // Background mode: GUI apps / long-running processes (e.g. tkinter
     // windows) must not block the task or die with the 15s timeout.
     if (args.background) {
       const first = stages[0];
       const resolved = resolveBinary(first.argv[0]);
       if (resolved.error) return { error: resolved.error, allowed: resolved.allowed };
+      const bgCwd = args.cwd ? path.resolve(expandTilde(String(args.cwd))) : undefined;
+      const bgHit = deniedIn(first.argv, bgCwd);
+      if (bgHit) return { error: `Access to ${bgHit} is denied by device policy`, platform: PLATFORM };
       const logFile = path.join(os.homedir(), '.mona-agent', `bg-${Date.now()}.log`);
       fs.mkdirSync(path.dirname(logFile), { recursive: true });
       const out = fs.openSync(logFile, 'a');
@@ -597,6 +673,7 @@ export const shell = {
         detached: true,
         stdio: ['ignore', out, out],
         env,
+        cwd: bgCwd,
       });
       child.unref();
       fs.closeSync(out);
@@ -610,7 +687,7 @@ export const shell = {
       };
     }
 
-    const cwd = args.cwd ? path.resolve(String(args.cwd)) : undefined;
+    const cwd = args.cwd ? path.resolve(expandTilde(String(args.cwd))) : undefined;
     const result = await executeStages(stages, { cwd, timeoutMs: TIMEOUT_MS });
 
     if (result.error) {

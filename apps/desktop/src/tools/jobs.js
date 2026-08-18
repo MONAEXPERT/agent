@@ -29,6 +29,7 @@ import { Policy } from '@mona/engine';
 import { log } from '../log.js';
 import {
   parseCommand, resolveBinary, blockedPatterns, safeEnvKeys, shellCfg,
+  deniedPath, deniedIn, expandTilde,
 } from './shell.js';
 
 const POLICY = Policy.load();
@@ -273,15 +274,27 @@ export const jobs = {
         } catch (err) {
           return { error: err.message };
         }
+
+        let cwd = process.cwd();
+        if (args.cwd) cwd = path.resolve(expandTilde(String(args.cwd)));
+        else if (process.env.MONA_WORKSPACE && fs.existsSync(process.env.MONA_WORKSPACE)) cwd = path.resolve(process.env.MONA_WORKSPACE);
+        if (!fs.existsSync(cwd)) cwd = process.cwd(); // never spawn into a missing dir
+
+        // Sensitive-path deny-list, same as the shell tool: the cwd itself
+        // and every argv element (resolved against that cwd) are refused
+        // before anything spawns — a background command must never widen
+        // what the foreground shell tool forbids.
+        const cwdHit = deniedPath(cwd);
+        if (cwdHit) return { error: `Access to ${cwdHit} is denied by device policy (cwd)` };
+        for (const st of stages) {
+          const hit = deniedIn(st.argv, cwd);
+          if (hit) return { error: `Access to ${hit} is denied by device policy` };
+        }
+
         for (const st of stages) {
           const r0 = resolveBinary(st.argv[0]);
           if (r0.error) return { error: r0.error, allowed: r0.allowed };
         }
-
-        let cwd = process.cwd();
-        if (args.cwd) cwd = path.resolve(String(args.cwd));
-        else if (process.env.MONA_WORKSPACE && fs.existsSync(process.env.MONA_WORKSPACE)) cwd = path.resolve(process.env.MONA_WORKSPACE);
-        if (!fs.existsSync(cwd)) cwd = process.cwd(); // never spawn into a missing dir
         const id = `job-${++seq}`;
         const job = {
           id, cmd, cwd,
