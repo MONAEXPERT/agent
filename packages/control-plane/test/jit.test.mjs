@@ -11,7 +11,10 @@ const AUDIT = path.join(TMP, 'audit.jsonl');
 // Isolate the shared hash-chained audit log before policy.js reads its default.
 process.env.MONA_AUDIT = AUDIT;
 
-before(async () => ({ JitAccess, ROLES, auditVerify } = await import('../src/index.mjs')));
+before(async () => {
+  ({ JitAccess, ROLES } = await import('../src/index.mjs'));
+  ({ auditVerify } = await import('@mona/engine'));
+});
 
 describe('JitAccess provisioning and revocation', () => {
   it('grants role-scoped access and checks tool coverage', () => {

@@ -2,10 +2,15 @@
 //
 // Policy-as-code, budget governor, structured memory, bounded task loop.
 // Zero runtime dependencies; every piece is unit-testable offline.
+//
+// The control-plane library was split out (packages/control-plane): fleet,
+// JIT access, admin API, upgrades, package lifecycle, plugin signing,
+// evidence/SIEM, marketplace index and metrics live there now. What stays
+// here is what the device daemon actually imports — nothing below may
+// import the server library back (CI enforces it).
 
 export { Policy, PRESETS, auditWrite, auditVerify } from './policy.js';
 export { AUDIT_DOMAIN, signAuditHash, verifyAuditHash, loadOrCreateAuditKey, keyPathFor, auditHead, anchorDue, compareAnchors } from './audit-sign.js';
-export { PolicyRegistry, normalisePolicyRevision } from './policy-registry.js';
 export { verifyCapabilityGrant, resolveCapabilityGrant, intersectCapabilities, grantSigningInput, GRANT_DOMAIN } from './capability-grant.js';
 export { Budget } from './budget.js';
 export { MemoryStore } from './memory.js';
@@ -14,17 +19,7 @@ export { runSubtasks, buildSubSystemPrompt, MAX_SUBTASKS, MAX_SUB_PROMPT, MAX_SU
 export { runWorkflow, validatePhases, buildPhaseContext, MAX_PHASES } from './workflow.js';
 export { GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, normaliseGoal, MAX_GOAL_ROUNDS, MAX_OBJECTIVE } from './goal.js';
 export { RunStore, RUN_STATE, normaliseRun, retryDecision, RUN_STATUSES, ACTIVE_RUN_STATUSES, TERMINAL_RUN_STATUSES } from './run-state.js';
-export { JitAccess, ROLES, normaliseGrant } from './jit.js';
 export { DeviceRegistry, DEVICE_HEALTH, hashCredential, normaliseDevice, generateDeviceIdentity, generateCredential, signEnrollment, verifyEnrollment, canonical } from './device-registry.js';
-export { computeRunMetrics, evaluateAlerts } from './metrics.js';
-export { hashManifest, generateSigningKeyPair, normalisePluginManifest, signManifest, verifyManifest, checkCapabilities } from './plugin-manifest.js';
-export { UpgradeOrchestrator, UPGRADE_STATES, normaliseUpgrade } from './upgrade.js';
-export { FleetController } from './fleet.js';
-export { buildRunEvidence, readAuditEntries, queryAudit } from './evidence.js';
-export { PackageLifecycle, PKG_STATES, normalisePackage, verifyPackageArtifact } from './package-lifecycle.js';
-export { toNdjson, exportAuditNdjson, exportRunEvidenceNdjson } from './siem.js';
-export { AdminApi } from './admin-api.js';
-export { normaliseMarketplaceIndex, hashMarketplaceIndex, signMarketplaceIndex, verifyMarketplaceIndex } from './marketplace-index.js';
 export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
 
 /**

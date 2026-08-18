@@ -10,7 +10,10 @@ const AUDIT = path.join(TMP, 'audit.jsonl');
 process.env.MONA_AUDIT = AUDIT;
 const p = (name) => path.join(TMP, `${name}.json`);
 
-before(async () => ({ RunStore, buildRunEvidence, readAuditEntries, queryAudit } = await import('../src/index.mjs')));
+before(async () => {
+  ({ buildRunEvidence, readAuditEntries, queryAudit } = await import('../src/index.mjs'));
+  ({ RunStore } = await import('@mona/engine'));
+});
 
 describe('buildRunEvidence', () => {
   it('reconstructs a complete run with approvals, attempts, checkpoints, and rollback', () => {
@@ -47,7 +50,7 @@ describe('buildRunEvidence', () => {
 
 describe('readAuditEntries and queryAudit', () => {
   it('loads and verifies audit entries and filters by kind/verdict', async () => {
-    const { Policy } = await import('../src/index.mjs');
+    const { Policy } = await import('@mona/engine');
     const policy = new Policy({ tools: { sysinfo: 'allow', shell: 'deny' } });
     // Policy.check writes allow/deny tool decisions to the audit log.
     policy.check('sysinfo');

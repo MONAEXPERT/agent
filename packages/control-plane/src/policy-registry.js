@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from '
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
-import { auditWrite } from './policy.js';
+import { auditWrite } from '@mona/engine';
 
 const DEFAULT_STORE = process.env.MONA_POLICY_REGISTRY_STORE || join(homedir(), '.mona-agent', 'policy-registry.json');
 const MAX_REVISIONS = 1000;
