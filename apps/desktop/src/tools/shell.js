@@ -453,8 +453,9 @@ async function executeStages(stages, { cwd, timeoutMs }) {
           prevOut = child.stdout;
         }
         const last = pipes[pipes.length - 1];
-        let out = '', errs = '', outCap = false;
+        let out = '', errs = '', outCap = false, errCap = false, timedOut = false;
         const timer = setTimeout(() => {
+          timedOut = true;
           for (const p of pipes) { try { process.kill(-p.pid, 'SIGKILL'); } catch {} }
         }, timeoutMs);
         last.stdout.on('data', (d) => {
@@ -465,7 +466,10 @@ async function executeStages(stages, { cwd, timeoutMs }) {
         });
         for (const p of pipes) {
           p.stderr.on('data', (d) => {
-            errs = (errs + d.toString()).slice(0, STDOUT_CAP);
+            if (!errCap) {
+              errs += d.toString();
+              if (errs.length > STDOUT_CAP) { errs = errs.slice(0, STDOUT_CAP); errCap = true; }
+            }
           });
         }
         const exits = await Promise.all(pipes.map((p) => new Promise((r) => p.on('close', () => r(p.exitCode ?? 1)))));
@@ -474,18 +478,23 @@ async function executeStages(stages, { cwd, timeoutMs }) {
         lastExit = exits[exits.length - 1] === 0 ? 0 : 1;
         accumulated += out.slice(0, RESULT_STDOUT);
         lastStderr = errs.slice(0, RESULT_STDERR);
+        results.push({ timedOut, capHit: outCap || errCap });
       }
     }
     i += group.length;
   }
 
   const failed = results.find((r) => r.error);
+  const timedOut = results.some((r) => r.timedOut);
+  const capHit = results.some((r) => r.capHit);
   return {
     exitCode: lastExit,
     stdout: accumulated,
     stderr: lastStderr,
     error: failed?.error || null,
     allowed: failed?.allowed || null,
+    timedOut,
+    capHit,
   };
 }
 

@@ -10,7 +10,8 @@
 //     can drive the same registry (registry.toSchemas({ dialect }))
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { log } from '../log.js';
 import { Policy, RunStore } from '@mona/engine';
 import { defineTool, isTool } from './define.js';
@@ -194,10 +195,21 @@ export class ToolRegistry {
 }
 
 /**
+ * Validate a tool package manifest before its module is ever imported. A
+ * package without a "monaAgent.tools" declaration is not a tool package, so
+ * its top-level code must never run.
+ */
+function verifyManifest(pkg) {
+  return Boolean(pkg && typeof pkg === 'object' && pkg.monaAgent && pkg.monaAgent.tools);
+}
+
+/**
  * Discover external tool packages:
- *  - node_modules/mona-agent-tool-* with a "monaAgent.tools" manifest
- *  - extra paths from MONA_TOOL_PATH (comma separated)
- * Returns descriptors (module default export or named tools).
+ *  - <install-dir>/node_modules/mona-agent-tool-* with a valid manifest
+ *  - explicit paths from MONA_TOOL_PATH (comma separated)
+ * Never from process.cwd() — importing a package runs its top-level code, so
+ * discovery is confined to the installation directory and explicitly
+ * configured paths.
  * @returns {Promise<any[]>}
  */
 export async function discoverExternalTools(extraPaths = []) {
@@ -214,7 +226,7 @@ export async function discoverExternalTools(extraPaths = []) {
       try {
         if (!existsSync(pkgPath)) continue;
         const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-        if (!pkg.monaAgent?.tools) continue;
+        if (!verifyManifest(pkg)) continue;
         const mod = await awaitImport(join(dir, entry, pkg.main || 'index.js'));
         const tools = Array.isArray(mod?.default) ? mod.default : mod?.default ? [mod.default] : [];
         for (const t of tools) if (isTool(t)) found.push(t);
@@ -225,9 +237,13 @@ export async function discoverExternalTools(extraPaths = []) {
     }
   };
 
-  await loadDir(join(process.cwd(), 'node_modules'));
+  // The installation directory is the agent's own tree, not whatever cwd the
+  // process happens to be in.
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const installDir = join(__dirname, '..', '..', '..', '..');
+  await loadDir(join(installDir, 'node_modules'));
   for (const p of extraPaths) {
-    await loadDir(p);                 // bare package dir
+    await loadDir(p);                   // bare package dir
     await loadDir(join(p, 'node_modules')); // project root containing node_modules
   }
   return found;
@@ -240,5 +256,6 @@ async function awaitImport(path) {
 // Legacy builtins — registered via the lifting path.
 const BUILTINS = [sysinfo, shell, files, net, apps, browser, web, memory, notify];
 
-/** The singleton registry used by the daemon. */
+/** The registry instance exposed by the SDK and used by the `mona-agent tools`
+ *  CLI — not the daemon's runtime registry (that lives in tools/index.js). */
 export const tools = new ToolRegistry();

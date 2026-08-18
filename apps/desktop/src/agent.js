@@ -1007,22 +1007,9 @@ export class AgentDaemon extends EventEmitter {
       return;
     }
 
-    // Policy gate applies to direct dashboard tool commands too — the same
-    // rules the engine enforces inside the agentic loop.
-    const verdict = this.#policy.check(toolName, toolArgs || {});
-    if (!verdict.allowed) {
-      log.warn(`Tool denied by policy: ${toolName} (${verdict.reason})`);
-      this.#control.result(runId, { error: verdict.reason, policy: verdict.tier });
-      return;
-    }
-    if (toolName === 'shell') {
-      const sv = this.#policy.shellCheck((toolArgs?.cmd) || '');
-      if (!sv.allowed) {
-        log.warn(`Shell command denied by policy: ${sv.reason}`);
-        this.#control.result(runId, { error: sv.reason, policy: sv.tier });
-        return;
-      }
-    }
+    // The policy gate lives in tools.run (the single choke point for daemon,
+    // loop and MCP) — do not check it a second time here or rate limits and
+    // audit entries would double.
 
     this.#control.step('tool.start', { tool: toolName });
     this.emit('tool:start', toolName, toolArgs);
