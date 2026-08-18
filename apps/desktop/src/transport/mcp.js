@@ -8,8 +8,10 @@
 // a cloud task: the local policy file stays the device-side authority.
 // A tool that policy denies returns isError: true, never executes.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { join, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 export const MCP_PROTOCOL_VERSION = '2024-11-05';
@@ -158,8 +160,55 @@ export async function runMcpHttpServer({ registry, port = 4301, host = '127.0.0.
   const http = await import('node:http');
   const server = createMcpServer({ registry });
 
+  // Random per-start bearer token: written 0600 for local MCP clients and
+  // echoed on stdout once. Requests must present it or are rejected 401.
+  const token = randomBytes(32).toString('base64url');
+  try {
+    mkdirSync(join(homedir(), '.mona-agent'), { recursive: true });
+    writeFileSync(join(homedir(), '.mona-agent', 'mcp-token'), token + '\n', { mode: 0o600 });
+  } catch { /* token file is best-effort; stdout still carries the token */ }
+  process.stdout.write(token + '\n');
+
+  // Constant-time token compare over equal-length buffers.
+  const tokenOk = (presented) => {
+    const a = Buffer.from(String(presented || ''));
+    const b = Buffer.from(token);
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  };
+
   const srv = http.createServer(async (req, res) => {
-    if (req.method === 'GET' && (req.url === '/' || req.url === '/healthz')) {
+    // 1) Host-Header whitelist — only the local bind address (kills DNS rebinding).
+    const hostHeader = String(req.headers.host || '');
+    if (hostHeader !== `127.0.0.1:${port}` && hostHeader !== `localhost:${port}`) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end('{"error":"forbidden"}');
+      return;
+    }
+    // 2) Origin rejection — a browser sets Origin; a legitimate MCP client does not.
+    if (req.headers.origin !== undefined) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end('{"error":"forbidden"}');
+      return;
+    }
+
+    // Health check: no token, and no information beyond ok.
+    if (req.method === 'GET' && req.url === '/healthz') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"ok":true}');
+      return;
+    }
+
+    // 3) Bearer token for everything else.
+    const auth = String(req.headers.authorization || '');
+    const m = auth.match(/^Bearer\s+(.+)$/i);
+    if (!m || !tokenOk(m[1].trim())) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end('{"error":"unauthorized"}');
+      return;
+    }
+
+    if (req.method === 'GET' && req.url === '/') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ name: 'mona-agent', protocolVersion: MCP_PROTOCOL_VERSION, version: SERVER_VERSION, transport: 'http' }));
       return;

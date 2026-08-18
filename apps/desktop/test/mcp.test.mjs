@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
+import http from 'node:http';
 
 const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-mcp-'));
 process.env.HOME = FAKE_HOME;
@@ -17,6 +18,24 @@ fs.writeFileSync(process.env.MONA_POLICY, JSON.stringify({ version: 1, tools: { 
 const { tools: allowRegistry } = await import('../src/tools/index.js');
 const { createMcpServer, argsToSchema, toolToMcpSchema, runMcpHttpServer } = await import('../src/transport/mcp.js');
 const allowServer = createMcpServer({ registry: allowRegistry });
+
+/** Raw HTTP request with full header control (for Host/Origin cases). */
+function rawRequest({ port, path = '/', method = 'GET', headers = {}, body = null }) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, path, method, headers }, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => {
+        let json = null;
+        try { json = JSON.parse(data); } catch { /* not json */ }
+        resolve({ status: res.statusCode, body: data, json });
+      });
+    });
+    req.on('error', reject);
+    if (body != null) req.write(body);
+    req.end();
+  });
+}
 
 describe('MCP transport', () => {
   it('argsToSchema converts mona freeform args to JSON Schema', () => {
@@ -89,27 +108,60 @@ describe('MCP transport', () => {
     assert.equal(s.inputSchema.properties.path.type, 'string');
   });
 
-  it('HTTP transport serves JSON-RPC over POST /mcp', async () => {
-    const stop = await runMcpHttpServer({ registry: allowRegistry, port: 4398 });
+  it('HTTP transport authenticates with a bearer token and host whitelist', async () => {
+    const port = 4398;
+    const stop = await runMcpHttpServer({ registry: allowRegistry, port });
     try {
-      const info = await fetch('http://127.0.0.1:4398/');
-      assert.equal(info.status, 200);
-      const infoJ = await info.json();
-      assert.equal(infoJ.name, 'mona-agent');
+      const token = fs.readFileSync(path.join(FAKE_HOME, '.mona-agent', 'mcp-token'), 'utf8').trim();
+      assert.ok(token.length >= 32, 'token must be generated and persisted');
 
-      const r = await fetch('http://127.0.0.1:4398/mcp', {
-        method: 'POST',
+      // No token → 401.
+      const noToken = await rawRequest({
+        port, path: '/mcp', method: 'POST',
         headers: { 'content-type': 'application/json' },
+        body: '{}',
+      });
+      assert.equal(noToken.status, 401);
+
+      // Wrong Host → 403 (DNS rebinding).
+      const badHost = await rawRequest({
+        port, path: '/mcp', method: 'POST',
+        headers: { host: `evil.example:${port}`, authorization: `Bearer ${token}` },
+        body: '{}',
+      });
+      assert.equal(badHost.status, 403);
+
+      // Browser Origin → 403 even with a valid token.
+      const withOrigin = await rawRequest({
+        port, path: '/mcp', method: 'POST',
+        headers: { origin: 'https://evil.example', 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: '{}',
+      });
+      assert.equal(withOrigin.status, 403);
+
+      // /healthz stays token-free and information-free.
+      const hz = await rawRequest({ port, path: '/healthz' });
+      assert.equal(hz.status, 200);
+      assert.deepEqual(hz.json, { ok: true });
+
+      // Valid token + correct host → normal JSON-RPC result.
+      const ok = await rawRequest({
+        port, path: '/mcp', method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
         body: JSON.stringify({ jsonrpc: '2.0', id: 100, method: 'tools/list' }),
       });
-      const j = await r.json();
-      assert.equal(j.id, 100);
-      assert.ok(Array.isArray(j.result.tools));
-      assert.ok(j.result.tools.some((t) => t.name === 'sysinfo'));
+      assert.equal(ok.status, 200);
+      assert.equal(ok.json.id, 100);
+      assert.ok(Array.isArray(ok.json.result.tools));
+      assert.ok(ok.json.result.tools.some((t) => t.name === 'sysinfo'));
 
-      const bad = await fetch('http://127.0.0.1:4398/mcp', { method: 'POST', body: 'not json' });
-      const bj = await bad.json();
-      assert.equal(bj.error.code, -32700);
+      // Malformed JSON with a valid token → parse error.
+      const bad = await rawRequest({
+        port, path: '/mcp', method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: 'not json',
+      });
+      assert.equal(bad.json.error.code, -32700);
     } finally {
       await stop();
     }
