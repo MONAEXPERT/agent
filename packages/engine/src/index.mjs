@@ -7,7 +7,7 @@ export { Policy, PRESETS, auditWrite, auditVerify } from './policy.js';
 export { PolicyRegistry, normalisePolicyRevision } from './policy-registry.js';
 export { Budget } from './budget.js';
 export { MemoryStore } from './memory.js';
-export { TaskLoop, parseBrainReply, compactMessages } from './loop.js';
+export { TaskLoop, parseBrainReply, compactMessages, normaliseToolResult } from './loop.js';
 export { runSubtasks, buildSubSystemPrompt, MAX_SUBTASKS, MAX_SUB_PROMPT, MAX_SUB_STEPS } from './delegate.js';
 export { runWorkflow, validatePhases, buildPhaseContext, MAX_PHASES } from './workflow.js';
 export { GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, normaliseGoal, MAX_GOAL_ROUNDS, MAX_OBJECTIVE } from './goal.js';

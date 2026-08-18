@@ -4,12 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
-let VectorStore, MemoryStore, compactMessages, embed, cosine;
+let VectorStore, MemoryStore, compactMessages, normaliseToolResult, embed, cosine;
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-vector-'));
 
 before(async () => {
-  ({ VectorStore, MemoryStore, compactMessages, embed, cosine } = await import('../src/index.mjs'));
+  ({ VectorStore, MemoryStore, compactMessages, normaliseToolResult, embed, cosine } = await import('../src/index.mjs'));
 });
 
 describe('vector embedding', () => {
@@ -127,6 +127,26 @@ describe('MemoryStore hybrid vector recall', () => {
   });
 });
 
+describe('tool result normalization', () => {
+  it('detects structured failures without trusting error-like strings', () => {
+    assert.equal(normaliseToolResult({ message: 'the word error is documentation', ok: true }).failed, false);
+    assert.equal(normaliseToolResult({ ok: false, message: 'denied' }).failed, true);
+    assert.equal(normaliseToolResult({ exitCode: 2, stderr: 'failed' }).failed, true);
+  });
+
+  it('bounds circular and oversized results while preserving terminal evidence', () => {
+    const circular = { ok: true };
+    circular.self = circular;
+    assert.match(normaliseToolResult(circular).text, /\[circular\]/);
+    const result = normaliseToolResult({ output: 'x'.repeat(5000), error: 'permission denied', path: '/important/file' }, { maxChars: 500 });
+    assert.equal(result.failed, true);
+    assert.equal(result.truncated, true);
+    assert.ok(result.text.length <= 500);
+    assert.match(result.text, /permission denied/);
+    assert.match(result.text, /important\/file/);
+  });
+});
+
 describe('compactMessages', () => {
   const mk = (n) => {
     const msgs = [
@@ -159,14 +179,24 @@ describe('compactMessages', () => {
     assert.ok(r.shortened > 0, `shortened=${r.shortened}`);
   });
 
-  it('drops the middle entirely when compression is not enough', () => {
+  it('preserves terminal tool evidence when compressing a middle result', () => {
+    const messages = mk(3);
+    messages[3].content = `TOOL RESULT (shell):\n${'generic output '.repeat(80)} FINAL exitCode=1 error=permission-denied path=/important/file`;
+    const r = compactMessages(messages, { maxChars: 2400, keepHead: 2, keepTail: 2, maxLen: 420 });
+    const compacted = r.messages.find((m) => m.content.includes('[tool result compressed]'));
+    assert.ok(compacted);
+    assert.match(compacted.content, /partial evidence/);
+    assert.match(compacted.content, /permission-denied/);
+    assert.match(compacted.content, /important\/file/);
+  });
+
+  it('marks omitted middle turns when compression is not enough', () => {
     const msgs = mk(12);
     const r = compactMessages(msgs, { maxChars: 400, keepHead: 2, keepTail: 2 });
     assert.equal(r.compressed, true);
     assert.ok(r.dropped > 0, `dropped=${r.dropped}`);
     assert.ok(r.after < r.before);
-    // head + tail only
-    assert.equal(r.messages.length, 4);
     assert.equal(r.messages[1].content, 'the original task');
+    assert.ok(r.messages.some((m) => m.content.includes('earlier turns omitted')));
   });
 });

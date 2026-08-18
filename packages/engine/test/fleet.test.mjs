@@ -26,8 +26,8 @@ describe('FleetController end-to-end workflow', () => {
     assert.equal(f.verifyCredential(device.id, 'secret').ok, true);
 
     // Grant JIT access to an operator for the device's tenant.
-    f.grant({ principal: 'bob', role: 'operator', expiresAt: '2099-01-01T00:00:00Z', auditor: 'alice' });
-    assert.equal(f.checkAccess('bob', 'shell').allowed, true);
+    f.grant({ tenantId: 't', principal: 'bob', role: 'operator', expiresAt: '2099-01-01T00:00:00Z', auditor: 'alice' });
+    assert.equal(f.checkAccess('bob', 'shell', { tenantId: 't' }).allowed, true);
 
     // Drive a durable run with a checkpoint and a safe rollback.
     const run = f.createRun({ task: 'restart web-1' });
@@ -60,11 +60,11 @@ describe('FleetController end-to-end workflow', () => {
       upgradeStore: p('upgrades2'),
     });
     const device = f.enroll({ tenantId: 't', credential: 'secret' });
-    const grant = f.grant({ principal: 'carol', role: 'admin', expiresAt: '2099-01-01T00:00:00Z' });
-    assert.equal(f.checkAccess('carol', 'shell').allowed, true);
+    const grant = f.grant({ tenantId: 't', principal: 'carol', role: 'admin', expiresAt: '2099-01-01T00:00:00Z' });
+    assert.equal(f.checkAccess('carol', 'shell', { tenantId: 't' }).allowed, true);
 
     f.revokeGrant(grant.id, { reason: 'done' });
-    assert.equal(f.checkAccess('carol', 'shell').allowed, false);
+    assert.equal(f.checkAccess('carol', 'shell', { tenantId: 't' }).allowed, false);
 
     f.revokeDevice(device.id, { reason: 'decommission' });
     assert.equal(f.verifyCredential(device.id, 'secret').ok, false);
