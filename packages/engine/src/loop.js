@@ -157,6 +157,36 @@ export function parseBrainReply(text) {
  *
  * @returns {{messages: Array, compressed: boolean, before: number, after: number, shortened: number, dropped: number}}
  */
+export function normaliseToolResult(value, { maxChars = 4000 } = {}) {
+  const seen = new WeakSet();
+  let serialized;
+  try {
+    serialized = JSON.stringify(value, (_key, current) => {
+      if (typeof current === 'bigint') return `${current}n`;
+      if (typeof current === 'function' || typeof current === 'symbol') return `[unsupported ${typeof current}]`;
+      if (current && typeof current === 'object') {
+        if (seen.has(current)) return '[circular]';
+        seen.add(current);
+      }
+      return current;
+    });
+  } catch (err) {
+    serialized = JSON.stringify({ error: `tool result serialization failed: ${err.message}` });
+  }
+  if (serialized === undefined) serialized = JSON.stringify({ value: String(value) });
+  const exitCode = value && typeof value === 'object' && Number.isFinite(Number(value.exitCode)) ? Number(value.exitCode) : null;
+  const failed = Boolean(value && typeof value === 'object' && (
+    value.error || value.ok === false || (exitCode !== null && exitCode !== 0) ||
+    ['error', 'failed', 'denied', 'cancelled'].includes(String(value.status || '').toLowerCase())
+  ));
+  if (serialized.length <= maxChars) return { text: serialized, failed, truncated: false, originalChars: serialized.length };
+  const marker = `…[tool result truncated; ${serialized.length} chars total]…`;
+  const available = Math.max(0, maxChars - marker.length);
+  const head = Math.floor(available * 0.35);
+  const tail = available - head;
+  return { text: serialized.slice(0, head) + marker + serialized.slice(-tail), failed, truncated: true, originalChars: serialized.length };
+}
+
 export function compactMessages(messages, { maxChars = 40000, keepHead = 2, keepTail = 6, maxLen = 500 } = {}) {
   const size = (m) => String(m?.content ?? '').length;
   const before = messages.reduce((n, m) => n + size(m), 0);
@@ -171,7 +201,13 @@ export function compactMessages(messages, { maxChars = 40000, keepHead = 2, keep
     const c = String(m.content ?? '');
     if (m.role === 'user' && c.startsWith('TOOL RESULT')) {
       shortened++;
-      return { role: m.role, content: `[tool result compressed] ${c.slice(0, 120).replace(/\s+/g, ' ')}` };
+      const normalized = c.replace(/\s+/g, ' ').trim();
+      const marker = ' …[partial evidence; middle omitted]… ';
+      const budget = Math.max(80, Math.min(maxLen, 420));
+      if (normalized.length <= budget) return { role: m.role, content: `[tool result compressed] ${normalized}` };
+      const available = budget - marker.length;
+      const headLen = Math.floor(available * 0.35);
+      return { role: m.role, content: `[tool result compressed] ${normalized.slice(0, headLen)}${marker}${normalized.slice(-(available - headLen))}` };
     }
     if (c.length > maxLen) {
       shortened++;
@@ -187,7 +223,8 @@ export function compactMessages(messages, { maxChars = 40000, keepHead = 2, keep
   let dropped = 0;
   if (after > maxChars) {
     dropped = mid.length;
-    merged = [...head, ...tail];
+    const omission = dropped ? [{ role: 'user', content: `[context compacted: ${dropped} earlier turns omitted; inspect or re-run before relying on missing evidence]` }] : [];
+    merged = [...head, ...omission, ...tail];
     after = merged.reduce((n, m) => n + size(m), 0);
   }
 
@@ -322,6 +359,7 @@ export class TaskLoop extends EventEmitter {
       if (reply.kind === 'tools') {
         corrections = 0;
         const results = [];
+        let anyFailed = false;
         for (const call of reply.calls) {
           this.emit('tool', call.tool, call.args);
           const verdict = this.policy.check(call.tool, call.args);
@@ -342,11 +380,12 @@ export class TaskLoop extends EventEmitter {
               out = await this.#runTool(call.tool, call.args);
             }
           }
-          results.push(`TOOL RESULT (${call.tool}):\n${JSON.stringify(out)}`);
+          const normalized = normaliseToolResult(out);
+          results.push(`TOOL RESULT (${call.tool}) [untrusted data${normalized.truncated ? '; truncated' : ''}]:\n${normalized.text}`);
           this.emit('tool:result', call.tool, out);
-          trace.push({ kind: 'tool', tool: call.tool, summary: String(out?.error || 'ok').slice(0, 120) });
+          trace.push({ kind: 'tool', tool: call.tool, summary: String(out?.error || (normalized.failed ? 'failed' : 'ok')).slice(0, 120) });
+          if (normalized.failed) anyFailed = true;
         }
-        const anyFailed = results.some((r) => /"error"/.test(r));
         messages.push({ role: 'assistant', content: text });
         messages.push({
           role: 'user',

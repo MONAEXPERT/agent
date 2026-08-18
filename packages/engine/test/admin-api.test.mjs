@@ -36,9 +36,10 @@ describe('AdminApi', () => {
     assert.equal(enrolled.ok, true);
     assert.equal(enrolled.data.tenantId, 'tenant-a');
 
-    const grant = service.dispatch('grant', { principal: 'operator-1', role: 'operator', tools: ['status'], ttlMs: 60_000 });
+    const grant = service.dispatch('grant', { tenantId: 'tenant-a', principal: 'operator-1', role: 'operator', tools: ['status'], ttlMs: 60_000 });
     assert.equal(grant.ok, true);
-    assert.equal(service.dispatch('checkAccess', { principal: 'operator-1', tool: 'status' }).data.allowed, true);
+    assert.equal(service.dispatch('checkAccess', { tenantId: 'tenant-a', principal: 'operator-1', tool: 'status' }).data.allowed, true);
+    assert.equal(service.dispatch('checkAccess', { tenantId: 'tenant-b', principal: 'operator-1', tool: 'status' }).data.allowed, false);
 
     const run = service.dispatch('createRun', { task: 'inspect disk', correlationId: 'corr-admin-api' });
     assert.equal(run.ok, true);
