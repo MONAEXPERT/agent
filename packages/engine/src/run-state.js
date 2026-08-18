@@ -121,6 +121,8 @@ export function retryDecision(attempt) {
   return { retryable: false, reason: 'side effect requires idempotency key or completed compensation' };
 }
 
+export const RUN_STATE = Object.freeze({ CREATED: 'created', PLANNED: 'planned', RUNNING: 'running', AWAITING_APPROVAL: 'awaiting_approval', VERIFYING: 'verifying', ROLLING_BACK: 'rolling_back', SUSPENDED: 'suspended', SUCCEEDED: 'succeeded', FAILED: 'failed', CANCELLED: 'cancelled', ROLLED_BACK: 'rolled_back' });
+
 export class RunStore {
   constructor({ storePath = DEFAULT_STORE } = {}) {
     const existing = _instances.get(storePath);
