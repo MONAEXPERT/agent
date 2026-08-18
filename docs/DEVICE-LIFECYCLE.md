@@ -41,3 +41,146 @@ Covers enrollment, revocation, inventory, health, and tenant isolation (backlog 
 - Native package signing (RPM/DEB), install/upgrade/rollback workflows, and a known-good previous-version rollback path.
 
 **Done when:** every declared Windows and Linux target passes its lifecycle and security acceptance tests.
+
+---
+
+## Capability grants
+
+This document is the device↔control-plane contract for **remote capability
+extension**. It defines how a signed capability grant is produced (server
+side, in Sngine), what it contains, and how the device verifies and applies it.
+
+The device-side implementation lives in `packages/engine/src/capability-grant.js`
+and is wired into the daemon in `apps/desktop/src/agent.js`.
+
+## Model
+
+The device owner controls an **owner ceiling** in `policy.json` (editable only
+on the device). The control plane may *request* additional capabilities, but a
+grant only ever takes effect where it **intersects** the ceiling:
+
+```
+effective = base allowlist  ∪  ( grant  ∩  owner ceiling )
+```
+
+The intersection wins, never the union. If the `capabilities` block is absent
+from `policy.json`, remote extension is **off** — deny by default. There is no
+environment-variable fallback and no default `true`.
+
+## Owner ceiling (policy.json)
+
+```jsonc
+{
+  "capabilities": {
+    "allowRemoteExtension": true,
+    "grantPublicKey": "-----BEGIN PUBLIC KEY-----\n…",   // or an array for rotation
+    "maxTtlSec": 900,
+    "requireMfa": ["totp", "webauthn"],                // empty = any method
+    "ceiling": {
+      "shell": { "allow": ["git", "npm", "docker"] },
+      "paths": { "allow": ["~/Projects", "~/Documents"] },
+      "tools": ["sysinfo", "files", "shell", "net", "web", "memory", "vector"]
+    }
+  }
+}
+```
+
+## Grant production (Sngine side)
+
+- The grant is produced **server-side, after** a successful 2FA step-up of the
+  account owner. The signing key lives only in the control plane; it is **never
+  present in the browser/frontend**.
+- A step-up authorizes **one grant**, not a session. The frame is "extended
+  rights for the next N minutes for this one task", never "until logout".
+- Before the owner confirms the 2FA challenge, the UI shows **in plaintext**
+  exactly what is being granted — each command and each path, individually —
+  never a generic "extended rights" label.
+
+### Grant payload
+
+```jsonc
+{
+  "v": 1,
+  "tenantId": "…",
+  "deviceFingerprint": "sha256-hex",   // binds to one device
+  "runId": "run_…",                    // binds to exactly one task
+  "grant": {
+    "shell": { "allow": ["docker"] },
+    "paths": { "allow": ["~/Projects/foo"] },
+    "tools": ["shell", "files"]
+  },
+  "mfa": { "method": "totp", "verifiedAt": "2026-08-18T09:12:03Z", "sessionId": "…" },
+  "issuedAt": "2026-08-18T09:12:05Z",
+  "expiresAt": "2026-08-18T09:27:05Z",
+  "nonce": "base64url-16-bytes",
+  "sig": "base64url-ed25519-signature"
+}
+```
+
+### Signature (domain-separated)
+
+The signature is Ed25519 over the canonical, deterministic serialization of the
+payload (all fields except `sig`), prefixed with the context string
+`mona-capability-grant-v1`:
+
+```
+signing_input = "mona-capability-grant-v1\n" + canonical(payload)
+sig           = ed25519_sign(privateKey, signing_input)  // base64url
+```
+
+`canonical()` sorts object keys recursively and serializes with no whitespace,
+so the signer and verifier always agree on the exact bytes. The distinct
+context string means an enrollment signature can never be replayed as a
+capability grant, and vice versa.
+
+### Device fingerprint
+
+The fingerprint binds a grant to one device. Until a device keypair/enrollment
+exists, the fingerprint is derived deterministically from the agent's
+registration id:
+
+```
+deviceFingerprint = sha256("mona-device:" + agentId)
+```
+
+The control plane computes the same value from the agent id it already holds.
+When a device keypair/enrollment lands, `grantPublicKey`/fingerprint derivation
+should be superseded by that key — without changing the rest of this contract.
+
+## Device-side verification
+
+Order is part of the contract and every stage is fail-closed:
+
+1. `allowRemoteExtension === true`, else discard immediately.
+2. Ed25519 signature against `grantPublicKey` (any key in the array). Failure
+   rejects — the task then runs with base rights only and the grant is audited
+   as `rejected`.
+3. `deviceFingerprint` matches this device.
+4. `tenantId` matches the registered tenant.
+5. `runId` matches the run that is starting.
+6. `expiresAt` in the future, `expiresAt − issuedAt ≤ maxTtlSec`, `issuedAt`
+   not more than 120 s in the future (clock skew).
+7. `mfa.method` ∈ `requireMfa` (empty = any), `mfa.verifiedAt` no older than
+   `maxTtlSec`.
+8. `nonce` not seen before — a Map-with-TTL replay cache.
+9. Intersect `grant` with the ceiling.
+
+`security: "locked"` on the task short-circuits the whole path: no grant is
+verified or applied, and the run is forced to the most restrictive posture.
+
+## Key rotation
+
+`capabilities.grantPublicKey` may be an array. The verifier accepts a signature
+under **any** key in the array, so a key rollover can be done without downtime:
+
+1. Publish the new public key as a second array entry and dual-sign grants
+   during the transition.
+2. Stop signing with the old key.
+3. Remove the old key from `policy.json`.
+
+## Audit
+
+Every grant decision is written to the local hash-chained audit log with
+`kind: "capability-grant"`, the run id, verdict (`accepted`/`rejected`), reason,
+a `grantHash` (sha256 of the canonical grant), the MFA method, and the
+effective capabilities that survived the ceiling intersection.

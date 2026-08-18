@@ -10,6 +10,7 @@
 // dashboard (never silent).
 
 import { EventEmitter } from 'node:events';
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -22,7 +23,7 @@ import { setAgentRoots } from './tools/files.js';
 import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
-import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, runWorkflow, RunStore } from '@mona/engine';
+import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, runWorkflow, RunStore, resolveCapabilityGrant } from '@mona/engine';
 import { TaskQueue } from './taskqueue.js';
 import { configureDelegateRunner } from './tools/delegate.js';
 import { configureGoalRunner } from './tools/goal.js';
@@ -146,6 +147,10 @@ export class AgentDaemon extends EventEmitter {
   // Recent task ids (runId) — guards against double-enqueuing a task the
   // server still lists as pending after we claimed it.
   #recentTasks = new Map();
+  // Nonce replay cache for capability grants (per-process, like command frames).
+  #grantReplay = new Map();
+  // Stable device fingerprint for capability-grant binding (sha256 of agentId).
+  #deviceFingerprint = null;
   // Owner-configurable reasoning profile (set from the cloud per poll).
   #brain = { maxSteps: 8, temperature: 0.4, extraRules: '', verify: true };
   // Delegation: sub-agents spawned by the `delegate` tool. Depth-limited so
@@ -169,6 +174,12 @@ export class AgentDaemon extends EventEmitter {
   constructor(creds) {
     super();
     this.#creds = creds;
+    // Capability grants bind to this device via a stable fingerprint derived
+    // from the agent's registration id (the control plane computes the same
+    // value). A device keypair/enrollment would supersede this derivation.
+    this.#deviceFingerprint = createHash('sha256')
+      .update(`mona-device:${this.#creds?.agentId || ''}`)
+      .digest('hex');
 
     // BYO-key local brain: MONA_TRANSPORT=local fails fast when nothing is
     // configured; otherwise a provider.json enables it automatically.
@@ -627,11 +638,11 @@ export class AgentDaemon extends EventEmitter {
       ...(cloudTask?.brain || {}),
     };
 
-    // Per-agent capability profile (sent by the control plane with the task):
-    //   { tools?: string[], skills?: {name,description,instructions}[],
-    //     shell?: { allow?: string[] }, paths?: { allow?: string[] } }
-    // The profile can only ADD device permissions — the local policy file
-    // remains the final authority (cloud can never widen policy).
+    // Per-agent capability profile (sent by the control plane with the task).
+    // The old direct shell.allow / paths.allow fields are gone: remote
+    // capability extension now requires a signed grant that is verified and
+    // intersected with the owner's local ceiling (packages/engine
+    // capability-grant.js). The intersection wins, never the union.
     const agentCaps = cloudTask?.capabilities && typeof cloudTask.capabilities === 'object'
       ? cloudTask.capabilities : null;
     const taskSkills = Array.isArray(cloudTask?.skills) ? cloudTask.skills : [];
@@ -641,8 +652,27 @@ export class AgentDaemon extends EventEmitter {
     // apps/notify tools, no extra commands, no extra roots, no skills.
     const locked = agentCaps?.security === 'locked';
     const LOCKED_TOOLS = ['sysinfo', 'files', 'memory'];
-    setAgentShellAllow(locked ? [] : (agentCaps?.shell?.allow || null));
-    setAgentRoots(locked ? [] : (agentCaps?.paths?.allow || null));
+    const resolved = resolveCapabilityGrant(agentCaps, {
+      policy: this.#policy,
+      deviceFingerprint: this.#deviceFingerprint,
+      tenantId: this.#creds.tenantId || null,
+      runId,
+      seen: this.#grantReplay,
+    });
+    if (resolved.verdict) {
+      const v = resolved.verdict;
+      auditWrite({
+        kind: 'capability-grant',
+        runId,
+        verdict: v.ok ? 'accepted' : 'rejected',
+        reason: v.reason || '',
+        grantHash: v.grantHash,
+        mfaMethod: v.mfa?.method || null,
+        granted: v.effective || null, // what remained AFTER the ceiling intersection
+      });
+    }
+    setAgentShellAllow(resolved.effective.shell.allow.length ? resolved.effective.shell.allow : null);
+    setAgentRoots(resolved.effective.paths.allow.length ? resolved.effective.paths.allow : null);
     this.#activeTools = locked
       ? tools.list().filter((t) => LOCKED_TOOLS.includes(t.name))
       : (agentCaps && Array.isArray(agentCaps.tools) && agentCaps.tools.length
@@ -887,12 +917,6 @@ export class AgentDaemon extends EventEmitter {
       }
     } catch (err) {
       this.#stats.errors++;
-      setAgentShellAllow(null);
-    setAgentRoots(null);
-    this.#activeTools = null;
-    this.#activeSkills = null;
-    this.#locked = false;
-    this.#currentTask = null;
       this.#control.step('task.error', { error: err.message });
       this.emit('task:error', err);
       log.error(`Think failed: ${err.message}`);
@@ -917,6 +941,16 @@ export class AgentDaemon extends EventEmitter {
       if (cloudTask) await this.#reportResult(cloudTask, msg, steps, { runId, usage: usageTotals, model: lastModel, provider: lastProvider });
       endSpan(taskSpan, false);
       return;
+    } finally {
+      // Always clear the per-task capability grants and locked posture, even
+      // when the task threw — the next task must start from the device
+      // baseline, never the previous task's extension.
+      setAgentShellAllow(null);
+      setAgentRoots(null);
+      this.#activeTools = null;
+      this.#activeSkills = null;
+      this.#locked = false;
+      this.#currentTask = null;
     }
 
     try {
@@ -943,7 +977,6 @@ export class AgentDaemon extends EventEmitter {
       this.#memory.remember(`Task: ${String(task).slice(0, 200)}\nResult: ${String(final).slice(0, 400)}`, { tags: ['task'] });
     } catch { /* memory is best-effort */ }
 
-    this.#currentTask = null;
     if (cloudTask) {
       await this.#reportResult(cloudTask, final, steps, { runId, usage: usageTotals, model: lastModel, provider: lastProvider });
     }

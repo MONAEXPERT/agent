@@ -28,7 +28,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync, appendFileSync, mkdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 
 const DEFAULT_POLICY_PATH = process.env.MONA_POLICY || join(homedir(), '.mona-agent', 'policy.json');
 const DEFAULT_AUDIT_PATH  = process.env.MONA_AUDIT  || join(homedir(), '.mona-agent', 'audit.jsonl');
@@ -363,6 +363,26 @@ export class Policy {
     this.auditEnabled = r.audit !== false;
     this.auditPath = typeof r.auditPath === 'string' ? r.auditPath : DEFAULT_AUDIT_PATH;
     this.rateLimiter = new RateLimiter(r.rateLimits && typeof r.rateLimits === 'object' ? r.rateLimits : {});
+
+    // Capability-grant ceiling (Fix 3): the device owner's hard upper bound on
+    // what a remote capability grant may ever request. Remote extension is
+    // OFF unless the owner explicitly enables it — no env fallback, no default
+    // true. Ceiling paths are normalized (expandTilde + resolve).
+    const caps = r.capabilities && typeof r.capabilities === 'object' ? r.capabilities : {};
+    this.capabilities = {
+      allowRemoteExtension: caps.allowRemoteExtension === true,
+      grantPublicKey: (Array.isArray(caps.grantPublicKey)
+        ? caps.grantPublicKey
+        : (typeof caps.grantPublicKey === 'string' && caps.grantPublicKey ? [caps.grantPublicKey] : []))
+        .map(String).filter(Boolean),
+      maxTtlSec: Number(caps.maxTtlSec) > 0 ? Number(caps.maxTtlSec) : 900,
+      requireMfa: Array.isArray(caps.requireMfa) ? caps.requireMfa.map(String).filter(Boolean) : [],
+      ceiling: {
+        shell: { allow: (caps.ceiling?.shell?.allow || []).map(String).filter(Boolean) },
+        paths: { allow: (caps.ceiling?.paths?.allow || []).map((p) => resolve(expandTilde(String(p)))).filter(Boolean) },
+        tools: (caps.ceiling?.tools || []).map(String).filter(Boolean),
+      },
+    };
 
     // P3 rules layer: when a rules array is present it is authoritative
     // (first-match-wins, deny-by-default). Legacy `tools` map still works

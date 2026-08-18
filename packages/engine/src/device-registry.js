@@ -28,7 +28,7 @@ export function hashCredential(secret) {
 const IDENTITY_CONTEXT = 'mona-device-identity-v1';
 const CREDENTIAL_BYTES = 32;
 
-function canonical(value) {
+export function canonical(value) {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
