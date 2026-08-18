@@ -117,6 +117,28 @@ describe('MemoryStore hybrid vector recall', () => {
     assert.equal(m.recall('secret').length, 0);
   });
 
+  it('tracks provenance and excludes revoked memories from recall', () => {
+    const m = new MemoryStore({ storePath: path.join(TMP, 'mem-provenance.json') });
+    const entry = m.remember('production database is atlas', { source: 'user', scope: 'project-a', confidence: 0.95, sensitivity: 'internal' });
+    const hit = m.recall('production database', { limit: 1 })[0];
+    assert.equal(hit.id, entry.id);
+    assert.equal(hit.source, 'user');
+    assert.equal(hit.scope, 'project-a');
+    assert.equal(hit.confidence, 0.95);
+    assert.equal(hit.sensitivity, 'internal');
+    assert.equal(m.revoke(entry.id), true);
+    assert.equal(m.recall('production database').length, 0);
+  });
+
+  it('permanently removes a memory when explicitly forgotten', () => {
+    const storePath = path.join(TMP, 'mem-forget.json');
+    const m = new MemoryStore({ storePath });
+    const entry = m.remember('temporary deployment note');
+    assert.equal(m.remove(entry.id), true);
+    assert.equal(m.get(entry.id), null);
+    assert.equal(new MemoryStore({ storePath }).get(entry.id), null);
+  });
+
   it('loads legacy entries without stored vectors (lazy embedding)', () => {
     const p = path.join(TMP, 'mem-legacy.json');
     fs.writeFileSync(p, JSON.stringify({ entries: [{ id: 'old1', text: 'legacy note about the wifi password', tags: [], ttlDays: 30, createdAt: Date.now(), hits: 1 }] }));

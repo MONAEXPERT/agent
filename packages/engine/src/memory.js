@@ -58,7 +58,7 @@ export class MemoryStore {
     return e.vector;
   }
 
-  remember(text, { ttlDays = DEFAULT_TTL_DAYS, tags = [] } = {}) {
+  remember(text, { ttlDays = DEFAULT_TTL_DAYS, tags = [], source = 'agent', scope = 'local', confidence = 0.5, sensitivity = 'normal' } = {}) {
     const body = String(text || '').trim();
     if (!body) return null;
 
@@ -70,7 +70,12 @@ export class MemoryStore {
         e.vector = v;
         e.createdAt = Date.now();
         e.ttlDays = ttlDays;
-        e.tags = tags;
+        e.tags = Array.isArray(tags) ? tags : [];
+        e.source = String(source || 'agent');
+        e.scope = String(scope || 'local');
+        e.confidence = Math.min(1, Math.max(0, Number(confidence) || 0));
+        e.sensitivity = String(sensitivity || 'normal');
+        e.revoked = false;
         e.hits = (e.hits || 0) + 1;
         this.#save();
         return e;
@@ -82,6 +87,11 @@ export class MemoryStore {
       text: body,
       tags: Array.isArray(tags) ? tags : [],
       ttlDays,
+      source: String(source || 'agent'),
+      scope: String(scope || 'local'),
+      confidence: Math.min(1, Math.max(0, Number(confidence) || 0)),
+      sensitivity: String(sensitivity || 'normal'),
+      revoked: false,
       createdAt: Date.now(),
       hits: 1,
       vector: v,
@@ -102,22 +112,44 @@ export class MemoryStore {
     const now = Date.now();
     const results = [];
     for (const e of this.entries) {
+      if (e.revoked) continue;
       const ageDays = (now - e.createdAt) / 86400000;
       if (ageDays > (e.ttlDays || DEFAULT_TTL_DAYS)) continue;
       const cos = q.length ? cosine(qv, this.#vec(e)) : 0;
       if (q.length && cos < 0.1) continue;
       const recency = Math.max(0, 1 - ageDays / (e.ttlDays || DEFAULT_TTL_DAYS));
       const score = (q.length ? cos * 0.7 : 0.3) + recency * 0.2 + Math.min(0.1, (e.hits || 1) * 0.02);
-      results.push({ text: e.text, score, cosine: Math.round(cos * 1000) / 1000, ageDays, tags: e.tags, createdAt: e.createdAt });
+      results.push({ id: e.id, text: e.text, score, cosine: Math.round(cos * 1000) / 1000, ageDays, tags: e.tags, source: e.source || 'legacy', scope: e.scope || 'local', confidence: Number.isFinite(e.confidence) ? e.confidence : 0.5, sensitivity: e.sensitivity || 'normal', createdAt: e.createdAt });
     }
     results.sort((a, b) => b.score - a.score);
     return results.slice(0, limit);
   }
 
+  get(id) {
+    const entry = this.entries.find((e) => e.id === String(id));
+    return entry ? { ...entry, vector: undefined } : null;
+  }
+
+  revoke(id) {
+    const entry = this.entries.find((e) => e.id === String(id));
+    if (!entry) return false;
+    entry.revoked = true;
+    entry.revokedAt = Date.now();
+    this.#save();
+    return true;
+  }
+
+  remove(id) {
+    const before = this.entries.length;
+    this.entries = this.entries.filter((e) => e.id !== String(id));
+    if (this.entries.length !== before) this.#save();
+    return this.entries.length !== before;
+  }
+
   /** Drop expired entries and cap the total count. */
   prune() {
     const now = Date.now();
-    this.entries = this.entries.filter((e) => (now - e.createdAt) / 86400000 <= (e.ttlDays || DEFAULT_TTL_DAYS));
+    this.entries = this.entries.filter((e) => !e.revoked && (now - e.createdAt) / 86400000 <= (e.ttlDays || DEFAULT_TTL_DAYS));
     if (this.entries.length > this.maxEntries) {
       this.entries.sort((a, b) => (b.hits || 1) - (a.hits || 1) || a.createdAt - b.createdAt);
       this.entries = this.entries.slice(0, this.maxEntries);
