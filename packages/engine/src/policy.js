@@ -22,13 +22,17 @@
 // }
 //
 // Audit log: ~/.mona-agent/audit.jsonl (MONA_AUDIT to override). Hash-chained
-// (h_n = sha256(h_{n-1} || entry)), append-only. Verify with
-// `mona-agent audit verify`.
+// (h_n = sha256(h_{n-1} || entry)), append-only, and ED25519-SIGNED with the
+// device audit key (domain `mona-audit-v1`, see audit-sign.js) — a chain
+// recomputed under a foreign key fails verification. Verify with
+// `mona-agent audit verify`; `mona-agent audit verify --against-cloud`
+// compares against the control plane's stored anchors.
 
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync, appendFileSync, mkdirSync, statSync, openSync, fstatSync, readSync, closeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
+import { signAuditHash, verifyAuditHash, loadOrCreateAuditKey, keyPathFor } from './audit-sign.js';
 
 const DEFAULT_POLICY_PATH = process.env.MONA_POLICY || join(homedir(), '.mona-agent', 'policy.json');
 const DEFAULT_AUDIT_PATH  = process.env.MONA_AUDIT  || join(homedir(), '.mona-agent', 'audit.jsonl');
@@ -224,6 +228,14 @@ function sha256(s) {
 
 let auditSeq = 0;
 let auditPrev = '';
+const auditKeys = new Map(); // key file → loaded device audit key
+
+/** The device audit key for a given log path, lazily loaded/created. */
+function deviceAuditKey(path = DEFAULT_AUDIT_PATH) {
+  const file = keyPathFor(path);
+  if (!auditKeys.has(file)) auditKeys.set(file, loadOrCreateAuditKey(file));
+  return auditKeys.get(file);
+}
 
 /** Read only the final line of the audit log (cheap tail) for chain recovery. */
 function readLastLine(path) {
@@ -271,19 +283,25 @@ export function auditWrite(entry, path = DEFAULT_AUDIT_PATH) {
       prev: auditPrev,
     });
     const hash = sha256(line);
-    const record = { ...JSON.parse(line), hash };
+    const key = deviceAuditKey(path);
+    const record = { ...JSON.parse(line), hash, sig: signAuditHash(hash, key.privateKey), pub: key.publicKey };
     appendFileSync(path, JSON.stringify(record) + '\n', { mode: 0o600 });
     auditPrev = hash;
   } catch { /* audit must never crash the agent */ }
 }
 
 /**
- * Verify the hash chain of an audit log. Returns { ok, checked, brokenAt }.
- * `checked` = number of entries verified; brokenAt = seq of first mismatch.
+ * Verify the hash chain AND every Ed25519 signature of an audit log.
+ * Returns { ok, checked, brokenAt, reason? }. `checked` = number of entries
+ * verified; brokenAt = seq of first mismatch. An entry without a signature
+ * (legacy or stripped) and any signature that fails against the device
+ * audit key are both reported — a chain recomputed under a foreign key
+ * fails at its first entry.
  */
-export function auditVerify(path = DEFAULT_AUDIT_PATH) {
+export function auditVerify(path = DEFAULT_AUDIT_PATH, opts = {}) {
   try {
     if (!existsSync(path)) return { ok: true, checked: 0, brokenAt: null };
+    const key = opts.key || deviceAuditKey(path);
     const lines = readFileSync(path, 'utf8').trim().split('\n').filter(Boolean);
     let prev = '';
     for (let i = 0; i < lines.length; i++) {
@@ -292,6 +310,10 @@ export function auditVerify(path = DEFAULT_AUDIT_PATH) {
       const expected = sha256(JSON.stringify({ seq: rec.seq, ts: rec.ts, ...stripHash(rec), prev: rec.prev }));
       if (rec.hash !== expected) return { ok: false, checked: i, brokenAt: rec.seq, reason: 'hash mismatch' };
       if (rec.prev !== prev)     return { ok: false, checked: i, brokenAt: rec.seq, reason: 'chain break' };
+      if (!rec.sig)              return { ok: false, checked: i, brokenAt: rec.seq, reason: 'missing signature' };
+      if (!verifyAuditHash(rec.hash, rec.sig, key.publicKey)) {
+        return { ok: false, checked: i, brokenAt: rec.seq, reason: 'signature mismatch' };
+      }
       prev = rec.hash;
     }
     return { ok: true, checked: lines.length, brokenAt: null };
@@ -301,7 +323,7 @@ export function auditVerify(path = DEFAULT_AUDIT_PATH) {
 }
 
 function stripHash(rec) {
-  const { hash, ...rest } = rec;
+  const { hash, sig, pub, ...rest } = rec;
   return rest;
 }
 

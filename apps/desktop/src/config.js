@@ -62,6 +62,7 @@ export const CLOUD = {
         agents:     '/api/agents',
         chat:       (id) => `/api/agents/${id}/chat`,
         toolExec:   (id) => `/api/agents/${id}/tool`,
+        auditAnchor: '/api/agents/audit-anchor',
       };
     }
     // Sngine/mona.expert
@@ -73,6 +74,7 @@ export const CLOUD = {
       agents:     '/api/v1/mona/agents',
       chat:       (id) => `/api/v1/mona/agents/${id}/chat`,
       toolExec:   (id) => `/api/v1/mona/agents/${id}/tool`,
+      auditAnchor: '/api/v1/agent/audit-anchor',
     };
   },
 };

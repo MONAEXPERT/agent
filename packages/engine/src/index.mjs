@@ -4,6 +4,7 @@
 // Zero runtime dependencies; every piece is unit-testable offline.
 
 export { Policy, PRESETS, auditWrite, auditVerify } from './policy.js';
+export { AUDIT_DOMAIN, signAuditHash, verifyAuditHash, loadOrCreateAuditKey, keyPathFor, auditHead, anchorDue, compareAnchors } from './audit-sign.js';
 export { PolicyRegistry, normalisePolicyRevision } from './policy-registry.js';
 export { verifyCapabilityGrant, resolveCapabilityGrant, intersectCapabilities, grantSigningInput, GRANT_DOMAIN } from './capability-grant.js';
 export { Budget } from './budget.js';

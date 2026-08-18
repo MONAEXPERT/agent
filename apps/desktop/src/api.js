@@ -141,6 +141,22 @@ export async function think({ apiKey, messages, tools, onChunk, onUsage, signal 
   return full;
 }
 
+// ── Audit anchoring (chain heads to the control plane) ────────────
+// The device sends {seq, hash, signedAt, sig, pub} every N entries / 5 min;
+// the control plane stores them append-only. `audit verify --against-cloud`
+// compares the local chain against these anchors — the device can no longer
+// rewrite its own history without diverging.
+export async function postAuditAnchor(apiKey, head) {
+  const res = await apiFetch(apiKey, P.auditAnchor, { method: 'POST', body: head });
+  return await res.json();
+}
+
+export async function fetchAuditAnchors(apiKey) {
+  const res = await apiFetch(apiKey, P.auditAnchor);
+  const data = await res.json();
+  return Array.isArray(data) ? data : (data?.anchors || []);
+}
+
 // ── Force connection test ─────────────────────────────────────────
 export async function testConnection(apiKey, targetUrl) {
   // Override base temporarily if targetUrl provided
