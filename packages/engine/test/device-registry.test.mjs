@@ -24,10 +24,12 @@ describe('DeviceRegistry enrollment and credential lifecycle', () => {
     assert.equal(r.verifyCredential(d.id, 'wrong').ok, false);
   });
 
-  it('rejects an expired credential', () => {
+  it('rejects expired or malformed credential timestamps', () => {
     const r = new DeviceRegistry({ storePath: storePath('expired') });
     const d = r.enroll({ tenantId: 't-1', credential: 's', credentialExpiresAt: '2000-01-01T00:00:00Z' });
     assert.equal(r.verifyCredential(d.id, 's').ok, false);
+    assert.throws(() => r.enroll({ tenantId: 't-1', credential: 's', credentialExpiresAt: 'not-a-date' }), /valid timestamp/);
+    assert.throws(() => r.rotateCredential(d.id, { credential: 'next', credentialExpiresAt: 'not-a-date' }), /valid timestamp/);
   });
 
   it('rotates a credential atomically and revokes a device immediately', () => {

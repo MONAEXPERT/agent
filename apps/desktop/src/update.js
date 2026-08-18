@@ -31,8 +31,12 @@ const TARBALL = (tag) => `https://github.com/${REPO}/releases/download/${tag}/mo
 const CHECKSUMS = (tag) => `https://github.com/${REPO}/releases/download/${tag}/SHA256SUMS`;
 
 export function verifyChecksum(bytes, manifest, filename) {
-  const line = String(manifest || '').split(/\\r?\\n/).find((item) => /\\s/.test(item) && item.trim().endsWith(` ${filename}`));
-  const expected = line?.trim().split(/\\s+/)[0]?.toLowerCase();
+  const matches = String(manifest || '').split(/\r?\n/).filter((item) => {
+    const fields = item.trim().split(/\s+/);
+    return fields.length === 2 && fields[1].replace(/^\*/, '') === filename;
+  });
+  if (matches.length !== 1) return { ok: false, error: 'Release SHA256SUMS must contain exactly one entry for the archive.' };
+  const expected = matches[0].trim().split(/\s+/)[0]?.toLowerCase();
   if (!/^[a-f0-9]{64}$/.test(expected || '')) return { ok: false, error: 'Release SHA256SUMS has no valid entry for the archive.' };
   const actual = createHash('sha256').update(bytes).digest('hex');
   return actual === expected ? { ok: true } : { ok: false, error: `Release checksum mismatch (expected ${expected}, got ${actual}).` };

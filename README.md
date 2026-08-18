@@ -57,8 +57,8 @@ language:
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg" alt="Node.js 20+"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20%7C%20WSL2-informational.svg" alt="Platforms: macOS, Linux, Windows, WSL2, Raspberry Pi">
   <img src="https://img.shields.io/badge/api%20keys-on%20device-0-red.svg" alt="Zero API keys on device">
-  <img src="https://img.shields.io/badge/version-2.10.x-blueviolet.svg" alt="Version 2.10.x">
-  <img src="https://img.shields.io/badge/tests-160%2B%20incl.%20red--team-brightgreen.svg" alt="160+ tests incl. security red-team suite">
+  <img src="https://img.shields.io/badge/version-2.11.0-blueviolet.svg" alt="Version 2.11.0">
+  <img src="https://img.shields.io/badge/tests-437%20incl.%20red--team-brightgreen.svg" alt="437 tests incl. security red-team suite">
 </p>
 
 ## Security and product status

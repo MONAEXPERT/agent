@@ -36,6 +36,15 @@ describe('JitAccess provisioning and revocation', () => {
     assert.equal(admin.check('root', 'anything').allowed, true, 'admin wildcard covers any tool');
   });
 
+  it('does not let legacy or other-tenant grants authorize a tenant-scoped check', () => {
+    const j = new JitAccess({ storePath: storePath('tenant-isolation') });
+    j.grant({ tenantId: '', principal: 'bob', role: 'operator', expiresAt: '2099-01-01T00:00:00Z' });
+    j.grant({ tenantId: 'tenant-a', principal: 'bob', role: 'operator', expiresAt: '2099-01-01T00:00:00Z' });
+    assert.equal(j.check('bob', 'shell').allowed, true, 'legacy caller can read only an unscoped legacy grant');
+    assert.equal(j.check('bob', 'shell', { tenantId: 'tenant-a' }).allowed, true);
+    assert.equal(j.check('bob', 'shell', { tenantId: 'tenant-b' }).allowed, false);
+  });
+
   it('expires a grant at its deadline and refuses unknown roles', () => {
     const j = new JitAccess({ storePath: storePath('expiry') });
     j.grant({ principal: 'bob', role: 'operator', expiresAt: '2000-01-01T00:00:00Z' });
