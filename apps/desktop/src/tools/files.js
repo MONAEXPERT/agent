@@ -35,7 +35,8 @@ export function setAgentRoots(roots) {
     : null;
 }
 function activeRoots() {
-  return AGENT_ROOTS && AGENT_ROOTS.length ? AGENT_ROOTS : [path.resolve(WORKSPACE)];
+  const ws = path.resolve(WORKSPACE);
+  return AGENT_ROOTS?.length ? [ws, ...AGENT_ROOTS] : [ws];
 }
 
 const root = () => activeRoots()[0];
