@@ -20,13 +20,23 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { VERSION, isUpdateAvailable, compareVersions } from './version.js';
 import { PATHS } from './config.js';
 
 export const REPO = 'MONAEXPERT/agent';
 const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const TAGS_URL = `https://api.github.com/repos/${REPO}/tags?per_page=20`;
-const TARBALL = (tag) => `https://github.com/${REPO}/archive/refs/tags/${tag}.tar.gz`;
+const TARBALL = (tag) => `https://github.com/${REPO}/releases/download/${tag}/mona-agent-${tag}.tar.gz`;
+const CHECKSUMS = (tag) => `https://github.com/${REPO}/releases/download/${tag}/SHA256SUMS`;
+
+export function verifyChecksum(bytes, manifest, filename) {
+  const line = String(manifest || '').split(/\\r?\\n/).find((item) => /\\s/.test(item) && item.trim().endsWith(` ${filename}`));
+  const expected = line?.trim().split(/\\s+/)[0]?.toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(expected || '')) return { ok: false, error: 'Release SHA256SUMS has no valid entry for the archive.' };
+  const actual = createHash('sha256').update(bytes).digest('hex');
+  return actual === expected ? { ok: true } : { ok: false, error: `Release checksum mismatch (expected ${expected}, got ${actual}).` };
+}
 
 export const UPDATE_FILE = join(PATHS.dir, 'update.json');
 
@@ -130,6 +140,10 @@ export async function applyUpdate() {
     const dl = await fetch(TARBALL(info.tag));
     if (!dl.ok) return { ok: false, error: `Download failed (HTTP ${dl.status}).` };
     const buf = Buffer.from(await dl.arrayBuffer());
+    const sums = await fetch(CHECKSUMS(info.tag));
+    if (!sums.ok) return { ok: false, error: `Release checksum manifest unavailable (HTTP ${sums.status}); refusing update.` };
+    const integrity = verifyChecksum(buf, await sums.text(), `mona-agent-${info.tag}.tar.gz`);
+    if (!integrity.ok) return { ok: false, error: integrity.error };
     writeFileSync(tarball, buf);
 
     // 2) Extract

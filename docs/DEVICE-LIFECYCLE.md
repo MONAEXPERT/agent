@@ -3,7 +3,10 @@
 Covers enrollment, revocation, inventory, health, and tenant isolation (backlog P2.1), and the Windows/Linux operational matrix (backlog P1.3). This is the design contract; implementation tracks against the completion signals below.
 
 ## Enrollment
-1. A device presents a one-time enrollment code + a hardware-bound identity (TPM/Keychain/DPAPI-backed key pair).
+1. A device generates an Ed25519 key pair locally (the private key must be protected by the platform keystore where available) and presents its public key with a one-time nonce/enrollment payload.
+2. The payload is signed with the private key. The registry verifies the signature before accepting enrollment and stores only the public key and its SHA-256 fingerprint.
+3. A device may continue to use the legacy opaque credential enrollment path for compatibility, but new integrations should use signed enrollment.
+4. A device presents a one-time enrollment code + a hardware-bound identity (TPM/Keychain/DPAPI-backed key pair).
 2. The control plane issues a short-lived device credential bound to that key; the device never stores a long-lived bearer token.
 3. Enrollment records the device's OS, version, arch, and hostname, and assigns a tenant + initial group.
 

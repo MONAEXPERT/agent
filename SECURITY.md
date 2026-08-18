@@ -56,15 +56,16 @@ audit-chain tampering, rate limits. Run with `npm test`.
 
 ## Reporting a vulnerability
 
-**Do not open a public issue for security bugs.**
+**Do not open a public issue for security bugs.** This repository does not use a public issue as the intake channel for suspected vulnerabilities.
 
 Please report privately first so we can fix before disclosure:
 
-1. Email: `security@mona.expert`
-2. Include: affected version, steps to reproduce, impact, and (if you have
-   it) a suggested fix.
-3. We will acknowledge within 48 hours and aim to publish a fix + advisory
-   within 14 days, crediting you if you wish.
+1. Email: `security@mona.expert` (use an encrypted channel when appropriate).
+2. Include a safe subject, affected version/commit and component, impact, and concise reproduction steps. Attach only sanitized logs or proof-of-concept material; never include real credentials or customer data.
+3. Tell us whether the issue is being actively exploited, whether you want credit, and your preferred disclosure timeline. We will acknowledge within 48 hours and aim to publish a fix + advisory within 14 days, extending the timeline collaboratively when needed.
+4. If you do not receive an acknowledgment within 3 business days, follow up through the contact listed in the repository metadata rather than opening a public issue.
+
+For review planning, hardening suggestions, and non-sensitive documentation gaps, use the [security review template](.github/ISSUE_TEMPLATE/security-review.yml) or the scope checklist in [docs/SECURITY-REVIEW-SCOPE.md](docs/SECURITY-REVIEW-SCOPE.md).
 
 ### Disclosure policy
 

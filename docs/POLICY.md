@@ -1,5 +1,12 @@
 # Policy — rule grammar, presets, and `policy explain`
 
+## Centralized versioned administration
+
+The engine also provides a local durable `PolicyRegistry` primitive for centralized administration without claiming an external control-plane or identity-provider integration. Each tenant owns immutable, monotonically versioned policy revisions. Administrators create revisions, activate one revision, and roll back by activating an earlier revision. Tenant identifiers are required for listing and activation; cross-tenant reads return `null`. Policy lifecycle mutations are recorded in the existing hash-chained audit log.
+
+`AdminApi` exposes `createPolicy`, `listPolicies`, `activatePolicy`, and `activePolicy`. These are JSON routing primitives only: transport authentication and operator authorization remain the responsibility of the embedding control plane. JIT grants now carry an optional tenant identifier and tenant-aware checks filter grants by tenant; new administration should always provide it.
+
+
 The policy engine is the **device-side authority**. It is loaded once from
 local disk (`~/.mona-agent/policy.json` or `MONA_POLICY`) at startup. The
 control plane can never modify it — remote policy updates are rejected

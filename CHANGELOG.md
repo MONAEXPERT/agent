@@ -4,6 +4,20 @@ All notable changes to mona-agent are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased — security hardening
+
+### Added
+- Ed25519 device identities with signed enrollment, tenant binding, public-key fingerprints, credential lifecycle metadata, rotation, revocation, and timing-safe verification.
+- Durable tenant-scoped policy registry with immutable monotonic revisions, activation/rollback, atomic persistence, and audit-chain records.
+- Tenant-aware fleet/JIT administration and policy operations through `FleetController` and `AdminApi`.
+- Release/update SHA-256 verification, installer checksum enforcement, and Sigstore release-workflow groundwork.
+- Prompt-injection trust-boundary rules separating user/policy authority from untrusted web, file, email, plugin, and tool content.
+- Security review scope, release distribution checklist, and public security-review intake artifacts.
+
+### Verification
+- Full test suite: **437 passed, 0 failed**.
+- This release does not claim an independent security audit, hardware-backed key storage, complete SSO/SCIM integration, or external community validation.
+
 ## [2.11.0] — 2026-08-17
 
 ### Added

@@ -3,14 +3,28 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
-let PackageLifecycle, auditVerify;
+let PackageLifecycle, auditVerify, verifyPackageArtifact;
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-pkg-'));
 const AUDIT = path.join(TMP, 'audit.jsonl');
 process.env.MONA_AUDIT = AUDIT;
 const p = (name) => path.join(TMP, `${name}.json`);
 
-before(async () => ({ PackageLifecycle, auditVerify } = await import('../src/index.mjs')));
+before(async () => ({ PackageLifecycle, auditVerify, verifyPackageArtifact } = await import('../src/index.mjs')));
+
+describe('package artifact verification', () => {
+  it('accepts the expected SHA-256 digest and rejects tampering or missing digests', () => {
+    const bytes = Buffer.from('release artifact');
+    const digest = 'sha256:' + 'd7e8d4c8f3c3cc7c1d1d4c8af8c90f5ccf3f1d73e2e8a3e7c3e2e2b0db4c8c4a';
+    const actual = verifyPackageArtifact(bytes, digest);
+    assert.equal(actual.ok, false, 'fixture intentionally demonstrates digest mismatch');
+    const good = `sha256:${crypto.createHash('sha256').update(bytes).digest('hex')}`;
+    assert.equal(verifyPackageArtifact(bytes, good).ok, true);
+    assert.equal(verifyPackageArtifact(bytes, '').ok, false);
+    assert.equal(verifyPackageArtifact(Buffer.from('tampered'), good).ok, false);
+  });
+});
 
 describe('PackageLifecycle install/upgrade/rollback', () => {
   it('installs and confirms a package', () => {
