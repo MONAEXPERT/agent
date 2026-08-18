@@ -10,21 +10,21 @@ run traces.
 
 ### Google Maps clone
 
-<p align="center"><img src="https://agent.mona.expert/docs/examples/mona_ai_agent_example_maps.gif" width="720" alt="mona-ai builds a Google Maps clone from a single prompt — pan, zoom, search, places"></p>
+<p align="center"><img src="assets/demos/mona_ai_agent_example_maps.gif" width="720" alt="mona-ai builds a Google Maps clone from a single prompt — pan, zoom, search, places"></p>
 
 `deepseek-chat · 24 steps · 76.5k tokens · ≈ $0.04` — a working Maps clone
 with pan, zoom, search and place markers.
 
 ### App Store
 
-<p align="center"><img src="https://agent.mona.expert/docs/examples/mona_ai_agent_example_appstore.gif" width="720" alt="mona-ai builds an App Store from a single prompt"></p>
+<p align="center"><img src="assets/demos/mona_ai_agent_example_appstore.gif" width="720" alt="mona-ai builds an App Store from a single prompt"></p>
 
 `deepseek-chat · 30 steps · 48.2k tokens · ≈ $0.02` — an App Store built from
 one prompt.
 
 ### Chess game
 
-<p align="center"><img src="https://agent.mona.expert/docs/examples/mona_ai_agent_example_chess.gif" width="720" alt="mona-ai builds a playable chess game from a single prompt"></p>
+<p align="center"><img src="assets/demos/mona_ai_agent_example_chess.gif" width="720" alt="mona-ai builds a playable chess game from a single prompt"></p>
 
 `deepseek-chat · 9 steps · 24.2k tokens · ≈ $0.0079` — a playable chess game:
 board, pieces and rules in one shot.
