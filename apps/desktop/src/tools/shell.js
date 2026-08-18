@@ -276,21 +276,35 @@ function resolveBinary(name) {
   if (!allowHas(base) && !UNSAFE) {
     return { error: `Command '${base}' not in allowlist`, allowed: effectiveAllowlist() };
   }
+  // Trusted system directories: the configured PATH (defaults per platform).
+  // A resolved executable must live under one of these, so a user-writable
+  // file named `ls` anywhere else can never satisfy the allowlist.
+  const systemDirs = platformPathEntries(PLATFORM, { PATH: cfg.path || process.env.PATH })
+    .map((d) => { try { return fs.realpathSync(d); } catch { return null; } })
+    .filter(Boolean);
+
+  const inSystemDir = (real) =>
+    systemDirs.some((d) => real === d || real.startsWith(d + path.sep));
+
   let candidates = [];
-  if (name.includes('/') || (PLATFORM === 'win32' && name.includes('\\\\'))) {
+  const qualified = name.includes('/') || (PLATFORM === 'win32' && name.includes('\\'));
+  if (qualified) {
     candidates = [path.resolve(name)];
   } else {
-    const dirs = platformPathEntries(PLATFORM, { PATH: cfg.path || process.env.PATH });
-    for (const dir of dirs) {
-      for (const candidate of executableCandidates(name, PLATFORM, process.env)) {
-        candidates.push(path.join(dir, candidate));
+    for (const dir of systemDirs) {
+      for (const c of executableCandidates(name, PLATFORM, process.env)) {
+        candidates.push(path.join(dir, c));
       }
     }
   }
   for (const c of candidates) {
-    if (isExecutableFile(c, PLATFORM)) {
-      try { return { bin: fs.realpathSync(c), base }; } catch { /* keep looking */ }
+    if (!isExecutableFile(c, PLATFORM)) continue;
+    let real;
+    try { real = fs.realpathSync(c); } catch { continue; }
+    if (!inSystemDir(real)) {
+      return { error: `Refusing binary outside trusted system paths: ${name}` };
     }
+    return { bin: real, base };
   }
   return { error: `Command not found: ${name}` };
 }
@@ -420,10 +434,11 @@ async function executeStages(stages, { cwd, timeoutMs }) {
         const pipes = [];
         let prevOut = null;
         for (let k = 0; k < group.length; k++) {
-          const { bin } = resolveBinary(group[k].argv[0]);
-          if (!bin) {
-            return { results, error: `Command '${group[k].argv[0]}' not in allowlist`, allowed: [...ALLOW].sort(), stdout: '', stderr: '' };
+          const resolved = resolveBinary(group[k].argv[0]);
+          if (resolved.error) {
+            return { results, error: resolved.error, allowed: resolved.allowed, stdout: '', stderr: '' };
           }
+          const bin = resolved.bin;
           const env = {};
           for (const key of SAFE_ENV_KEYS) if (process.env[key] !== undefined) env[key] = process.env[key];
           env.PATH = cfg.path || env.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');

