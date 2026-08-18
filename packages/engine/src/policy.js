@@ -541,8 +541,7 @@ export class Policy {
     if (this.auditEnabled) {
       auditWrite({ kind, tool: 'shell', verdict: tier, reason }, this.auditPath);
     }
-    if (tier === 'confirm') return { allowed: false, tier, reason };
-    return { allowed: false, tier, reason };
+    return { allowed: tier === 'unsafe' || tier === 'allow', tier, reason };
   }
 
   budget() {

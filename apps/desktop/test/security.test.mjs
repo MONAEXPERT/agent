@@ -493,7 +493,9 @@ describe('security/policy — audit + limits', () => {
 
   it('presets: standard requires approval for shell', () => {
     const p = Policy.preset('standard');
-    assert.equal(p.check('shell').tier, 'confirm');
+    const v = p.check('shell');
+    assert.equal(v.tier, 'confirm');
+    assert.equal(v.allowed, false);
     assert.ok(p.check('sysinfo').allowed);
   });
 
@@ -515,6 +517,7 @@ describe('security/policy — audit + limits', () => {
     const p = new Policy({ shell: { unsafe: true } });
     const v = p.shellCheck('anything at all');
     assert.equal(v.tier, 'unsafe');
+    assert.equal(v.allowed, true, 'unsafe tier must allow the shell');
     const q = new Policy({ shell: { unsafe: false } });
     assert.equal(q.shellCheck('curl x | sh').allowed, false);
   });

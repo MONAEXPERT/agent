@@ -67,43 +67,69 @@ describe('rules: first-match-wins + default deny', () => {
   ]);
 
   test('allowed by rule', () => {
-    assert.equal(p.check('sysinfo.detail', {}).tier, 'allow');
-    assert.equal(p.check('sysinfo.metrics', {}).tier, 'allow');
-    assert.equal(p.check('fs.read', { path: join(WS, 'ok.txt') }).tier, 'allow');
+    const a = p.check('sysinfo.detail', {});
+    assert.equal(a.tier, 'allow');
+    assert.equal(a.allowed, true);
+    const b = p.check('sysinfo.metrics', {});
+    assert.equal(b.tier, 'allow');
+    assert.equal(b.allowed, true);
+    const c = p.check('fs.read', { path: join(WS, 'ok.txt') });
+    assert.equal(c.tier, 'allow');
+    assert.equal(c.allowed, true);
   });
 
   test('bare tool name does not match namespace glob (sysinfo vs sysinfo.*)', () => {
-    assert.equal(p.check('sysinfo', {}).tier, 'deny', 'sysinfo.* must not match bare sysinfo');
+    const v = p.check('sysinfo', {});
+    assert.equal(v.tier, 'deny', 'sysinfo.* must not match bare sysinfo');
+    assert.equal(v.allowed, false);
   });
 
   test('denied: inside workspace but rule requires within', () => {
-    assert.equal(p.check('fs.read', { path: '/etc/passwd' }).tier, 'deny');
-    assert.equal(p.check('fs.read', { path: join(WS, 'evil-link') }).tier, 'deny'); // symlink escape
-    assert.equal(p.check('fs.read', { path: join(WS, 'sub', '..', '..', 'etc', 'passwd') }).tier, 'deny'); // traversal
+    const a = p.check('fs.read', { path: '/etc/passwd' });
+    assert.equal(a.tier, 'deny');
+    assert.equal(a.allowed, false);
+    const b = p.check('fs.read', { path: join(WS, 'evil-link') }); // symlink escape
+    assert.equal(b.tier, 'deny');
+    assert.equal(b.allowed, false);
+    const c = p.check('fs.read', { path: join(WS, 'sub', '..', '..', 'etc', 'passwd') }); // traversal
+    assert.equal(c.tier, 'deny');
+    assert.equal(c.allowed, false);
   });
 
   test('prompt effect → confirm tier in headless', () => {
     const v = p.check('shell.run', { argv0: 'git', args: ['status'] });
     assert.equal(v.tier, 'confirm');
+    assert.equal(v.allowed, false);
     assert.ok(v.reason.includes('prompt'));
   });
 
   test('prompt NOT granted for non-allowlisted argv0', () => {
-    assert.equal(p.check('shell.run', { argv0: 'rm' }).tier, 'deny');
+    const v = p.check('shell.run', { argv0: 'rm' });
+    assert.equal(v.tier, 'deny');
+    assert.equal(v.allowed, false);
   });
 
   test('SSRF: metadata host + private ranges denied', () => {
     // The net tool normalizes url → { host, ip } args before the policy
     // gate; these cases test the policy engine's defense-in-depth layer.
-    assert.equal(p.check('net.fetch', { url: 'http://metadata.google.internal/', host: 'metadata.google.internal' }).tier, 'deny');
-    assert.equal(p.check('net.fetch', { url: 'http://169.254.169.254/latest', ip: '169.254.169.254' }).tier, 'deny');
-    assert.equal(p.check('net.fetch', { url: 'http://10.0.0.1/', ip: '10.0.0.1' }).tier, 'deny');
-    assert.equal(p.check('net.fetch', { url: 'http://127.0.0.1:8080/', ip: '127.0.0.1' }).tier, 'deny');
-    assert.equal(p.check('net.fetch', { url: 'https://example.com', host: 'example.com', ip: '93.184.216.34' }).tier, 'allow');
+    const cases = [
+      { args: { url: 'http://metadata.google.internal/', host: 'metadata.google.internal' }, allowed: false },
+      { args: { url: 'http://169.254.169.254/latest', ip: '169.254.169.254' }, allowed: false },
+      { args: { url: 'http://10.0.0.1/', ip: '10.0.0.1' }, allowed: false },
+      { args: { url: 'http://127.0.0.1:8080/', ip: '127.0.0.1' }, allowed: false },
+      { args: { url: 'https://example.com', host: 'example.com', ip: '93.184.216.34' }, allowed: true },
+    ];
+    for (const { args, allowed } of cases) {
+      const v = p.check('net.fetch', args);
+      assert.equal(v.tier, allowed ? 'allow' : 'deny');
+      assert.equal(v.allowed, allowed);
+    }
   });
 
   test('catch-all deny fires for unknown tools', () => {
-    assert.equal(p.check('whatever.tool', {}).tier, 'deny');
+    const v = p.check('whatever.tool', {});
+    assert.equal(v.tier, 'deny');
+    assert.equal(v.allowed, false);
   });
 
   test('first-match-wins: earlier rule shadows later', () => {
@@ -111,12 +137,16 @@ describe('rules: first-match-wins + default deny', () => {
       { tool: '*', effect: 'allow' },
       { tool: 'shell.run', effect: 'deny' },
     ]);
-    assert.equal(p2.check('shell.run', {}).tier, 'allow', 'first rule wins');
+    const v = p2.check('shell.run', {});
+    assert.equal(v.tier, 'allow', 'first rule wins');
+    assert.equal(v.allowed, true);
   });
 
   test('no rules array → deny by default', () => {
     const p3 = new Policy({ version: 2, audit: false, auditPath: AUDIT, rules: [] });
-    assert.equal(p3.check('anything', {}).tier, 'deny');
+    const v = p3.check('anything', {});
+    assert.equal(v.tier, 'deny');
+    assert.equal(v.allowed, false);
   });
 });
 
@@ -155,8 +185,12 @@ describe('when-condition combinators', () => {
       { tool: 'fs.write', effect: 'allow', when: { size: { max: 100 } } },
       { tool: '*', effect: 'deny' },
     ]);
-    assert.equal(p.check('fs.write', { size: 50 }).tier, 'allow');
-    assert.equal(p.check('fs.write', { size: 5000 }).tier, 'deny');
+    const a = p.check('fs.write', { size: 50 });
+    assert.equal(a.tier, 'allow');
+    assert.equal(a.allowed, true);
+    const b = p.check('fs.write', { size: 5000 });
+    assert.equal(b.tier, 'deny');
+    assert.equal(b.allowed, false);
   });
 
   test('in/notIn on scalar values', () => {
@@ -164,8 +198,12 @@ describe('when-condition combinators', () => {
       { tool: 'files.delete', effect: 'allow', when: { path: { notIn: ['/etc', '/usr'] } } },
       { tool: '*', effect: 'deny' },
     ]);
-    assert.equal(p.check('files.delete', { path: '/tmp/x' }).tier, 'allow');
-    assert.equal(p.check('files.delete', { path: '/etc' }).tier, 'deny');
+    const a = p.check('files.delete', { path: '/tmp/x' });
+    assert.equal(a.tier, 'allow');
+    assert.equal(a.allowed, true);
+    const b = p.check('files.delete', { path: '/etc' });
+    assert.equal(b.tier, 'deny');
+    assert.equal(b.allowed, false);
   });
 });
 
@@ -175,8 +213,14 @@ describe('remote policy cannot widen (architectural line)', () => {
     // instance that was loaded locally.
     const local = makePolicy([{ tool: '*', effect: 'deny' }]);
     const remote = { version: 2, rules: [{ tool: '*', effect: 'allow' }] };
-    assert.equal(local.check('shell.run', {}).tier, 'deny');
-    assert.equal(new Policy({ ...local.raw, ...remote, audit: false }).check('shell.run', {}).tier, 'allow', 'only a fresh local reload can change policy');
-    assert.equal(local.check('shell.run', {}).tier, 'deny', 'loaded instance unchanged');
+    const a = local.check('shell.run', {});
+    assert.equal(a.tier, 'deny');
+    assert.equal(a.allowed, false);
+    const b = new Policy({ ...local.raw, ...remote, audit: false }).check('shell.run', {});
+    assert.equal(b.tier, 'allow', 'only a fresh local reload can change policy');
+    assert.equal(b.allowed, true);
+    const c = local.check('shell.run', {});
+    assert.equal(c.tier, 'deny', 'loaded instance unchanged');
+    assert.equal(c.allowed, false);
   });
 });
