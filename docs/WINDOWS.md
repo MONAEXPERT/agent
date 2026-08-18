@@ -25,10 +25,11 @@ Support claims are validated against Microsoft's published lifecycle data at rel
 
 ```powershell
 irm https://agent.mona.expert/install.ps1 | iex               # main branch
-irm https://agent.mona.expert/install.ps1 | iex               # or: -Version v2.11.0
+irm https://agent.mona.expert/install.ps1 -OutFile install.ps1
+.\install.ps1 -Version v2.11.0                               # pinned release
 ```
 
-Release-tag installs download the exact release asset and verify it against `SHA256SUMS` (set `MONA_REQUIRE_CHECKSUM=1` to fail hard). Branch installs are unversioned and unverified by design.
+Release-tag installs download the exact release asset and fail closed unless it verifies against one valid matching `SHA256SUMS` entry. Branch installs are unversioned and unverified by design.
 
 ## Native service
 

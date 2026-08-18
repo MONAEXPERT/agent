@@ -16,7 +16,12 @@ const EFFECTS = new Set(['allow', 'deny', 'prompt', 'confirm']);
 function nowIso() { return new Date().toISOString(); }
 function revisionId() { return `pol_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`; }
 function own(v) { return JSON.parse(JSON.stringify(v)); }
-function digest(v) { return createHash('sha256').update(JSON.stringify(v)).digest('hex'); }
+function canonical(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
+}
+function digest(v) { return createHash('sha256').update(canonical(v)).digest('hex'); }
 function validateDefinition(definition) {
   if (!definition || typeof definition !== 'object' || Array.isArray(definition)) throw new TypeError('policy definition must be an object');
   if (definition.rules !== undefined && !Array.isArray(definition.rules)) throw new TypeError('policy rules must be an array');
@@ -47,7 +52,11 @@ export class PolicyRegistry {
     try {
       if (!existsSync(this.storePath)) return;
       const raw = JSON.parse(readFileSync(this.storePath, 'utf8'));
-      for (const item of Array.isArray(raw?.revisions) ? raw.revisions : []) { const r = normalisePolicyRevision(item); this.revisions.set(r.id, r); }
+      for (const item of Array.isArray(raw?.revisions) ? raw.revisions : []) {
+        const r = normalisePolicyRevision(item);
+        if (r.hash !== digest(r.definition)) throw new Error(`policy revision hash mismatch: ${r.id}`);
+        this.revisions.set(r.id, r);
+      }
       for (const [tenant, id] of Object.entries(raw?.active || {})) if (this.revisions.has(id)) this.active.set(tenant, id);
     } catch { /* fail closed */ }
   }
@@ -68,8 +77,8 @@ export class PolicyRegistry {
   list({ tenantId } = {}) { if (!tenantId) throw new TypeError('tenantId is required to list policies'); return [...this.revisions.values()].filter((r) => r.tenantId === tenantId).sort((a, b) => b.version - a.version).map(own); }
   activeRevision(tenantId) { if (!tenantId) throw new TypeError('tenantId is required'); const id = this.active.get(tenantId); return id ? this.get(id, { tenantId }) : null; }
   activate(id, { tenantId, activatedBy = '' } = {}) {
-    const r = this.revisions.get(String(id)); if (!r || (tenantId !== undefined && r.tenantId !== tenantId)) return null;
-    if (!tenantId) tenantId = r.tenantId;
+    if (!tenantId) throw new TypeError('tenantId is required');
+    const r = this.revisions.get(String(id)); if (!r || r.tenantId !== tenantId) return null;
     const current = this.active.get(tenantId); if (current && this.revisions.has(current)) this.revisions.get(current).state = 'draft';
     r.state = 'active'; r.activatedAt = nowIso(); r.activatedBy = activatedBy; this.active.set(tenantId, r.id); this.#save();
     auditWrite({ kind: 'policy', action: 'activate', tenantId, revisionId: r.id, policyVersion: r.version, activatedBy }); return own(r);

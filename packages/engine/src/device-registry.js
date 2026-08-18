@@ -18,7 +18,7 @@ const MAX_DEVICES = 10000;
 export const DEVICE_HEALTH = Object.freeze(['online', 'degraded', 'offline']);
 
 function nowIso() { return new Date().toISOString(); }
-function deviceId() { return `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`; }
+function deviceId() { return `dev_${randomBytes(16).toString('hex')}`; }
 
 /** One-way hash of a credential so the registry never stores the secret. */
 export function hashCredential(secret) {
@@ -28,9 +28,17 @@ export function hashCredential(secret) {
 const IDENTITY_CONTEXT = 'mona-device-identity-v1';
 const CREDENTIAL_BYTES = 32;
 
-function canonical(value) { return JSON.stringify(value, Object.keys(value).sort()); }
+function canonical(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
+}
 function fingerprint(publicKey) {
   return createHash('sha256').update(publicKey).digest('hex');
+}
+function validFutureTimestamp(value) {
+  if (!value) return true;
+  return Number.isFinite(Date.parse(value));
 }
 
 /** Generate an Ed25519 identity. Private material is returned only to the caller. */
@@ -116,11 +124,14 @@ export class DeviceRegistry {
   /** Enroll a device. The credential is hashed; the secret is never stored. */
   enroll({ id, tenantId, hostname = '', os = '', version = '', arch = '', credential = '', credentialExpiresAt = '', tags = [], group = '', policyRevision = '', publicKey = '', enrollmentSignature = '', enrollmentPayload, identityAlgorithm = 'Ed25519' } = {}) {
     if (!tenantId) throw new TypeError('tenantId is required');
-    if (!credential && !publicKey) throw new TypeError('credential or publicKey is required');
+    if (!credential) throw new TypeError('credential is required');
+    if (!validFutureTimestamp(credentialExpiresAt)) throw new TypeError('credentialExpiresAt must be a valid timestamp');
     if (publicKey) {
       if (identityAlgorithm !== 'Ed25519') throw new TypeError('unsupported identity algorithm');
       if (!enrollmentSignature || !enrollmentPayload || !verifyEnrollment(enrollmentPayload, enrollmentSignature, publicKey)) throw new TypeError('invalid enrollment signature');
       if (String(enrollmentPayload.tenantId) !== String(tenantId)) throw new TypeError('enrollment tenant mismatch');
+      if (String(enrollmentPayload.publicKey || '') !== String(publicKey)) throw new TypeError('enrollment public key mismatch');
+      if (id && String(enrollmentPayload.deviceId || '') !== String(id)) throw new TypeError('enrollment device mismatch');
     }
     const issuedAt = nowIso();
     const device = normaliseDevice({
@@ -187,6 +198,7 @@ export class DeviceRegistry {
     const d = this.devices.get(String(id));
     if (!d) return null;
     if (!credential) throw new TypeError('credential is required');
+    if (!validFutureTimestamp(credentialExpiresAt)) throw new TypeError('credentialExpiresAt must be a valid timestamp');
     d.credentialHash = hashCredential(credential);
     d.credentialId = `cred_${randomBytes(12).toString('hex')}`;
     d.credentialIssuedAt = nowIso();

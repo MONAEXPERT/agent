@@ -113,8 +113,10 @@ if [ -n "$VERSION_REQ" ]; then
     exit 1
   fi
   if curl -fsSL "$CHECKSUM_URL" -o "$TMP_DIR/SHA256SUMS" 2>/dev/null; then
-    EXPECT="$(grep " $TARBALL_NAME\$" "$TMP_DIR/SHA256SUMS" | awk '{print $1}' | head -1)"
-    if [ -n "$EXPECT" ]; then
+    MATCHES="$(awk -v name="$TARBALL_NAME" '$1 ~ /^[0-9a-fA-F]{64}$/ && ($2 == name || $2 == "*" name) { print $1 }' "$TMP_DIR/SHA256SUMS")"
+    MATCH_COUNT="$(printf '%s\n' "$MATCHES" | awk 'NF { count++ } END { print count + 0 }')"
+    if [ "$MATCH_COUNT" = 1 ]; then
+      EXPECT="$MATCHES"
       ACTUAL="$(sha256sum "$TARBALL_ACTUAL" 2>/dev/null | awk '{print $1}' || shasum -a 256 "$TARBALL_ACTUAL" | awk '{print $1}')"
       if [ "$ACTUAL" != "$EXPECT" ]; then
         echo -e "  ${RED}Checksum mismatch for $TARBALL_NAME${RESET}"
@@ -124,7 +126,7 @@ if [ -n "$VERSION_REQ" ]; then
       fi
       echo -e "  ${GREEN}SHA-256 verified against the release manifest${RESET}"
     else
-      echo -e "  ${YELLOW}No entry for $TARBALL_NAME in SHA256SUMS${RESET}"
+      echo -e "  ${YELLOW}SHA256SUMS must contain exactly one valid entry for $TARBALL_NAME${RESET}"
       [ "${MONA_REQUIRE_CHECKSUM:-0}" = 1 ] && exit 1
     fi
   else

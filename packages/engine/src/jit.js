@@ -84,7 +84,7 @@ export class JitAccess {
   }
 
   /** Provision a bounded, role-scoped grant. Audit is mandatory and never throws. */
-  grant({ id, tenantId = 'default', principal, role, tools = [], notBefore = '', expiresAt = '', reason = '', auditor = '' } = {}) {
+  grant({ id, tenantId = '', principal, role, tools = [], notBefore = '', expiresAt = '', reason = '', auditor = '' } = {}) {
     if (!principal) throw new TypeError('principal is required');
     if (role && !ROLES[role]) throw new TypeError(`unknown role "${role}"`);
     const grant = normaliseGrant({ id, tenantId, principal, role, tools, notBefore, expiresAt, reason, auditor });
@@ -114,9 +114,10 @@ export class JitAccess {
   }
 
   /** Whether a principal currently holds an active grant covering `tool`. */
-  // Tenant-aware callers should pass tenantId; legacy grants remain readable.
+  // Tenant-aware checks accept only grants bound to that exact tenant. Legacy
+  // unscoped grants remain usable only by legacy callers that omit tenantId.
   check(principal, tool, { tenantId, now = Date.now() } = {}) {
-    const active = [...this.grants.values()].filter((g) => g.principal === principal && (tenantId === undefined || !g.tenantId || g.tenantId === tenantId) && covers(g.tools, tool) && activeWindow(g, now));
+    const active = [...this.grants.values()].filter((g) => g.principal === principal && (tenantId === undefined ? !g.tenantId : g.tenantId === tenantId) && covers(g.tools, tool) && activeWindow(g, now));
     return {
       allowed: active.length > 0,
       grants: active.map((g) => g.id),

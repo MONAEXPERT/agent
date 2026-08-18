@@ -47,20 +47,16 @@ try {
 
   if ($Version) {
     if ($env:MONA_REQUIRE_CHECKSUM -and $env:MONA_REQUIRE_CHECKSUM -ne '1') { throw 'Refusing insecure release install: MONA_REQUIRE_CHECKSUM must remain 1' }
-    try {
-      Invoke-WebRequest -Uri $ShaUrl -OutFile (Join-Path $tmp 'SHA256SUMS')
-      $lines = Get-Content (Join-Path $tmp 'SHA256SUMS')
-      $expected = ($lines | Where-Object { $_ -match " $([regex]::Escape($Tarball))$" } | ForEach-Object { ($_ -split '\s+')[0] }) | Select-Object -First 1
-      if (-not $expected) { throw "SHA256SUMS has no entry for $Tarball" }
-      $actual = (Get-FileHash -Algorithm SHA256 $Archive).Hash.ToLowerInvariant()
-      if ($actual -ne $expected.ToLowerInvariant()) {
-        throw "Checksum mismatch for $Tarball`nexpected: $expected`nactual:   $actual"
-      }
-      Write-Host 'SHA-256 verified against the release manifest'
-    } catch {
-      if ($env:MONA_REQUIRE_CHECKSUM -eq '1') { throw }
-      Write-Warning "Release manifest unavailable — proceeding WITHOUT checksum verification ($($_.Exception.Message))"
+    Invoke-WebRequest -Uri $ShaUrl -OutFile (Join-Path $tmp 'SHA256SUMS')
+    $lines = Get-Content (Join-Path $tmp 'SHA256SUMS')
+    $matches = @($lines | Where-Object { $_ -match "^[0-9a-fA-F]{64}\s+\*?$([regex]::Escape($Tarball))$" })
+    if ($matches.Count -ne 1) { throw "SHA256SUMS must contain exactly one valid entry for $Tarball" }
+    $expected = ($matches[0] -split '\s+')[0]
+    $actual = (Get-FileHash -Algorithm SHA256 $Archive).Hash.ToLowerInvariant()
+    if ($actual -ne $expected.ToLowerInvariant()) {
+      throw "Checksum mismatch for $Tarball`nexpected: $expected`nactual:   $actual"
     }
+    Write-Host 'SHA-256 verified against the release manifest'
   } else {
     Write-Warning 'Installing an unversioned main-branch archive; no checksum verification is available'
   }
