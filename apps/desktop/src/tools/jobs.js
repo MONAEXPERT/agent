@@ -27,6 +27,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Policy } from '@mona/engine';
 import { log } from '../log.js';
+import { spawnTuple } from '../sandbox.js';
+import { currentMode } from '../modes.js';
 import {
   parseCommand, resolveBinary, blockedPatterns, safeEnvKeys, shellCfg,
   deniedPath, deniedIn, expandTilde,
@@ -49,7 +51,14 @@ function spawnProc(job, bin, argv) {
   env.PATH = shellCfg.path || env.PATH || '/usr/bin:/bin';
   let child;
   try {
-    child = spawn(bin, argv, {
+    let cmd = bin;
+    let args = argv;
+    // OS containment (mode full / MONA_SANDBOX=1), same as the shell tool:
+    // a missing backend is an error, never a silent unsandboxed run.
+    if (currentMode() === 'full' || process.env.MONA_SANDBOX === '1') {
+      ({ cmd, args } = spawnTuple(bin, argv, { required: true, writeRoots: [job.cwd || process.cwd()] }));
+    }
+    child = spawn(cmd, args, {
       env,
       cwd: job.cwd,
       detached: true, // own process group → kill() takes the whole tree

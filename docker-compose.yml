@@ -1,5 +1,7 @@
 # mona-agent — compose deployment
 # Read-only rootfs, tmpfs /tmp, persistent volume for agent state.
+# All capabilities dropped + no-new-privileges: the container cannot gain
+# privileges even if the agent process is compromised.
 # Health/metrics stay bound to localhost inside the container and are
 # optionally published to the host loopback only.
 services:
@@ -9,6 +11,9 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     environment:
       MONA_CLOUD: ${MONA_CLOUD:-https://agent.mona.expert}
       MONA_METRICS_PORT: "4301"

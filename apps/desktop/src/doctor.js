@@ -12,6 +12,8 @@ import { Policy, auditVerify } from '@mona/engine';
 import { loadCreds, CLOUD } from './config.js';
 import { VERSION, isUpdateAvailable } from './version.js';
 import { loadProviderConfig } from './transport/local.js';
+import { detect } from './sandbox.js';
+import { currentMode } from './modes.js';
 
 export function checkNodeVersion(v = process.version) {
   const major = Number(String(v).replace(/^v/, '').split('.')[0]);
@@ -69,6 +71,16 @@ export async function runDoctor(opts = {}) {
 
   const ws = opts.workspace || process.env.MONA_WORKSPACE || join(home, 'workspace');
   add('workspace', checkDirState(ws, 'workspace').ok, checkDirState(ws, 'workspace').detail);
+
+  // OS sandbox: always reported; failing only when the active mode
+  // (`full`) requires it — minimal/standard run without it by design.
+  const sb = opts.sandbox || detect();
+  const mode = opts.mode || currentMode();
+  const sandboxMissing = mode === 'full' && !sb.available;
+  add('sandbox', !sandboxMissing,
+    sb.available
+      ? `OS sandbox available (${sb.backend})`
+      : `OS sandbox unavailable: ${sb.reason || 'no backend'}${sandboxMissing ? ' — required by full mode' : ' (required only in full mode)'}`);
 
   try {
     const provider = loadProviderConfig();

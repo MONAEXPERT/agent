@@ -35,6 +35,7 @@ import { SkillsManager } from '../src/skills.js';
 import { loadProviderConfig, saveProviderConfig, removeProviderConfig, PROVIDERS, providerTest, pricesFor } from '../src/transport/local.js';
 import { runMcpServer, runMcpHttpServer } from '../src/transport/mcp.js';
 import { runDoctor, formatDoctor } from '../src/doctor.js';
+import { detect } from '../src/sandbox.js';
 
 const [cmd, ...args] = process.argv.slice(2);
 
@@ -503,16 +504,21 @@ async function modeCmd() {
   if (sub === 'set') {
     const name = args[1];
     if (!name) {
-      console.error(`\n  Usage: mona-agent mode set <${MODE_NAMES.join('|')}>\n`);
+      console.error(`\n  Usage: mona-agent mode set <${MODE_NAMES.join('|')}> [--i-accept-no-sandbox]\n`);
       process.exit(2);
     }
     try {
-      const r = applyMode(name);
+      const acceptNoSandbox = args.includes('--i-accept-no-sandbox');
+      const r = applyMode(name, { acceptNoSandbox });
       console.log(`\n  ${BOLD}Mode set: ${r.mode}${RESET}`);
       console.log(`  ${DIM}${r.label}${RESET}`);
       console.log(`  ${DIM}Policy:${RESET}    ${r.policy} → ${r.policyPath}`);
       console.log(`  ${DIM}Skills:${RESET}    ${r.skills.length ? r.skills.join(', ') : '(none)'}`);
       console.log(`  ${DIM}Daemon:${RESET}    ${r.daemon ? 'auto-start installed' : 'manual (mona-agent start)'}`);
+      const sbLine = r.sandbox?.available
+        ? `  ${DIM}Sandbox:${RESET}   ${r.sandbox.backend}${acceptNoSandbox ? ' (bypassed via --i-accept-no-sandbox)' : ''}`
+        : `  ${YELLOW}${DIM}Sandbox:${RESET}   unavailable${acceptNoSandbox ? ' (accepted: --i-accept-no-sandbox)' : ''}${YELLOW}`;
+      console.log(sbLine);
       console.log(`\n  ${DIM}Next:${RESET} ${CYAN}mona-agent daemon status${RESET}  ·  ${CYAN}mona-agent mode show${RESET}\n`);
     } catch (e) {
       console.error(`\n  ${RED}${e.message}${RESET}\n`);
@@ -528,6 +534,8 @@ async function modeCmd() {
     console.log(`  ${DIM}Policy:${RESET}  ${s.policy}${s.policyTiers ? '  (' + Object.entries(s.policyTiers).map(([k, v]) => `${k}=${v}`).join(', ') + ')' : ''}`);
     console.log(`  ${DIM}Skills:${RESET}  ${s.skills.length ? s.skills.join(', ') : '(none)'}`);
     console.log(`  ${DIM}Daemon:${RESET}  ${s.daemon ? 'installed' : 'not installed'}`);
+    if (s.sandbox?.available) console.log(`  ${DIM}Sandbox:${RESET} ${s.sandbox.backend}${s.acceptNoSandbox ? ' (bypassed: --i-accept-no-sandbox was used)' : ''}`);
+    else console.log(`  ${DIM}Sandbox:${RESET} unavailable (${s.sandbox?.reason || 'no backend'})${s.acceptNoSandbox ? ' — accepted via --i-accept-no-sandbox' : ''}`);
     console.log(`\n  ${DIM}Set a mode:${RESET} ${CYAN}mona-agent mode set <${MODE_NAMES.join('|')}>${RESET}\n`);
     return;
   }
@@ -767,6 +775,8 @@ function status() {
   console.log(`  ${DIM}Config:${RESET}  ${PATHS.dir}`);
   console.log(`  ${DIM}Tools:${RESET}   ${tools.names().join(', ')}`);
   console.log(`  ${DIM}Mode:${RESET}    ${currentMode()}`);
+  const sb = detect();
+  console.log(`  ${DIM}Sandbox:${RESET} ${sb.available ? sb.backend : `unavailable (${sb.reason || 'no backend'})`}`);
   const ds = daemonStatus();
   console.log(`  ${DIM}Daemon:${RESET}  ${ds.serviceInstalled ? 'installed' : 'not installed'}${ds.serviceRunning ? ' · running' : ds.pidAlive ? ' · running (pid)' : ''}`);
   console.log();

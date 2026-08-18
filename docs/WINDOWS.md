@@ -59,6 +59,7 @@ The service is named `MonaAgent`, uses automatic delayed start, and configures r
 - Shell execution is **argv-only**: commands are parsed quote-aware, executables resolve through PATH/PATHEXT and the allowlist, and the child env is scrubbed. `cmd.exe` builtins (`dir`, `ver`, …) are intentionally **not** executed through `cmd /c`; the small in-process builtins `echo`, `type`, `cd` run inside the agent under the same allowlist, and `type` is confined to the working directory.
 - No user-controlled string is ever passed to `powershell.exe -Command` or `cmd.exe /c`. Service operations pass **parameterized** arguments (`-File … -Action …`), never raw input.
 - Windows process-tree containment, ACL/reparse-point hardening, and signed MSI/MSIX packaging require validation on real Windows runners before enterprise certification; current CI runs the full suite on `windows-latest` and a CLI smoke test, which is necessary but not sufficient for certification.
+- **OS sandbox: honest degradation.** Windows has no cheap equivalent of bwrap/sandbox-exec (AppContainer requires Win32 interop) — `sandbox.js` reports `unavailable (no OS sandbox on windows)`, `mona-agent doctor` shows the line, and **mode `full` refuses activation** unless `--i-accept-no-sandbox` is passed. On Windows the path deny-list (`apps/desktop/src/tools/shell.js`) is the active guard at every spawn; it is defence-in-depth, not kernel containment.
 
 ## CI and release gates
 

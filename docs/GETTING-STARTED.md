@@ -3,15 +3,44 @@
 Install the mona-agent app on your device, log in with your mona.expert key, and
 have your machine connected to the cloud in under a minute.
 
-## 1. Prerequisites
+## Recommended for unknown environments: Docker
+
+The container is the strongest default because it stacks three independent
+layers of containment: read-only rootfs, `cap_drop: [ALL]` +
+`no-new-privileges`, and tmpfs `/tmp` — the agent process cannot gain
+privileges even if compromised. Prefer it whenever Docker is available and
+you do not need the agent to manage the host machine itself.
+
+```bash
+git clone https://github.com/MONAEXPERT/agent.git
+cd agent
+docker compose up -d --build
+docker compose logs -f mona-agent
+```
+
+Then log in inside the container:
+
+```bash
+docker compose exec mona-agent mona-agent login
+```
+
+## 1. Native install — prerequisites
 
 - **Node.js 20 or newer** — check with `node -v`.
   - macOS: `brew install node`
   - Ubuntu/Debian: `curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install nodejs`
   - Windows: use [WSL2](https://learn.microsoft.com/windows/wsl/install) (native Windows Git Bash works too)
 - An account + **API key** at [agent.mona.expert](https://agent.mona.expert/dashboard)  Settings.
+- **OS sandbox (recommended; required for mode `full`):**
+  - Linux: `bwrap` (`apt install bubblewrap` / `dnf install bubblewrap` /
+    `pacman -S bubblewrap`). Without it the agent runs with the path
+    deny-list only and `mona-agent doctor` reports the degraded state.
+  - macOS: `sandbox-exec` ships with the OS (deprecated by Apple, still
+    functional).
+  - Windows: no OS sandbox equivalent — the path deny-list stays active;
+    see `docs/WINDOWS.md`.
 
-## 2. Install
+## 2. Install (native)
 
 ```bash
 curl -fsSL https://agent.mona.expert/install.sh | bash

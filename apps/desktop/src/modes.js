@@ -23,6 +23,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfig } from './config.js';
 import { SkillsManager, SKILLS_DIR } from './skills.js';
+import { detect } from './sandbox.js';
 import { PRESETS } from '@mona/engine';
 
 export const MODES = Object.freeze({
@@ -46,6 +47,7 @@ export const MODES = Object.freeze({
     policy: 'permissive',
     skills: ['briefing', 'disk-health', 'web-research'],
     daemon: true,                     // install launchd/systemd auto-start
+    requiresSandbox: true,            // OS containment (bwrap/sandbox-exec) is mandatory
   },
 });
 
@@ -73,11 +75,22 @@ export function currentMode() {
 }
 
 /** Apply a mode: write policy.json + skills + daemon flag. */
-export function applyMode(name, { installDaemon = null } = {}) {
+export function applyMode(name, { installDaemon = null, acceptNoSandbox = false, sandboxDetect = detect } = {}) {
   if (!MODES[name]) {
     throw new Error(`Unknown mode "${name}" — use: ${MODE_NAMES.join(', ')}`);
   }
   const mode = MODES[name];
+  const sandbox = sandboxDetect();
+
+  // Full mode is exactly the mode where containment must not be optional:
+  // without an OS sandbox the only guard left is the path deny-list.
+  if (mode.requiresSandbox && !acceptNoSandbox && !sandbox.available) {
+    throw new Error(
+      `Mode "full" requires an OS sandbox, but none is available (${sandbox.reason || 'no backend'}). ` +
+      'Install bwrap (Linux) or ensure sandbox-exec exists (macOS), or pass --i-accept-no-sandbox ' +
+      'to run full mode with the path deny-list only.'
+    );
+  }
 
   // 1) Policy file — the authority for tool tiers + budgets.
   const policy = PRESETS[mode.policy];
@@ -95,6 +108,7 @@ export function applyMode(name, { installDaemon = null } = {}) {
   // 3) Config — remember the mode; optionally force daemon install state.
   const cfg = loadConfig();
   cfg.mode = name;
+  if (acceptNoSandbox) cfg.acceptNoSandbox = true;
   if (installDaemon === true || (installDaemon !== false && mode.daemon)) cfg.daemon = 'installed';
   saveConfig(cfg);
 
@@ -105,6 +119,7 @@ export function applyMode(name, { installDaemon = null } = {}) {
     policyPath: POLICY_PATH,
     skills: wanted,
     daemon: cfg.daemon === 'installed',
+    sandbox,
   };
 }
 
@@ -128,5 +143,7 @@ export function modeSummary() {
     skills: mode.skills,
     daemon: cfg.daemon === 'installed',
     policyTiers,
+    sandbox: detect(),
+    acceptNoSandbox: Boolean(cfg.acceptNoSandbox),
   };
 }

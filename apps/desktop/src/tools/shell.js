@@ -22,6 +22,8 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Policy } from '@mona/engine';
+import { spawnTuple } from '../sandbox.js';
+import { currentMode } from '../modes.js';
 
 // ── Platform detection ────────────────────────────────────────────
 const PLATFORM = os.platform(); // 'darwin' | 'linux' | 'win32'
@@ -367,6 +369,13 @@ function resolveBinary(name) {
 }
 
 // ── Spawn one stage, collect capped output, kill group on timeout ─
+/** True when the OS sandbox must wrap every spawn (mode `full` or the
+ *  MONA_SANDBOX=1 test opt-in). A missing backend is then an error, never a
+ *  silent unsandboxed run. */
+function sandboxRequired() {
+  return currentMode() === 'full' || process.env.MONA_SANDBOX === '1';
+}
+
 function runStage(stage, { stdin = null, cwd, timeoutMs }) {
   return new Promise((resolve) => {
     const denied = deniedIn(stage.argv, cwd);
@@ -384,7 +393,15 @@ function runStage(stage, { stdin = null, cwd, timeoutMs }) {
     if (r0.error) {
       return resolve({ error: r0.error, allowed: r0.allowed, stage: stage.argv[0] });
     }
-    const bin = r0.bin;
+    let bin = r0.bin;
+    let args = stage.argv.slice(1);
+    if (sandboxRequired()) {
+      try {
+        ({ cmd: bin, args } = spawnTuple(bin, args, { required: true, writeRoots: [cwd || process.cwd()] }));
+      } catch (err) {
+        return resolve({ error: err.message, stage: stage.argv[0] });
+      }
+    }
     const env = {};
     for (const k of SAFE_ENV_KEYS) if (process.env[k] !== undefined) env[k] = process.env[k];
     env.PATH = cfg.path || env.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
@@ -507,11 +524,19 @@ async function executeStages(stages, { cwd, timeoutMs }) {
           if (resolved.error) {
             return { results, error: resolved.error, allowed: resolved.allowed, stdout: '', stderr: '' };
           }
-          const bin = resolved.bin;
+          let bin = resolved.bin;
+          let args = group[k].argv.slice(1);
+          if (sandboxRequired()) {
+            try {
+              ({ cmd: bin, args } = spawnTuple(bin, args, { required: true, writeRoots: [cwd || process.cwd()] }));
+            } catch (err) {
+              return { results, error: err.message, allowed: null, stdout: '', stderr: '' };
+            }
+          }
           const env = {};
           for (const key of SAFE_ENV_KEYS) if (process.env[key] !== undefined) env[key] = process.env[key];
           env.PATH = cfg.path || env.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
-          const child = spawn(bin, group[k].argv.slice(1), { env, cwd, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
+          const child = spawn(bin, args, { env, cwd, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
           if (prevOut) prevOut.pipe(child.stdin);
           else child.stdin.end();
           pipes.push(child);
@@ -663,13 +688,22 @@ export const shell = {
       const bgCwd = args.cwd ? path.resolve(expandTilde(String(args.cwd))) : undefined;
       const bgHit = deniedIn(first.argv, bgCwd);
       if (bgHit) return { error: `Access to ${bgHit} is denied by device policy`, platform: PLATFORM };
+      let bin = resolved.bin;
+      let bgArgs = first.argv.slice(1);
+      if (sandboxRequired()) {
+        try {
+          ({ cmd: bin, args: bgArgs } = spawnTuple(bin, bgArgs, { required: true, writeRoots: [bgCwd || process.cwd()] }));
+        } catch (err) {
+          return { error: err.message, platform: PLATFORM };
+        }
+      }
       const logFile = path.join(os.homedir(), '.mona-agent', `bg-${Date.now()}.log`);
       fs.mkdirSync(path.dirname(logFile), { recursive: true });
       const out = fs.openSync(logFile, 'a');
       const env = {};
       for (const k of SAFE_ENV_KEYS) if (process.env[k] !== undefined) env[k] = process.env[k];
       env.PATH = cfg.path || env.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
-      const child = spawn(resolved.bin, first.argv.slice(1), {
+      const child = spawn(bin, bgArgs, {
         detached: true,
         stdio: ['ignore', out, out],
         env,

@@ -63,4 +63,37 @@ describe('doctor checks', () => {
     const byName = Object.fromEntries(report.checks.map((c) => [c.name, c]));
     assert.equal(byName.cloud.ok, false);
   });
+
+  it('sandbox line reports availability per backend', async () => {
+    const report = await doctor.runDoctor({
+      fetcher: async () => ({ status: 200 }),
+      skipUpdate: true,
+      nodeVersion: 'v22.0.0',
+      sandbox: { backend: 'bwrap', available: true },
+      mode: 'standard',
+    });
+    const byName = Object.fromEntries(report.checks.map((c) => [c.name, c]));
+    assert.equal(byName.sandbox.ok, true);
+    assert.match(byName.sandbox.detail, /bwrap/);
+    assert.equal(report.healthy, true);
+  });
+
+  it('sandbox unavailable is a failure ONLY in full mode', async () => {
+    const base = {
+      fetcher: async () => ({ status: 200 }),
+      skipUpdate: true,
+      nodeVersion: 'v22.0.0',
+      sandbox: { backend: null, available: false, reason: 'bwrap not found' },
+    };
+    const std = await doctor.runDoctor({ ...base, mode: 'standard' });
+    const stdByName = Object.fromEntries(std.checks.map((c) => [c.name, c]));
+    assert.equal(stdByName.sandbox.ok, true, 'standard mode tolerates a missing sandbox');
+    assert.equal(std.healthy, true);
+
+    const full = await doctor.runDoctor({ ...base, mode: 'full' });
+    const fullByName = Object.fromEntries(full.checks.map((c) => [c.name, c]));
+    assert.equal(fullByName.sandbox.ok, false, 'full mode requires the sandbox');
+    assert.match(fullByName.sandbox.detail, /required by full mode/);
+    assert.equal(full.healthy, false);
+  });
 });

@@ -62,7 +62,9 @@ describe('modes', () => {
   });
 
   test('applyMode full writes permissive policy + all skills + daemon flag', () => {
-    const r = applyMode('full');
+    // Host-independent: the sandbox gate is bypassed explicitly — this test
+    // verifies the policy/skills/daemon side; the gate has its own tests.
+    const r = applyMode('full', { acceptNoSandbox: true });
     assert.equal(r.policy, 'permissive');
     assert.deepEqual(r.skills, ['briefing', 'disk-health', 'web-research']);
     assert.equal(r.daemon, true);
@@ -72,6 +74,38 @@ describe('modes', () => {
     const cfg = JSON.parse(readFileSync(join(HOME, '.mona-agent', 'config.json'), 'utf8'));
     assert.equal(cfg.mode, 'full');
     assert.equal(cfg.daemon, 'installed');
+  });
+
+  test('full mode refuses activation without an OS sandbox', () => {
+    const noSandbox = () => ({ backend: null, available: false, reason: 'bwrap not found' });
+    assert.throws(
+      () => applyMode('full', { sandboxDetect: noSandbox }),
+      /requires an OS sandbox/
+    );
+    // A refused activation must not have written anything.
+    assert.equal(existsSync(join(HOME, '.mona-agent', 'policy.json')), false);
+  });
+
+  test('full mode with --i-accept-no-sandbox records the decision', () => {
+    const noSandbox = () => ({ backend: null, available: false, reason: 'bwrap not found' });
+    const r = applyMode('full', { acceptNoSandbox: true, sandboxDetect: noSandbox });
+    assert.equal(r.mode, 'full');
+    assert.equal(r.sandbox.available, false);
+    const cfg = JSON.parse(readFileSync(join(HOME, '.mona-agent', 'config.json'), 'utf8'));
+    assert.equal(cfg.acceptNoSandbox, true);
+  });
+
+  test('minimal and standard apply without any sandbox requirement', () => {
+    const noSandbox = () => ({ backend: null, available: false, reason: 'bwrap not found' });
+    assert.equal(applyMode('minimal', { sandboxDetect: noSandbox }).mode, 'minimal');
+    assert.equal(applyMode('standard', { sandboxDetect: noSandbox }).mode, 'standard');
+  });
+
+  test('modeSummary exposes sandbox state and the accept flag', () => {
+    applyMode('standard');
+    const s = modeSummary();
+    assert.equal(typeof s.sandbox.available, 'boolean');
+    assert.equal(typeof s.acceptNoSandbox, 'boolean');
   });
 
   test('applyMode standard = middle ground', () => {
