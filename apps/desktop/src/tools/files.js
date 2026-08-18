@@ -90,17 +90,27 @@ async function guardSymlinks(target) {
  * the opened descriptor is a regular file (or dir for list) — not a FIFO,
  * device, socket or other special file. Special files are rejected via
  * lstat BEFORE open (opening a FIFO for read would block forever).
+ * Regular files with nlink > 1 are refused: a hardlink placed in the
+ * workspace is the same inode as its target elsewhere, so reading it would
+ * read outside content through a contained path (the canonical path of a
+ * hardlink gives no warning — only the link count does).
  */
 async function openGuarded(fp, flags) {
   const lst = await fs.lstat(fp).catch(() => null);
   if (lst && !lst.isFile() && !lst.isDirectory()) {
     throw new Error(`Refusing special file: ${path.basename(fp)}`);
   }
+  if (lst && lst.isFile() && lst.nlink > 1) {
+    throw new Error(`Refusing hardlinked file: ${path.basename(fp)}`);
+  }
   const fd = await fs.open(fp, flags | O_NOFOLLOW);
   try {
     const st = await fd.stat();
     if (!st.isFile() && !st.isDirectory()) {
       throw new Error(`Refusing special file: ${path.basename(fp)}`);
+    }
+    if (st.isFile() && st.nlink > 1) {
+      throw new Error(`Refusing hardlinked file: ${path.basename(fp)}`);
     }
     return { fd, st };
   } catch (err) {
