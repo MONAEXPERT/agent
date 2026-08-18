@@ -19,6 +19,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { createHash, timingSafeEqual } from 'node:crypto';
 
 const DEFAULT_STORE = process.env.MONA_RUNS_STORE || join(homedir(), '.mona-agent', 'runs.json');
 const MAX_RUNS = 500;
@@ -43,6 +44,14 @@ function nowIso() { return new Date().toISOString(); }
 function truncate(value, n = MAX_TEXT) { return String(value ?? '').slice(0, n); }
 function runId() { return `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`; }
 function eventId() { return `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`; }
+function approvalBinding(run) {
+  return createHash('sha256').update(`${run.id}\0${run.planRevision}\0${run.policyRevision}`).digest('hex');
+}
+function sameBinding(a, b) {
+  const left = Buffer.from(String(a || ''), 'hex');
+  const right = Buffer.from(String(b || ''), 'hex');
+  return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
+}
 
 export function normaliseRun(raw = {}) {
   const status = TRANSITIONS[raw.status] ? raw.status : 'created';
@@ -86,7 +95,16 @@ export function normaliseRun(raw = {}) {
     checkpoint,
     checkpoints,
     rollbacks,
-    approvals: Array.isArray(raw.approvals) ? raw.approvals.slice(-100) : [],
+    approvals: Array.isArray(raw.approvals) ? raw.approvals.slice(-100).map((a) => ({
+      actor: truncate(a?.actor, 300),
+      decision: ['approved', 'rejected', 'expired'].includes(a?.decision) ? a.decision : 'rejected',
+      expiresAt: truncate(a?.expiresAt, 100),
+      note: truncate(a?.note, 1000),
+      planRevision: truncate(a?.planRevision, 200),
+      policyRevision: truncate(a?.policyRevision, 200),
+      binding: truncate(a?.binding, 64),
+      ts: a?.ts || nowIso(),
+    })) : [],
     attempts,
     reason: truncate(raw.reason, 1000),
     createdAt: raw.createdAt || nowIso(),
@@ -235,12 +253,31 @@ export class RunStore {
     return this.#put(run);
   }
 
-  approve(id, { actor = '', decision = 'approved', expiresAt = '', note = '' } = {}) {
+  approve(id, { actor = '', decision = 'approved', expiresAt = '', note = '', planRevision, policyRevision } = {}) {
     const run = this.get(id);
     if (!run) return null;
     if (!['approved', 'rejected', 'expired'].includes(decision)) throw new TypeError('invalid approval decision');
-    run.approvals.push({ actor: truncate(actor, 300), decision, expiresAt: truncate(expiresAt, 100), note: truncate(note, 1000), ts: nowIso() });
+    if (run.status !== 'awaiting_approval') throw new Error(`run is not awaiting approval: ${run.status}`);
+    if (!run.planRevision || !run.policyRevision) throw new Error('approval requires planRevision and policyRevision');
+    if (planRevision !== undefined && String(planRevision) !== run.planRevision) throw new Error('approval plan revision mismatch');
+    if (policyRevision !== undefined && String(policyRevision) !== run.policyRevision) throw new Error('approval policy revision mismatch');
+    if (expiresAt && !Number.isFinite(Date.parse(expiresAt))) throw new TypeError('approval expiresAt must be a valid timestamp');
+    run.approvals.push({
+      actor: truncate(actor, 300), decision, expiresAt: truncate(expiresAt, 100), note: truncate(note, 1000),
+      planRevision: run.planRevision, policyRevision: run.policyRevision, binding: approvalBinding(run), ts: nowIso(),
+    });
     return this.#put(run);
+  }
+
+  approvalStatus(id, { now = Date.now() } = {}) {
+    const run = this.get(id);
+    if (!run) return { approved: false, reason: 'unknown run' };
+    const approval = [...run.approvals].reverse().find((a) => a.decision === 'approved');
+    if (!approval) return { approved: false, reason: 'no approval receipt' };
+    if (approval.expiresAt && Date.parse(approval.expiresAt) <= now) return { approved: false, reason: 'approval expired' };
+    if (approval.planRevision !== run.planRevision || approval.policyRevision !== run.policyRevision) return { approved: false, reason: 'approval revision mismatch' };
+    if (!sameBinding(approval.binding, approvalBinding(run))) return { approved: false, reason: 'approval binding mismatch' };
+    return { approved: true, approval };
   }
 
   startAttempt(id, { tool, idempotencyKey = '', sideEffects = false, idempotent = false, compensation = false } = {}) {
@@ -248,6 +285,11 @@ export class RunStore {
     if (!run) return null;
     if (!tool) throw new TypeError('attempt tool is required');
     if (run.attempts.length >= MAX_ATTEMPTS) throw new Error(`max attempts (${MAX_ATTEMPTS}) reached`);
+    if (sideEffects && run.status === 'awaiting_approval') {
+      const approval = this.approvalStatus(id);
+      if (!approval.approved) throw new Error(`side effect requires valid approval: ${approval.reason}`);
+      run.status = 'running';
+    }
     // A freshly requested side effect must declare an idempotency key before
     // execution. It may still be non-idempotent, but then any interrupted
     // attempt is deliberately sent to manual review rather than retried.

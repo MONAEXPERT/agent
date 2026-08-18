@@ -15,7 +15,7 @@ before(async () => ({ RunStore, buildRunEvidence, readAuditEntries, queryAudit }
 describe('buildRunEvidence', () => {
   it('reconstructs a complete run with approvals, attempts, checkpoints, and rollback', () => {
     const s = new RunStore({ storePath: p('runs') });
-    const run = s.create({ id: 'run-ev', task: 'restart db', correlationId: 'c-1', policyRevision: 'p-3' });
+    const run = s.create({ id: 'run-ev', task: 'restart db', correlationId: 'c-1', policyRevision: 'p-3', planRevision: 'plan-1' });
     s.transition(run.id, 'planned');
     s.transition(run.id, 'awaiting_approval');
     s.approve(run.id, { actor: 'alice', decision: 'approved', note: 'ok' });

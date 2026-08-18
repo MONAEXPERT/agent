@@ -14,7 +14,7 @@ describe('RunStore durable lifecycle', () => {
   it('persists state, checkpoint, approval, and transitions across restart', () => {
     const p = storePath('persist');
     const a = new RunStore({ storePath: p });
-    const run = a.create({ id: 'run-persist', task: 'restart service', correlationId: 'c-1', policyRevision: 'p-7' });
+    const run = a.create({ id: 'run-persist', task: 'restart service', correlationId: 'c-1', policyRevision: 'p-7', planRevision: 'plan-2' });
     a.transition(run.id, 'planned');
     a.transition(run.id, 'awaiting_approval');
     a.approve(run.id, { actor: 'alice', decision: 'approved', expiresAt: '2030-01-01T00:00:00Z' });
@@ -34,6 +34,35 @@ describe('RunStore durable lifecycle', () => {
     s.transition(run.id, 'running');
     s.transition(run.id, 'succeeded');
     assert.throws(() => s.transition(run.id, 'running'), /invalid run transition/);
+  });
+
+  it('binds approval receipts to exact plan and policy revisions', () => {
+    const s = new RunStore({ storePath: storePath('approval-binding') });
+    const run = s.create({ task: 'restart service', planRevision: 'plan-1', policyRevision: 'policy-1' });
+    s.transition(run.id, 'awaiting_approval');
+    assert.throws(() => s.startAttempt(run.id, { tool: 'service.restart', sideEffects: true, idempotencyKey: 'restart:1' }), /valid approval/);
+    assert.throws(() => s.approve(run.id, { actor: 'alice', planRevision: 'plan-2' }), /plan revision mismatch/);
+    s.approve(run.id, { actor: 'alice', planRevision: 'plan-1', policyRevision: 'policy-1', expiresAt: '2099-01-01T00:00:00Z' });
+    assert.equal(s.approvalStatus(run.id).approved, true);
+    const started = s.startAttempt(run.id, { tool: 'service.restart', sideEffects: true, idempotencyKey: 'restart:1' });
+    assert.equal(started.run.status, 'running');
+  });
+
+  it('rejects expired and tampered approval receipts', () => {
+    const storePathValue = storePath('approval-tamper');
+    const s = new RunStore({ storePath: storePathValue });
+    const run = s.create({ task: 'change config', planRevision: 'plan-1', policyRevision: 'policy-1' });
+    s.transition(run.id, 'awaiting_approval');
+    s.approve(run.id, { actor: 'alice', expiresAt: '2000-01-01T00:00:00Z' });
+    assert.equal(s.approvalStatus(run.id).approved, false);
+    const raw = JSON.parse(fs.readFileSync(storePathValue, 'utf8'));
+    raw.runs[0].approvals[0].expiresAt = '2099-01-01T00:00:00Z';
+    raw.runs[0].approvals[0].planRevision = 'attacker-plan';
+    fs.writeFileSync(storePathValue, JSON.stringify(raw));
+    const tamperedPath = storePathValue + '-tampered';
+    fs.copyFileSync(storePathValue, tamperedPath);
+    const fresh = new RunStore({ storePath: tamperedPath });
+    assert.equal(fresh.approvalStatus(run.id).approved, false);
   });
 
   it('allows a read-only retry but refuses unknown side-effect retry', () => {
