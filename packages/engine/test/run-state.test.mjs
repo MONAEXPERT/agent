@@ -4,11 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-let RunStore, retryDecision;
+let RunStore, RUN_STATE, retryDecision;
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-runs-'));
 const storePath = (name) => path.join(TMP, `${name}.json`);
 
-before(async () => ({ RunStore, retryDecision } = await import('../src/index.mjs')));
+before(async () => ({ RunStore, RUN_STATE, retryDecision } = await import('../src/index.mjs')));
 
 describe('RunStore durable lifecycle', () => {
   it('persists state, checkpoint, approval, and transitions across restart', () => {

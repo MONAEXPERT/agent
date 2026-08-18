@@ -11,7 +11,7 @@ export { TaskLoop, parseBrainReply, compactMessages, normaliseToolResult } from 
 export { runSubtasks, buildSubSystemPrompt, MAX_SUBTASKS, MAX_SUB_PROMPT, MAX_SUB_STEPS } from './delegate.js';
 export { runWorkflow, validatePhases, buildPhaseContext, MAX_PHASES } from './workflow.js';
 export { GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, normaliseGoal, MAX_GOAL_ROUNDS, MAX_OBJECTIVE } from './goal.js';
-export { RunStore, normaliseRun, retryDecision, RUN_STATUSES, ACTIVE_RUN_STATUSES, TERMINAL_RUN_STATUSES } from './run-state.js';
+export { RunStore, RUN_STATE, normaliseRun, retryDecision, RUN_STATUSES, ACTIVE_RUN_STATUSES, TERMINAL_RUN_STATUSES } from './run-state.js';
 export { JitAccess, ROLES, normaliseGrant } from './jit.js';
 export { DeviceRegistry, DEVICE_HEALTH, hashCredential, normaliseDevice, generateDeviceIdentity, generateCredential, signEnrollment, verifyEnrollment } from './device-registry.js';
 export { computeRunMetrics, evaluateAlerts } from './metrics.js';
