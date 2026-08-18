@@ -102,7 +102,7 @@ The project is actively evolving. The table below separates features implemented
 | **Control-plane library (not active on the device)** | Tenant-scoped policy registry, JIT access, fleet/admin JSON boundary, upgrade orchestration, package lifecycle, plugin manifest signing, run evidence/SIEM export, marketplace index, run metrics — shipped as `packages/control-plane`; `apps/desktop` imports nothing from it (CI-enforced). | [Architecture](docs/ARCHITECTURE.md) import graph, `packages/control-plane/test/` |
 | **Cloud-dependent** | Hosted control-plane task delivery, cloud model routing, dashboard streaming, device token verification, and cloud-side audit/conversation storage. | [Architecture](docs/ARCHITECTURE.md) |
 | **Experimental / operator-managed** | Third-party plugin tools, local provider endpoints, platform-specific service/install flows, and the documented-but-not-yet-pilot-verified operations runbooks. Use restrictive policy and validate in a non-production environment first. | [Policy](docs/POLICY.md), [Windows status](docs/WINDOWS.md), [Runbooks](docs/RUNBOOKS.md) |
-| **Planned / evidence required** | Complete Windows operational lifecycle support (signed MSI/MSIX, DPAPI/Credential Manager packaging, elevated SCM validation), hosted SSO/SCIM, signed plugin *distribution*, and an independent security review. | [Implementation backlog](docs/IMPLEMENTATION-BACKLOG.md), [Project plan](docs/PROJECT-PLAN.md) |
+| **Planned / evidence required** | Complete Windows operational lifecycle support (signed MSI/MSIX, DPAPI/Credential Manager packaging, elevated SCM validation), hosted SSO/SCIM, signed plugin *distribution*, and an independent security review. | [Implementation backlog](docs/IMPLEMENTATION-BACKLOG.md) |
 
 ## What is an AI agent for your computer?
 
@@ -562,8 +562,6 @@ validation).
 - [Policy grammar & presets](docs/POLICY.md)
 - [Compliance & trust](docs/COMPLIANCE.md)
 - [Windows support](docs/WINDOWS.md)
-- [Product and engineering goals](docs/GOALS.md)
-- [Project plan](docs/PROJECT-PLAN.md)
 - [Changelog](CHANGELOG.md)
 - [FAQ](docs/FAQ.md)
 - [Examples](examples/README.md) — launchd, systemd, health checks
