@@ -1,5 +1,8 @@
 # EU Cyber Resilience Act (CRA) Readiness
 
+> Mapping of repository controls to frameworks. No certification proof, no external audit.
+
+
 The Cyber Resilience Act (EU) 2024/2847 imposes cybersecurity requirements on
 products with digital elements sold in the EU. This document maps mona-agent's
 client architecture to the CRA's essential requirements and manufacturer

@@ -1,5 +1,8 @@
 # GDPR — Privacy & Data Processing
 
+> Mapping of repository controls to frameworks. No certification proof, no external audit.
+
+
 How mona.expert processes personal data, and how the open-source client
 minimises it. This document supports both end-user transparency
 (Art. 13/14) and customer due diligence (Art. 28 annex-ready).

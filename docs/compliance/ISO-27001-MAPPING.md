@@ -1,5 +1,8 @@
 # ISO/IEC 27001 Annex A — Control Mapping
 
+> Mapping of repository controls to frameworks. No certification proof, no external audit.
+
+
 This mapping supports organizations building an ISMS around the mona-agent
 deployment. "Implemented by mona-agent/platform" means the control exists in
 the product; "operator" means the adopting organization provides it.

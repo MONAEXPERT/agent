@@ -6,7 +6,7 @@
 // every plugin manifest before considering an entry installable.
 
 import { createHash, createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
-import { normalisePluginManifest, verifyManifest } from './plugin-manifest.js';
+import { normalisePluginManifest, verifyManifest } from '@mona/engine';
 
 function canonicalJson(value) {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);

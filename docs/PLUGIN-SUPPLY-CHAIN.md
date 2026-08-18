@@ -8,11 +8,40 @@ Covers release/plugin attestation, signing, and the trusted-extension marketplac
 3. A consumer can verify the archive with a published `sha256sum` command.
 
 ## Plugin signing & permissions
-1. Every installable plugin ships a manifest with: identity, version, capability/permission list, compatibility range, and a content hash.
-2. The manifest is signed; a plugin without a valid signature is never loaded.
-3. Permissions are capability-scoped and deny-by-default; a plugin can request only what its manifest declares.
 
-**Done when:** a tampered plugin is rejected before load, and a signed plugin loads only after its permissions are checked.
+Enforced at load time since the supply-chain round (`apps/desktop/src/tools/registry.js`):
+
+1. **Discovery is confined** to the installation directory and explicit
+   `MONA_TOOL_PATH` entries — never `process.cwd()`, because importing a
+   package runs its top-level code.
+2. **Pinned keys → signed manifests required.** When the owner pins plugin
+   signing keys in `policy.json` (`plugins.publicKeys`), a package loads ONLY
+   when its signed manifest (`monaAgent.manifest`) verifies under a pinned
+   Ed25519 key. No manifest, no signature → no import; the module is never
+   evaluated. Pinning keys is what makes loading itself verifiable — without
+   pinned keys only the legacy shape check applies (tool policy still gates
+   execution).
+3. **Capabilities deny-by-default.** Before import, every capability declared
+   in the manifest must be granted in `policy.json`
+   (`plugins.capabilities`). The intersection wins — never the union.
+
+```json
+{
+  "plugins": {
+    "publicKeys": ["<SPKI PEM of the only key allowed to sign plugins>"],
+    "capabilities": ["tools.load", "files.read"]
+  }
+}
+```
+
+Each plugin ships a manifest with: identity, version, capability/permission
+list, compatibility range, and a content hash; the manifest is canonicalised,
+hashed and Ed25519-signed (`packages/engine/src/plugin-manifest.js`).
+
+**Verified by:** `apps/desktop/test/plugin-tool.test.mjs` (an unsigned package
+must never be imported — its top-level code never runs) and
+`packages/engine/test/plugin-manifest.test.mjs` (tampered manifest, foreign
+key, missing capabilities).
 
 ## Provenance & certification
 1. Each plugin carries provenance (who built it, from which revision, with which toolchain).

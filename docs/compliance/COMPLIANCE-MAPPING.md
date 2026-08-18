@@ -1,5 +1,8 @@
 # Compliance & Standards Readiness
 
+> Mapping of repository controls to frameworks. No certification proof, no external audit.
+
+
 mona-agent is the open-source client for the mona.expert cloud. This document
 summarizes how the architecture maps to common compliance frameworks. Detailed
 mappings live in the sibling documents of this folder.
