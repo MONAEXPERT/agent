@@ -1,0 +1,13 @@
+{
+  "name": "@mona/control-plane",
+  "version": "2.11.0",
+  "description": "mona control-plane library — fleet, JIT access, upgrades, plugin signing, evidence, SIEM. NOT active on the device.",
+  "type": "module",
+  "main": "src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "dependencies": {
+    "@mona/engine": "^2.1.0"
+  }
+}

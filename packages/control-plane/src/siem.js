@@ -7,7 +7,7 @@
 
 import { readAuditEntries, queryAudit, buildRunEvidence } from './evidence.js';
 import { computeRunMetrics, evaluateAlerts } from './metrics.js';
-import { auditVerify } from './policy.js';
+import { auditVerify } from '@mona/engine';
 
 /** Serialise records to newline-delimited JSON (one JSON object per line). */
 export function toNdjson(records = []) {

@@ -10,9 +10,10 @@ const AUDIT = path.join(TMP, 'audit.jsonl');
 process.env.MONA_AUDIT = AUDIT;
 const p = (name) => path.join(TMP, `${name}.json`);
 
-before(async () => ({
-  RunStore, Policy, toNdjson, exportAuditNdjson, exportRunEvidenceNdjson,
-} = await import('../src/index.mjs')));
+before(async () => {
+  ({ toNdjson, exportAuditNdjson, exportRunEvidenceNdjson } = await import('../src/index.mjs'));
+  ({ RunStore, Policy } = await import('@mona/engine'));
+});
 
 describe('SIEM export', () => {
   it('serialises records as one JSON object per line', () => {

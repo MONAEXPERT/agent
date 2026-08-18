@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from '
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
-import { auditWrite } from './policy.js';
+import { auditWrite } from '@mona/engine';
 
 /**
  * Verify a downloaded package before it enters the lifecycle.

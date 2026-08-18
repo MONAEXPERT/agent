@@ -11,7 +11,10 @@ const AUDIT = path.join(TMP, 'audit.jsonl');
 process.env.MONA_AUDIT = AUDIT;
 const p = (name) => path.join(TMP, `${name}.json`);
 
-before(async () => ({ PackageLifecycle, auditVerify, verifyPackageArtifact } = await import('../src/index.mjs')));
+before(async () => {
+  ({ PackageLifecycle, verifyPackageArtifact } = await import('../src/index.mjs'));
+  ({ auditVerify } = await import('@mona/engine'));
+});
 
 describe('package artifact verification', () => {
   it('accepts the expected SHA-256 digest and rejects tampering or missing digests', () => {

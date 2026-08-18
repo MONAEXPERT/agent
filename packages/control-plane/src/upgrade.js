@@ -9,7 +9,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { auditWrite } from './policy.js';
+import { auditWrite } from '@mona/engine';
 
 const DEFAULT_STORE = process.env.MONA_UPGRADES_STORE || join(homedir(), '.mona-agent', 'upgrades.json');
 const MAX_UPGRADES = 500;
