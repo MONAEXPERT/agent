@@ -36,3 +36,4 @@ platform/.env
 var/
 .env
 packages/*/node_modules/
+docs/NEXT-SESSION-PROMPT.md
