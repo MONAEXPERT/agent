@@ -30,7 +30,12 @@ export function memoryBackend() {
  * interactive user can never be decrypted by the service and vice versa.
  */
 export function dpapiScope({ service = false, scope } = {}) {
-  if (scope) return scope;
+  if (scope) {
+    if (!['CurrentUser', 'LocalMachine'].includes(scope)) {
+      throw new Error(`Invalid DPAPI scope "${scope}" — use CurrentUser or LocalMachine`);
+    }
+    return scope;
+  }
   return service ? 'LocalMachine' : 'CurrentUser';
 }
 
@@ -56,23 +61,41 @@ export function dpapiUnprotectScript(scope) {
   ].join(';');
 }
 
-export function windowsDpapiBackend({ account = 'default', command = 'powershell.exe', runner = spawnFileSync, scope } = {}) {
+export function windowsDpapiBackend({ account = 'default', command = 'powershell.exe', runner = spawnFileSync, scope, dir = join(homedir(), '.mona-agent') } = {}) {
+  const blobFile = join(dir, 'credentials.dpapi');
+  const scopeFile = join(dir, 'credentials.dpapi.scope');
+  const tmpFile = join(dir, 'credentials.dpapi.tmp');
   const resolveScope = () => dpapiScope({ scope, service: Boolean(process.env.MONA_SERVICE) });
   const protect = (s) => dpapiProtectScript(s);
   const unprotect = (s) => dpapiUnprotectScript(s);
-  let stored = null;
-  let storedScope = null;
   const run = (code, input) => {
     const result = runner(command, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'RemoteSigned', '-Command', code], { input, encoding: 'utf8' });
     if (result.status !== 0 || result.error) throw new Error('Windows DPAPI operation failed');
     return String(result.stdout || '').trim();
   };
+  const readBlob = () => {
+    try { return existsSync(blobFile) ? readFileSync(blobFile, 'utf8') : null; } catch { return null; }
+  };
+  const readScope = () => {
+    try { return existsSync(scopeFile) ? readFileSync(scopeFile, 'utf8').trim() : null; } catch { return null; }
+  };
+  const writeBlob = (blob) => {
+    mkdirSync(dir, { recursive: true });
+    // Atomic write: tmp + rename, same as the other stores in the repo.
+    writeFileSync(tmpFile, blob, { mode: 0o600 });
+    renameSync(tmpFile, blobFile);
+  };
+  const writeScope = (current) => {
+    writeFileSync(scopeFile, current, { mode: 0o600 });
+  };
   return {
     name: 'windows-dpapi', secure: true,
     available: () => process.platform === 'win32',
     load: () => {
+      const stored = readBlob();
       if (!stored) return null;
       const current = resolveScope();
+      const storedScope = readScope();
       if (storedScope && storedScope !== current) {
         return { error: 'DPAPI scope mismatch', savedScope: storedScope, currentScope: current };
       }
@@ -80,10 +103,14 @@ export function windowsDpapiBackend({ account = 'default', command = 'powershell
     },
     save: (_service, _account, value) => {
       const current = resolveScope();
-      stored = run(protect(current), JSON.stringify(value));
-      storedScope = current;
+      writeBlob(run(protect(current), JSON.stringify(value)));
+      writeScope(current);
     },
-    clear: () => { stored = null; storedScope = null; },
+    clear: () => {
+      try { unlinkSync(blobFile); } catch {}
+      try { unlinkSync(scopeFile); } catch {}
+      try { unlinkSync(tmpFile); } catch {}
+    },
     scope: resolveScope,
     account,
   };
@@ -115,7 +142,7 @@ export function createCredentialStore({
   const dir = join(homeDir, '.mona-agent');
   const legacy = join(dir, 'credentials.json');
   const metadataFile = join(dir, 'credentials.meta.json');
-  const selected = backend || (os === 'win32' ? windowsDpapiBackend() : (allowFileFallback ? fileBackend(legacy) : null));
+  const selected = backend || (os === 'win32' ? windowsDpapiBackend({ dir }) : (allowFileFallback ? fileBackend(legacy) : null));
   if (!selected) throw new Error(`No credential backend available for ${os}`);
   if (os === 'win32' && selected.name === 'file' && !allowFileFallback) throw new Error('Windows secure credential storage unavailable');
   const readMeta = () => {
@@ -146,7 +173,12 @@ export function createCredentialStore({
       const value = fileBackend(legacy).load();
       if (!value) return false;
       selected.save(SERVICE, os, value);
-      if (!selected.load(SERVICE, os)) throw new Error('credential migration read-back failed');
+      // Read back from disk (not RAM) and compare before touching the legacy
+      // file — a failed or mismatched read-back must never rename it.
+      const readBack = selected.load(SERVICE, os);
+      if (!readBack || readBack.error || readBack.apiKey !== value.apiKey || readBack.agentId !== value.agentId) {
+        throw new Error('credential migration read-back failed');
+      }
       writeMeta({ agentId: value.agentId, createdAt: now(), rotatedAt: now(), migrated: true });
       renameSync(legacy, `${legacy}.migrated`);
       return true;
