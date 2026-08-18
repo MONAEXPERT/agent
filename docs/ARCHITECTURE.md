@@ -61,6 +61,27 @@ tools and the trace plumbing — all loop behavior (policy checks, budget
 steering, corrective nudges, forced conclusion) is engine code that is
 tested once and shared with every future client.
 
+### Engine public surface
+
+`packages/engine/src/index.mjs` is the single public entry point for
+`@mona/engine`. It exports the pieces the daemon actually consumes — `Policy`,
+`Budget`, `MemoryStore`, `TaskLoop`, the delegation/goal/workflow runners,
+`RunStore`, `VectorStore`, and (since capability grants) `verifyCapabilityGrant`
+/ `resolveCapabilityGrant` / `intersectCapabilities`. `apps/desktop/src/agent.js`
+is the wiring edge for every one of these.
+
+`packages/engine/src/capability-grant.js` is the device-side half of remote
+capability extension: it verifies a signed grant against the owner's local
+ceiling (`Policy#capabilities`) and is wired into `agent.js` at task start.
+Its contract with the control plane is documented in
+[DEVICE-LIFECYCLE.md](DEVICE-LIFECYCLE.md).
+
+There is no separate, unwired "control-plane library" in this checkout: every
+`@mona/engine` export is either consumed by the daemon or is a documented public
+API. Any future control-plane modules (device registry, fleet controller, etc.)
+must land as either a wired call edge in the daemon/CLI or a distinct
+`@mona/control-plane` package — not a set of unexported, untested modules.
+
 ## Control channel lifecycle
 
 1. **Boot** — `config.js` loads `~/.mona-agent/credentials.json` and
