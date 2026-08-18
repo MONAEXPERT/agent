@@ -7,7 +7,7 @@
 // to the shared hash-chained audit log.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify, randomBytes, timingSafeEqual } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { auditWrite } from './policy.js';
@@ -25,6 +25,39 @@ export function hashCredential(secret) {
   return createHash('sha256').update(String(secret ?? '')).digest('hex');
 }
 
+const IDENTITY_CONTEXT = 'mona-device-identity-v1';
+const CREDENTIAL_BYTES = 32;
+
+function canonical(value) { return JSON.stringify(value, Object.keys(value).sort()); }
+function fingerprint(publicKey) {
+  return createHash('sha256').update(publicKey).digest('hex');
+}
+
+/** Generate an Ed25519 identity. Private material is returned only to the caller. */
+export function generateDeviceIdentity() {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const publicKeyPem = publicKey.export({ type: 'spki', format: 'pem' });
+  return {
+    algorithm: 'Ed25519',
+    publicKey: publicKeyPem,
+    deviceFingerprint: fingerprint(publicKeyPem),
+    privateKey: privateKey.export({ type: 'pkcs8', format: 'pem' }),
+  };
+}
+
+export function signEnrollment(payload, privateKey) {
+  if (!payload || typeof payload !== 'object') throw new TypeError('payload is required');
+  return sign(null, Buffer.from(`${IDENTITY_CONTEXT}.${canonical(payload)}`), createPrivateKey(privateKey)).toString('base64url');
+}
+
+export function verifyEnrollment(payload, signature, publicKey) {
+  try {
+    return verify(null, Buffer.from(`${IDENTITY_CONTEXT}.${canonical(payload)}`), createPublicKey(publicKey), Buffer.from(String(signature), 'base64url'));
+  } catch { return false; }
+}
+
+export function generateCredential() { return randomBytes(CREDENTIAL_BYTES).toString('base64url'); }
+
 export function normaliseDevice(raw = {}) {
   return {
     id: String(raw.id || deviceId()),
@@ -34,6 +67,12 @@ export function normaliseDevice(raw = {}) {
     version: String(raw.version || ''),
     arch: String(raw.arch || ''),
     credentialHash: String(raw.credentialHash || ''),
+    credentialId: String(raw.credentialId || ''),
+    identityAlgorithm: String(raw.identityAlgorithm || ''),
+    publicKey: String(raw.publicKey || ''),
+    deviceFingerprint: String(raw.deviceFingerprint || ''),
+    credentialIssuedAt: raw.credentialIssuedAt || '',
+    credentialRevokedAt: raw.credentialRevokedAt || null,
     credentialExpiresAt: raw.credentialExpiresAt || '',
     health: DEVICE_HEALTH.includes(raw.health) ? raw.health : 'online',
     lastSeen: raw.lastSeen || nowIso(),
@@ -75,12 +114,21 @@ export class DeviceRegistry {
   }
 
   /** Enroll a device. The credential is hashed; the secret is never stored. */
-  enroll({ id, tenantId, hostname = '', os = '', version = '', arch = '', credential = '', credentialExpiresAt = '', tags = [], group = '', policyRevision = '' } = {}) {
+  enroll({ id, tenantId, hostname = '', os = '', version = '', arch = '', credential = '', credentialExpiresAt = '', tags = [], group = '', policyRevision = '', publicKey = '', enrollmentSignature = '', enrollmentPayload, identityAlgorithm = 'Ed25519' } = {}) {
     if (!tenantId) throw new TypeError('tenantId is required');
-    if (!credential) throw new TypeError('credential is required');
+    if (!credential && !publicKey) throw new TypeError('credential or publicKey is required');
+    if (publicKey) {
+      if (identityAlgorithm !== 'Ed25519') throw new TypeError('unsupported identity algorithm');
+      if (!enrollmentSignature || !enrollmentPayload || !verifyEnrollment(enrollmentPayload, enrollmentSignature, publicKey)) throw new TypeError('invalid enrollment signature');
+      if (String(enrollmentPayload.tenantId) !== String(tenantId)) throw new TypeError('enrollment tenant mismatch');
+    }
+    const issuedAt = nowIso();
     const device = normaliseDevice({
       id, tenantId, hostname, os, version, arch, tags, group, policyRevision,
-      credentialHash: hashCredential(credential), credentialExpiresAt,
+      credentialHash: credential ? hashCredential(credential) : hashCredential(generateCredential()),
+      credentialId: `cred_${randomBytes(12).toString('hex')}`, credentialIssuedAt: issuedAt,
+      credentialExpiresAt, publicKey, identityAlgorithm,
+      deviceFingerprint: publicKey ? fingerprint(publicKey) : '',
     });
     if (this.devices.has(device.id)) return this.get(device.id);
     this.devices.set(device.id, device);
@@ -126,7 +174,10 @@ export class DeviceRegistry {
   verifyCredential(id, credential, now = Date.now()) {
     const d = this.devices.get(String(id));
     if (!d || d.revoked) return { ok: false, reason: 'unknown or revoked device' };
-    if (hashCredential(credential) !== d.credentialHash) return { ok: false, reason: 'credential mismatch' };
+    const expected = Buffer.from(d.credentialHash, 'hex');
+    const presented = Buffer.from(hashCredential(credential), 'hex');
+    if (expected.length !== presented.length || !timingSafeEqual(expected, presented)) return { ok: false, reason: 'credential mismatch' };
+    if (d.credentialRevokedAt) return { ok: false, reason: 'credential revoked' };
     if (d.credentialExpiresAt && Date.parse(d.credentialExpiresAt) <= now) return { ok: false, reason: 'credential expired' };
     return { ok: true };
   }
@@ -137,6 +188,9 @@ export class DeviceRegistry {
     if (!d) return null;
     if (!credential) throw new TypeError('credential is required');
     d.credentialHash = hashCredential(credential);
+    d.credentialId = `cred_${randomBytes(12).toString('hex')}`;
+    d.credentialIssuedAt = nowIso();
+    d.credentialRevokedAt = null;
     d.credentialExpiresAt = credentialExpiresAt;
     this.#save();
     auditWrite({ kind: 'device', action: 'rotate', deviceId: d.id, tenantId: d.tenantId, auditor });

@@ -103,6 +103,11 @@ jobs:
         with:
           subject-path: mona-agent-${{ github.ref_name }}.tar.gz
 
+      - name: Sign checksums with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v3.0.0
+        with:
+          inputs: SHA256SUMS
+
       - name: Attach to release
         uses: softprops/action-gh-release@c06208fe532ec0f6b2b7e9eb2ddbd3d90c8c8ff7 # v2
         with:

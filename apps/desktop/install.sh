@@ -108,6 +108,10 @@ TARBALL_ACTUAL="$TMP_DIR/archive.tar.gz"
 
 # ── Checksum verification (release installs) ────────────────────
 if [ -n "$VERSION_REQ" ]; then
+  if [ "${MONA_REQUIRE_CHECKSUM:-1}" != 1 ]; then
+    echo -e "  ${RED}Refusing insecure release install: MONA_REQUIRE_CHECKSUM must remain 1${RESET}"
+    exit 1
+  fi
   if curl -fsSL "$CHECKSUM_URL" -o "$TMP_DIR/SHA256SUMS" 2>/dev/null; then
     EXPECT="$(grep " $TARBALL_NAME\$" "$TMP_DIR/SHA256SUMS" | awk '{print $1}' | head -1)"
     if [ -n "$EXPECT" ]; then

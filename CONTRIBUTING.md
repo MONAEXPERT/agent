@@ -54,6 +54,11 @@ behavior in particular needs a test that proves it.
 2. `npm test` green.
 3. Open a PR with a clear description of what/why.
 4. One logical change per PR. Small is beautiful.
+5. For security-sensitive changes, describe the trust boundary, policy impact, regression test, and any release/distribution considerations without including secrets or unpublished exploit details. Use `docs/SECURITY-REVIEW-SCOPE.md` for review planning.
+
+## Community and release validation
+
+Community reports should include the version/commit, platform, reproduction steps, expected versus actual behavior, and sanitized logs. Suspected vulnerabilities must follow [`SECURITY.md`](SECURITY.md), not a public issue. Maintainers use [`docs/RELEASE-DISTRIBUTION-CHECKLIST.md`](docs/RELEASE-DISTRIBUTION-CHECKLIST.md) when validating release artifacts and supported installation paths.
 
 ## Code of Conduct
 

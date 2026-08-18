@@ -43,6 +43,7 @@ export function normaliseGrant(raw = {}) {
     expiresAt: raw.expiresAt || '',
     reason: String(raw.reason || ''),
     auditor: String(raw.auditor || ''),
+    tenantId: String(raw.tenantId || ''),
     revoked: Boolean(raw.revoked),
     revokedAt: raw.revokedAt || null,
     revokeReason: String(raw.revokeReason || ''),
@@ -83,14 +84,14 @@ export class JitAccess {
   }
 
   /** Provision a bounded, role-scoped grant. Audit is mandatory and never throws. */
-  grant({ id, principal, role, tools = [], notBefore = '', expiresAt = '', reason = '', auditor = '' } = {}) {
+  grant({ id, tenantId = 'default', principal, role, tools = [], notBefore = '', expiresAt = '', reason = '', auditor = '' } = {}) {
     if (!principal) throw new TypeError('principal is required');
     if (role && !ROLES[role]) throw new TypeError(`unknown role "${role}"`);
-    const grant = normaliseGrant({ id, principal, role, tools, notBefore, expiresAt, reason, auditor });
+    const grant = normaliseGrant({ id, tenantId, principal, role, tools, notBefore, expiresAt, reason, auditor });
     if (this.grants.has(grant.id)) return this.get(grant.id);
     this.grants.set(grant.id, grant);
     this.#save();
-    auditWrite({ kind: 'jit', action: 'grant', grantId: grant.id, principal, role: grant.role, tools: grant.tools, expiresAt: grant.expiresAt, reason, auditor });
+    auditWrite({ kind: 'jit', action: 'grant', grantId: grant.id, tenantId, principal, role: grant.role, tools: grant.tools, expiresAt: grant.expiresAt, reason, auditor });
     return this.get(grant.id);
   }
 
@@ -113,8 +114,9 @@ export class JitAccess {
   }
 
   /** Whether a principal currently holds an active grant covering `tool`. */
-  check(principal, tool, now = Date.now()) {
-    const active = [...this.grants.values()].filter((g) => g.principal === principal && covers(g.tools, tool) && activeWindow(g, now));
+  // Tenant-aware callers should pass tenantId; legacy grants remain readable.
+  check(principal, tool, { tenantId, now = Date.now() } = {}) {
+    const active = [...this.grants.values()].filter((g) => g.principal === principal && (tenantId === undefined || !g.tenantId || g.tenantId === tenantId) && covers(g.tools, tool) && activeWindow(g, now));
     return {
       allowed: active.length > 0,
       grants: active.map((g) => g.id),

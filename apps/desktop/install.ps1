@@ -46,6 +46,7 @@ try {
   Invoke-WebRequest -Uri $Url -OutFile $Archive
 
   if ($Version) {
+    if ($env:MONA_REQUIRE_CHECKSUM -and $env:MONA_REQUIRE_CHECKSUM -ne '1') { throw 'Refusing insecure release install: MONA_REQUIRE_CHECKSUM must remain 1' }
     try {
       Invoke-WebRequest -Uri $ShaUrl -OutFile (Join-Path $tmp 'SHA256SUMS')
       $lines = Get-Content (Join-Path $tmp 'SHA256SUMS')

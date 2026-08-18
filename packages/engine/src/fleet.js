@@ -12,11 +12,13 @@ import { RunStore } from './run-state.js';
 import { UpgradeOrchestrator } from './upgrade.js';
 import { computeRunMetrics, evaluateAlerts } from './metrics.js';
 import { auditVerify } from './policy.js';
+import { PolicyRegistry } from './policy-registry.js';
 
 export class FleetController {
-  constructor({ deviceStore, jitStore, runStore, upgradeStore } = {}) {
+  constructor({ deviceStore, jitStore, runStore, upgradeStore, policyStore } = {}) {
     this.devices = new DeviceRegistry({ storePath: deviceStore });
     this.jit = new JitAccess({ storePath: jitStore });
+    this.policies = new PolicyRegistry({ storePath: policyStore });
     this.runs = new RunStore({ storePath: runStore });
     this.upgrades = new UpgradeOrchestrator({ registry: this.devices, storePath: upgradeStore });
   }
@@ -25,9 +27,13 @@ export class FleetController {
   revokeDevice(id, opts) { return this.devices.revoke(id, opts); }
   verifyCredential(id, credential) { return this.devices.verifyCredential(id, credential); }
 
-  grant(opts) { return this.jit.grant(opts); }
+  grant(opts = {}) { return this.jit.grant({ tenantId: opts.tenantId || 'default', ...opts }); }
   revokeGrant(id, opts) { return this.jit.revoke(id, opts); }
-  checkAccess(principal, tool) { return this.jit.check(principal, tool); }
+  checkAccess(principal, tool, opts) { return this.jit.check(principal, tool, opts); }
+  createPolicy(opts) { return this.policies.create(opts); }
+  listPolicies(opts) { return this.policies.list(opts); }
+  activatePolicy(id, opts) { return this.policies.activate(id, opts); }
+  activePolicy(tenantId) { return this.policies.activeRevision(tenantId); }
 
   createRun(opts) { return this.runs.create(opts); }
   transitionRun(id, status, opts) { return this.runs.transition(id, status, opts); }

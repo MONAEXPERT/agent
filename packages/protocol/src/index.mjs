@@ -21,6 +21,13 @@ export const isTerminalClose = (code) =>
   code === CLOSE_CODES.UNAUTHORIZED || code === CLOSE_CODES.REVOKED || code === CLOSE_CODES.PROTOCOL;
 
 /** Message types. `device ` frames are sent by the daemon; `gateway ` by the control plane. */
+export const IDENTITY_ALGORITHM = 'Ed25519';
+
+export function enrollmentPayload({ deviceId, tenantId, publicKey, nonce, ts }) {
+  if (![deviceId, tenantId, publicKey, nonce, ts].every(Boolean)) throw new TypeError('enrollment fields are required');
+  return { deviceId: String(deviceId), tenantId: String(tenantId), publicKey: String(publicKey), nonce: String(nonce), ts: Number(ts) };
+}
+
 export const TYPES = Object.freeze({
   /* handshake (device ) */
   HELLO: 'hello',

@@ -11,6 +11,7 @@ const ACTIONS = new Set([
   'listDevices', 'listRuns', 'recoverable',
   'enroll', 'revokeDevice', 'verifyCredential',
   'grant', 'revokeGrant', 'checkAccess',
+  'createPolicy', 'listPolicies', 'activatePolicy', 'activePolicy',
   'createRun', 'transitionRun', 'checkpointRun', 'rollbackRun',
   'startUpgrade', 'promoteUpgrade', 'rollbackUpgrade',
 ]);
@@ -60,7 +61,11 @@ export class AdminApi {
         case 'verifyCredential': data = c.verifyCredential(p.id, p.credential); break;
         case 'grant': data = c.grant(p); break;
         case 'revokeGrant': data = c.revokeGrant(p.id, { reason: p.reason, auditor: p.auditor }); break;
-        case 'checkAccess': data = c.checkAccess(p.principal, p.tool); break;
+        case 'checkAccess': data = c.checkAccess(p.principal, p.tool, { tenantId: p.tenantId }); break;
+        case 'createPolicy': data = c.createPolicy({ tenantId: p.tenantId, definition: p.definition, createdBy: p.actor || p.createdBy }); break;
+        case 'listPolicies': data = c.listPolicies({ tenantId: p.tenantId }); break;
+        case 'activatePolicy': data = c.activatePolicy(p.id, { tenantId: p.tenantId, activatedBy: p.actor || p.activatedBy }); break;
+        case 'activePolicy': data = c.activePolicy(p.tenantId); break;
         case 'createRun': data = c.createRun(p); break;
         case 'transitionRun': data = c.transitionRun(p.id, p.status, { reason: p.reason, checkpoint: p.checkpoint }); break;
         case 'checkpointRun': data = c.checkpointRun(p.id, p.checkpoint); break;

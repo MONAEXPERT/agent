@@ -9,7 +9,20 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { createHash } from 'node:crypto';
 import { auditWrite } from './policy.js';
+
+/**
+ * Verify a downloaded package before it enters the lifecycle.
+ * The digest is deliberately explicit (sha256:<hex> or bare hex) so callers
+ * cannot accidentally treat a version string as integrity evidence.
+ */
+export function verifyPackageArtifact(bytes, expectedDigest) {
+  const expected = String(expectedDigest || '').replace(/^sha256:/i, '').toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(expected)) return { ok: false, reason: 'missing or invalid sha256 digest' };
+  const actual = createHash('sha256').update(bytes).digest('hex');
+  return actual === expected ? { ok: true, digest: `sha256:${actual}` } : { ok: false, reason: 'artifact digest mismatch', expected: `sha256:${expected}`, actual: `sha256:${actual}` };
+}
 
 const DEFAULT_STORE = process.env.MONA_PKGS_STORE || join(homedir(), '.mona-agent', 'packages.json');
 const MAX_PACKAGES = 1000;

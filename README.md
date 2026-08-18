@@ -44,10 +44,10 @@ language:
 - en
 ---
 
-# mona-agent — the open-source AI agent for your own computer
+# MONA — an AI agent execution and security layer
 
 <p align="center">
-  <strong>An AI agent that lives on your machine and actually does things.<br/>
+  <strong>A local runtime for AI agents with policy-controlled, bounded and auditable access to your machine.<br/>
   Run commands, manage files, automate tasks, orchestrate multi-agent workflows,<br/>
   and watch every step stream back to you. MIT-licensed, one runtime dependency.</strong>
 </p>
@@ -61,6 +61,10 @@ language:
   <img src="https://img.shields.io/badge/tests-160%2B%20incl.%20red--team-brightgreen.svg" alt="160+ tests incl. security red-team suite">
 </p>
 
+## Security and product status
+
+MONA is an enterprise-capable execution and security architecture, not a claim that this repository alone provides a complete enterprise product. SSO/SAML/OIDC, RBAC, tenant administration, SCIM, fleet controls, retention/residency, support SLAs, and incident/compliance operations may require the hosted control plane or additional operator controls. Review the capability-status table and threat model before production deployment.
+
 ## Release verification
 
 Every tagged release publishes a source archive, `SHA256SUMS`, and `sbom.cyclonedx.json`. Verify downloaded artifacts before use:
@@ -70,6 +74,12 @@ sha256sum -c SHA256SUMS
 ```
 
 GitHub release provenance is attested during the release workflow; inspect it with GitHub's artifact-attestation tooling before production deployment. See [Implementation backlog](docs/IMPLEMENTATION-BACKLOG.md) for remaining supply-chain work.
+
+## Security hardening status
+
+The current hardening work adds signed Ed25519 device enrollment, rotatable credential metadata, immutable tenant policy revisions, tenant-aware fleet administration, release checksum verification, and explicit prompt-injection trust-boundary guidance. See [device lifecycle](docs/DEVICE-LIFECYCLE.md), [policy controls](docs/POLICY.md), and the [security review scope](docs/SECURITY-REVIEW-SCOPE.md).
+
+These controls are repository capabilities, not evidence of an independent audit or a complete enterprise product. Hardware-backed key storage, full SSO/SAML/OIDC, SCIM service integration, external security review, and community adoption remain deployment or validation work.
 
 ## Capability status
 
