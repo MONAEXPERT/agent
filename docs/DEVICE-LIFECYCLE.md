@@ -184,3 +184,44 @@ Every grant decision is written to the local hash-chained audit log with
 `kind: "capability-grant"`, the run id, verdict (`accepted`/`rejected`), reason,
 a `grantHash` (sha256 of the canonical grant), the MFA method, and the
 effective capabilities that survived the ceiling intersection.
+
+Every entry is additionally **Ed25519-signed** with the device audit key
+(domain `mona-audit-v1`, key file `audit-key.json` next to the log, 0600,
+generated on first use). `mona-agent audit verify` checks the hash chain
+**and** every signature; a chain recomputed under a foreign key fails at its
+first entry.
+
+### Audit anchoring — control-plane contract
+
+The device anchors its chain head at the control plane every **50 entries or
+5 minutes** (whichever comes first), so the device cannot rewrite its own
+history without diverging from the stored anchors.
+
+`POST /api/v1/agent/audit-anchor` (device bearer token; Sngine router
+`mona-plugin/api/agent.php`) — request body:
+
+```json
+{
+  "seq": 412,
+  "hash": "sha256 of the signed entry",
+  "signedAt": "2026-08-18T12:00:00.000Z",
+  "sig": "base64url Ed25519 over mona-audit-v1.<hash>",
+  "pub": "device audit public key (SPKI PEM)"
+}
+```
+
+Server requirements (append-only, tenant-scoped):
+
+- Auth: device bearer token only; the anchor is stored under that device's
+  tenant. Never account-admin-only, never unauthenticated.
+- Store: append-only rows `{seq, hash, signedAt, sig, pub}` — no update/delete
+  path, no overwrite of an existing seq.
+- Response: `200 {"ok": true}`.
+- `GET` the same path returns `{"anchors": [...]}` (newest last) for the
+  device's own tenant; `mona-agent audit verify --against-cloud` compares the
+  local chain entry at each anchored seq and reports the first divergence
+  with its seq.
+
+Rate limiting: at most one POST per device per minute (the client already
+throttles to the 50-entries/5-minutes cadence).
+

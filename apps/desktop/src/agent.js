@@ -15,6 +15,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { think, pollTasks, claimTask, taskResult, postActivity, runStart, runStep, runFinish } from './cloud.js';
+import { postAuditAnchor } from './api.js';
 import { loadProviderConfig, localThink, transportMode, requireLocalProvider } from './transport/local.js';
 import { ControlChannel } from './control.js';
 import { tools } from './tools/index.js';
@@ -23,7 +24,7 @@ import { setAgentRoots } from './tools/files.js';
 import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
-import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, runWorkflow, RunStore, resolveCapabilityGrant } from '@mona/engine';
+import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, auditHead, anchorDue, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, runWorkflow, RunStore, resolveCapabilityGrant } from '@mona/engine';
 import { TaskQueue } from './taskqueue.js';
 import { configureDelegateRunner } from './tools/delegate.js';
 import { configureGoalRunner } from './tools/goal.js';
@@ -415,10 +416,39 @@ export class AgentDaemon extends EventEmitter {
         // again before our claim is reflected).
         this.#enqueueTask(t.run_id, t.task, t);
       }
+      this.#maybeAnchorAudit();
     } catch (err) {
       log.debug(`Task poll failed: ${err.message}`);
     } finally {
       this.#polling = false;
+    }
+  }
+
+  // ── Audit anchoring (every 50 entries or 5 minutes) ─────────────
+  // Chain heads go to the control plane so the device cannot rewrite its
+  // own audit history without diverging from the stored anchors. Failure
+  // is logged and retried on the next tick — anchoring must never break
+  // task polling.
+  #anchor = { lastSeq: 0, lastAt: 0, inFlight: false };
+
+  async #maybeAnchorAudit() {
+    if (this.#anchor.inFlight) return;
+    let head;
+    try {
+      head = auditHead(process.env.MONA_AUDIT || join(homedir(), '.mona-agent', 'audit.jsonl'));
+    } catch { return; }
+    if (!head) return;
+    if (!anchorDue(this.#anchor, { head })) return;
+    this.#anchor.inFlight = true;
+    try {
+      await postAuditAnchor(this.#creds.apiKey, head);
+      this.#anchor.lastSeq = head.seq;
+      this.#anchor.lastAt = Date.now();
+      log.debug(`Audit chain head anchored at seq ${head.seq}`);
+    } catch (err) {
+      log.debug(`Audit anchor failed: ${err.message}`);
+    } finally {
+      this.#anchor.inFlight = false;
     }
   }
 

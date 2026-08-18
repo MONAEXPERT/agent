@@ -23,12 +23,12 @@ import { loadCreds, saveCreds, requireCreds, CLOUD, DEFAULTS, PATHS } from '../s
 import { VERSION, isUpdateAvailable } from '../src/version.js';
 import { checkForUpdates, applyUpdate } from '../src/update.js';
 import { verifyKey } from '../src/cloud.js';
-import { testConnection, sendChat } from '../src/api.js';
+import { testConnection, sendChat, postAuditAnchor, fetchAuditAnchors } from '../src/api.js';
 import { tools } from '../src/tools/index.js';
 import { AgentDaemon } from '../src/agent.js';
 import { Dashboard } from '../src/tui.js';
 import { log } from '../src/log.js';
-import { Policy, auditVerify } from '@mona/engine';
+import { Policy, auditVerify, auditHead, compareAnchors } from '@mona/engine';
 import { MODES, MODE_NAMES, applyMode, modeSummary, currentMode, POLICY_PATH } from '../src/modes.js';
 import { daemonStatus, daemonInstall, daemonUninstall, alreadyRunning, stopRunningDaemon, DAEMON_PATHS, writePid, clearPid } from '../src/daemon.js';
 import { SkillsManager } from '../src/skills.js';
@@ -393,11 +393,53 @@ async function auditCmd() {
   }
 
   if (sub === 'verify') {
+    const againstCloud = args.includes('--against-cloud');
     const v = auditVerify(auditPath);
     if (v.ok) {
-      console.log(`\n  ${GREEN}Audit chain OK${RESET} — ${v.checked} entries verified, no tampering detected.\n`);
+      console.log(`\n  ${GREEN}Audit chain OK${RESET} — ${v.checked} entries verified (hash chain + Ed25519 signatures), no tampering detected.\n`);
     } else {
       console.log(`\n  ${RED}Audit chain BROKEN${RESET} at entry ${v.brokenAt} (${v.reason || 'hash mismatch'}).\n`);
+      process.exit(1);
+    }
+    if (againstCloud) {
+      const creds = loadCreds();
+      if (!creds?.apiKey) {
+        console.error(`\n  ${RED}Not logged in — run mona-agent login first.${RESET}\n`);
+        process.exit(1);
+      }
+      try {
+        const anchors = await fetchAuditAnchors(creds.apiKey);
+        const c = compareAnchors(auditPath, anchors);
+        if (c.ok) {
+          console.log(`  ${GREEN}Cloud anchors OK${RESET} — ${c.checkedAnchors} stored anchor(s) match the local chain.\n`);
+        } else {
+          console.log(`  ${RED}Anchor divergence${RESET} at seq ${c.divergentAt ?? '?'}: ${c.reason}\n`);
+          process.exit(1);
+        }
+      } catch (err) {
+        console.error(`\n  ${RED}Anchor comparison failed: ${err.message}${RESET}\n`);
+        process.exit(1);
+      }
+    }
+    return;
+  }
+
+  if (sub === 'anchor') {
+    const head = auditHead(auditPath);
+    if (!head) {
+      console.log(`\n  ${YELLOW}No signed audit entries yet: ${auditPath}${RESET}\n`);
+      return;
+    }
+    const creds = loadCreds();
+    if (!creds?.apiKey) {
+      console.error(`\n  ${RED}Not logged in — run mona-agent login first.${RESET}\n`);
+      process.exit(1);
+    }
+    try {
+      const r = await postAuditAnchor(creds.apiKey, head);
+      console.log(`\n  ${GREEN}Audit chain head anchored${RESET} — seq ${head.seq}, hash ${head.hash.slice(0, 16)}… (${r?.ok ? 'accepted' : JSON.stringify(r)})\n`);
+    } catch (err) {
+      console.error(`\n  ${RED}Anchor failed: ${err.message}${RESET}\n`);
       process.exit(1);
     }
     return;
