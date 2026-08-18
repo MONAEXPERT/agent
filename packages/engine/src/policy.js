@@ -26,7 +26,7 @@
 // `mona-agent audit verify`.
 
 import { createHash } from 'node:crypto';
-import { readFileSync, existsSync, appendFileSync, mkdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, appendFileSync, mkdirSync, statSync, openSync, fstatSync, readSync, closeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 
@@ -192,7 +192,7 @@ function matchWhen(when, args) {
       // value list checks
       if (Array.isArray(cond.in) && !cond.in.includes(value)) return false;
       if (Array.isArray(cond.notIn) && cond.notIn.includes(value)) return false;
-      if (Array.isArray(cond.includes) && !String(value || '').includes(...cond.includes)) return false;
+      if (Array.isArray(cond.includes) && !cond.includes.every((s) => String(value || '').includes(s))) return false;
       // path containment
       if (Array.isArray(cond.within) && !pathWithin(value, cond.within)) return false;
       // numeric bounds
@@ -218,28 +218,51 @@ function firstMatchingRule(rules, name, args) {
 }
 
 // ── Audit log (hash-chained, append-only) ─────────────────────────
+function sha256(s) {
+  return createHash('sha256').update(s).digest('hex');
+}
+
 let auditSeq = 0;
 let auditPrev = '';
 
-function sha256(s) {
-  return createHash('sha256').update(s).digest('hex');
+/** Read only the final line of the audit log (cheap tail) for chain recovery. */
+function readLastLine(path) {
+  let fd;
+  try {
+    if (!existsSync(path)) return null;
+    fd = openSync(path, 'r');
+    const size = fstatSync(fd).size;
+    if (size === 0) return null;
+    const len = Math.min(size, 4096);
+    const buf = Buffer.alloc(len);
+    readSync(fd, buf, 0, len, size - len);
+    const text = buf.toString('utf8').trimEnd();
+    const idx = text.lastIndexOf('\n');
+    return (idx >= 0 ? text.slice(idx + 1) : text).trim();
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) { try { closeSync(fd); } catch { /* already closed */ } }
+  }
 }
 
 /** Append one audit entry. Never throws — auditing must not break tool calls. */
 export function auditWrite(entry, path = DEFAULT_AUDIT_PATH) {
   try {
-    if (auditSeq === 0) {
-      // First write of this process: recover chain position from disk.
-      if (existsSync(path)) {
-        const raw = readFileSync(path, 'utf8').trim().split('\n').filter(Boolean);
-        if (raw.length) {
-          const last = JSON.parse(raw[raw.length - 1]);
-          auditSeq = Number(last.seq) || 0;
-          auditPrev = last.hash || '';
-        }
-      } else {
-        mkdirSync(dirname(path), { recursive: true });
-      }
+    // Recover the chain tip from disk before every append so a daemon and a
+    // CLI writing the same log cannot break the hash chain with stale,
+    // process-local sequence numbers.
+    const lastLine = readLastLine(path);
+    if (lastLine) {
+      try {
+        const last = JSON.parse(lastLine);
+        auditSeq = Number(last.seq) || 0;
+        auditPrev = last.hash || '';
+      } catch { /* corrupt tail — chain is already broken; keep going */ }
+    } else {
+      auditSeq = 0;
+      auditPrev = '';
+      mkdirSync(dirname(path), { recursive: true });
     }
     const line = JSON.stringify({
       seq: ++auditSeq,
@@ -302,6 +325,16 @@ class RateLimiter {
     hits.push(now);
     this.hits.set(tool, hits);
     return true;
+  }
+
+  /** Side-effect-free check — reports whether a call would pass, without
+   *  consuming a token (used by explain()). */
+  peek(tool, now = Date.now()) {
+    const limit = this.rules[tool]?.perMinute ?? this.rules['*']?.perMinute ?? 0;
+    if (!limit) return true;
+    const windowStart = now - 60_000;
+    const hits = (this.hits.get(tool) || []).filter((t) => t > windowStart);
+    return hits.length < limit;
   }
 }
 
@@ -541,7 +574,7 @@ export class Policy {
     if (this.toolRules[name]) matched = `tools.${name} = "${tier}"`;
     else if (KNOWN_TOOLS.has(name)) matched = 'default (known tool)';
     else matched = 'default (unknown tool)';
-    const rateOk = this.rateLimiter.allow(name);
+    const rateOk = this.rateLimiter.peek(name);
     const parts = [];
     if (tier === 'deny') parts.push(`denied by ${matched}`);
     else if (tier === 'confirm') parts.push(`requires approval by ${matched}`);

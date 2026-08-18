@@ -177,6 +177,14 @@ describe('explain()', () => {
     assert.equal(e.tier, 'confirm');
     assert.match(e.decision, /requires approval/);
   });
+
+  test('explain does not consume a rate-limit token', () => {
+    const p = new Policy({ version: 1, tools: { shell: 'allow' }, rateLimits: { shell: { perMinute: 1 } }, audit: false });
+    p.explain('shell');
+    p.explain('shell');
+    // explain() peeks; the actual check must still have its full allowance.
+    assert.equal(p.check('shell').allowed, true);
+  });
 });
 
 describe('when-condition combinators', () => {
@@ -204,6 +212,21 @@ describe('when-condition combinators', () => {
     const b = p.check('files.delete', { path: '/etc' });
     assert.equal(b.tier, 'deny');
     assert.equal(b.allowed, false);
+  });
+
+  test('includes: every substring must be present (not just the first)', () => {
+    const p = makePolicy([
+      { tool: 'files.write', effect: 'allow', when: { content: { includes: ['todo', 'urgent'] } } },
+      { tool: '*', effect: 'deny' },
+    ]);
+    const ok = p.check('files.write', { content: 'urgent todo item' });
+    assert.equal(ok.tier, 'allow');
+    assert.equal(ok.allowed, true);
+    // Has "todo" but not "urgent" — the old spread bug read only the first
+    // substring and would have let this through.
+    const missing = p.check('files.write', { content: 'todo item' });
+    assert.equal(missing.tier, 'deny');
+    assert.equal(missing.allowed, false);
   });
 });
 

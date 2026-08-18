@@ -39,6 +39,12 @@ jobs:
       - name: Run full test suite (unit + security red-team)
         run: npm test
 
+      - name: Lint (syntax check)
+        run: npm run lint
+
+      - name: Typecheck (declaration tests)
+        run: npm run typecheck
+
       - name: Windows CLI smoke test
         if: runner.os == 'Windows'
         shell: pwsh

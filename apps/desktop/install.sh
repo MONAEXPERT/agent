@@ -8,7 +8,8 @@
 # command also works in every new terminal.
 #
 # Options:
-#   --version <tag>   install a specific release tag (default: main)
+#   --version <tag>   install a specific release tag (default: latest release)
+#   --branch <name>   install from a branch (opt-in, unverified — use with care)
 #   --dry-run         print what would happen, change nothing
 #   --allow-root      permit running as root (refused by default)
 #
@@ -19,9 +20,9 @@
 set -euo pipefail
 
 REPO="${MONA_REPO:-MONAEXPERT/agent}"
-BRANCH="${MONA_BRANCH:-main}"
 INSTALL_DIR="${MONA_INSTALL_DIR:-$HOME/.mona-agent}"
 VERSION_REQ=""
+BRANCH_REQ=""
 DRY_RUN=0
 ALLOW_ROOT=0
 BOLD='\033[1m'
@@ -35,20 +36,43 @@ RESET='\033[0m'
 while [ $# -gt 0 ]; do
   case "$1" in
     --version)  VERSION_REQ="${2:-}"; shift 2 ;;
+    --branch)   BRANCH_REQ="${2:-}"; shift 2 ;;
     --dry-run)  DRY_RUN=1; shift ;;
     --allow-root) ALLOW_ROOT=1; shift ;;
     *) echo -e "  ${RED}Unknown option: $1${RESET}" >&2; exit 2 ;;
   esac
 done
 
-REF="$BRANCH"
-URL="https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz"
+# Latest release tag from the GitHub releases feed (never an unverified branch).
+latest_release_tag() {
+  curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+    | sed -nE 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1
+}
+
+REF=""
+URL=""
 CHECKSUM_URL=""
 TARBALL_NAME=""
 if [ -n "$VERSION_REQ" ]; then
   REF="$VERSION_REQ"
   # Release tags install the exact asset covered by SHA256SUMS, never
   # GitHub's separately generated source archive.
+  TARBALL_NAME="mona-agent-$VERSION_REQ.tar.gz"
+  URL="https://github.com/$REPO/releases/download/$VERSION_REQ/$TARBALL_NAME"
+  CHECKSUM_URL="https://github.com/$REPO/releases/download/$VERSION_REQ/SHA256SUMS"
+elif [ -n "$BRANCH_REQ" ]; then
+  # Branch installs are opt-in and carry no release checksum — warn loudly.
+  REF="$BRANCH_REQ"
+  URL="https://github.com/$REPO/archive/refs/heads/$BRANCH_REQ.tar.gz"
+  echo -e "  ${YELLOW}WARNING: installing from branch \"$BRANCH_REQ\" (no release checksums).${RESET}"
+else
+  # Default: the latest release tag (checksum-verified), never an unverified branch.
+  REF="$(latest_release_tag)"
+  if [ -z "$REF" ]; then
+    echo -e "  ${RED}Could not determine the latest release tag. Use --version <tag> or --branch <name>.${RESET}" >&2
+    exit 1
+  fi
+  VERSION_REQ="$REF"
   TARBALL_NAME="mona-agent-$VERSION_REQ.tar.gz"
   URL="https://github.com/$REPO/releases/download/$VERSION_REQ/$TARBALL_NAME"
   CHECKSUM_URL="https://github.com/$REPO/releases/download/$VERSION_REQ/SHA256SUMS"

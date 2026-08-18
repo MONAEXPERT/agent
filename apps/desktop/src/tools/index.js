@@ -150,10 +150,19 @@ class ToolRegistry {
       return { error: `Unknown tool: ${name}`, available: this.names() };
     }
 
-    // Policy gate (deny / confirm / rate limit).
+    // Policy gate (deny / confirm / rate limit) — the single choke point for
+    // every invocation path (daemon, brain loop, MCP, CLI).
     const verdict = POLICY.check(name, args);
-    if (verdict.tier !== 'allow') {
+    if (!verdict.allowed) {
       return { error: verdict.reason, policy: verdict.tier };
+    }
+    // Shell gets the shell-specific deny/approval patterns on every path —
+    // including MCP, which previously skipped them.
+    if (name === 'shell') {
+      const sv = POLICY.shellCheck(String(args?.cmd || ''));
+      if (!sv.allowed) {
+        return { error: sv.reason, policy: sv.tier };
+      }
     }
 
     log.info(`Tool: ${name}`, args);
