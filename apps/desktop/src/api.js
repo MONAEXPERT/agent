@@ -98,7 +98,7 @@ export async function getAgent(apiKey, agentId) {
 }
 
 // ── Stream reasoning from cloud (SSE) ─────────────────────────────
-export async function think({ apiKey, messages, tools, onChunk, onUsage, signal }) {
+export async function think({ apiKey, messages, tools, onChunk, onUsage, signal: _signal }) {
   const res = await apiFetch(apiKey, P.think, {
     method: 'POST',
     body: { messages, tools, stream: true },

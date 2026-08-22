@@ -17,7 +17,7 @@ function canonicalJson(value) {
 }
 
 function stripSignatureFields(manifest) {
-  const { signature, hash, signer, ...rest } = (manifest && typeof manifest === 'object' ? manifest : {});
+  const { signature: _signature, hash: _hash, signer: _signer, ...rest } = (manifest && typeof manifest === 'object' ? manifest : {});
   return rest;
 }
 

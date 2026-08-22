@@ -19,7 +19,7 @@ export function serviceScriptPath() { return join(ROOT, 'windows-service.ps1'); 
 export function serviceBinaryPath({ nodePath = process.execPath, entrypoint = join(ROOT, '..', 'bin', 'remoteagent.js') } = {}) {
   const valid = (p) => isAbsolute(p) || isWindowsAbsolute(p);
   if (!valid(nodePath) || !valid(entrypoint)) throw new Error('Windows service paths must be absolute');
-  return `\"${nodePath}\" \"${entrypoint}\" start --force`;
+  return `"${nodePath}" "${entrypoint}" start --force`;
 }
 
 function validateAccount(account) {
@@ -38,7 +38,7 @@ export function buildServiceArgs(action, { scriptPath = serviceScriptPath(), nod
 /** Pure: parse the final JSON line of the service script output. Testable everywhere. */
 export function parseServiceOutput(stdout, status) {
   let data = null;
-  try { data = JSON.parse(String(stdout || '').trim().split(/\r?\n/).at(-1)); } catch {}
+  try { data = JSON.parse(String(stdout || '').trim().split(/\r?\n/).at(-1)); } catch { /* best-effort: no JSON line in failure output */ }
   return { data, ok: status === 0 && data?.ok !== false, code: status, error: status === 0 ? null : 'Windows service operation failed' };
 }
 

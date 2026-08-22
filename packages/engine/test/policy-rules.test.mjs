@@ -2,7 +2,7 @@
 // first-match-wins, prompt effect, explain(), and adversarial vectors
 // (path traversal, symlink escape, SSRF). 45+ cases.
 
-import { test, describe, beforeEach, after } from 'node:test';
+import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -179,11 +179,11 @@ describe('explain()', () => {
   });
 
   test('explain does not consume a rate-limit token', () => {
-    const p = new Policy({ version: 1, tools: { shell: 'allow' }, rateLimits: { shell: { perMinute: 1 } }, audit: false });
-    p.explain('shell');
-    p.explain('shell');
+    const pol = new Policy({ version: 1, tools: { shell: 'allow' }, rateLimits: { shell: { perMinute: 1 } }, audit: false });
+    pol.explain('shell');
+    pol.explain('shell');
     // explain() peeks; the actual check must still have its full allowance.
-    assert.equal(p.check('shell').allowed, true);
+    assert.equal(pol.check('shell').allowed, true);
   });
 });
 

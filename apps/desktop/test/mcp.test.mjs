@@ -1,6 +1,6 @@
 // MCP transport — stdio JSON-RPC server over the tool registry.
 
-import { describe, it, before } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,9 +20,9 @@ const { createMcpServer, argsToSchema, toolToMcpSchema, runMcpHttpServer } = awa
 const allowServer = createMcpServer({ registry: allowRegistry });
 
 /** Raw HTTP request with full header control (for Host/Origin cases). */
-function rawRequest({ port, path = '/', method = 'GET', headers = {}, body = null }) {
+function rawRequest({ port, path: reqPath = '/', method = 'GET', headers = {}, body = null }) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path, method, headers }, (res) => {
+    const req = http.request({ host: '127.0.0.1', port, path: reqPath, method, headers }, (res) => {
       let data = '';
       res.on('data', (c) => { data += c; });
       res.on('end', () => {

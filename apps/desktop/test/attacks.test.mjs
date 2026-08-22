@@ -18,7 +18,7 @@ process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 process.env.MONA_ALLOW_CMDS = 'echo,node,cat,ls,head,uname,date,df,pwd,which';
 fs.mkdirSync(process.env.MONA_WORKSPACE, { recursive: true });
 
-const { shell, parseCommand, resolveBinary, executableCandidates, shellCfg } = await import('../src/tools/shell.js');
+const { shell, parseCommand: _parseCommand, resolveBinary: _resolveBinary, executableCandidates, shellCfg } = await import('../src/tools/shell.js');
 const { files } = await import('../src/tools/files.js');
 const { isBlockedIp, parseIp, resolveAndCheck, safeFetch, _internals } = await import('../src/tools/net.js');
 const { loadMemoryContext } = await import('../src/agent.js');

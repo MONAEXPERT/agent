@@ -59,7 +59,7 @@ describe('GoalStore', () => {
     assert.equal(s.setStatus(g.id, { complete: true, reason: 'verified done' }).status, 'complete');
     const aborted = s.abort(s.create({ objective: 'a' }).id);
     assert.equal(aborted.status, 'aborted');
-    const blocked = s.block(s.create({ objective: 'b' }).id, 'cap reached');
+    const blocked = s.block(s.create({ objective: '_b' }).id, 'cap reached');
     assert.equal(blocked.status, 'blocked');
     assert.equal(blocked.reason, 'cap reached');
   });
@@ -76,7 +76,7 @@ describe('GoalStore', () => {
     const s = new GoalStore({ storePath: storePath('list') });
     const a = s.create({ objective: 'first' });
     await new Promise((r) => setTimeout(r, 5)); // distinct updatedAt
-    const b = s.create({ objective: 'second' });
+    const _b = s.create({ objective: 'second' });
     await new Promise((r) => setTimeout(r, 5));
     s.recordRound(a.id, { round: 1, summary: 'x' }); // touches a → a newest
     const items = s.list();

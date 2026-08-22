@@ -9,7 +9,7 @@ import os from 'node:os';
 import { statfsSync } from 'node:fs';
 import { CLOUD, DEFAULTS } from './config.js';
 import { log } from './log.js';
-import { envelope, TYPES, isTerminalClose, parseFrame, checkVersion, validateCommandFrame, CLOSE_CODES } from '@remoteagent/protocol';
+import { envelope, TYPES, isTerminalClose, checkVersion, validateCommandFrame, CLOSE_CODES } from '@remoteagent/protocol';
 
 // ── Versioned frames ──────────────────────────────────────────────
 // Every outbound frame is built with the shared wire contract

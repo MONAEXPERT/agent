@@ -18,7 +18,7 @@
 import { writeFileSync, existsSync, readFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { PATHS } from './config.js';
 import { runtimeSupport } from './platform.js';
 import { windowsServiceInstall, windowsServiceUninstall, windowsServiceStatus, windowsServiceStop } from './windows-service.js';

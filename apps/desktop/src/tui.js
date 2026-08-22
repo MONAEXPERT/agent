@@ -194,7 +194,7 @@ export class Dashboard {
   #agent = null;
   #stdin = null;
 
-  constructor(agent, { out = process.stdout, setup = false, stdin = process.stdin } = {}) {
+  constructor(agent, { out = process.stdout, setup: _setup = false, stdin = process.stdin } = {}) {
     this.#out = out;
     this.#stdin = stdin;
     this.#agent = agent || null;
@@ -526,7 +526,7 @@ export class Dashboard {
   // ── Panel row compositors ───────────────────────────────────────
   #panelRow(sysLines, taskLines, row, width, height) {
     const sysH = Math.min(sysLines.length + 2, Math.floor(height * 0.55));
-    const taskH = height - sysH;
+    const _taskH = height - sysH;
 
     if (row === 0) {
       return `${ansi.fg.gray}${B.tl}${B.h} ${ansi.fg.bCyan}System${ansi.reset} ${ansi.fg.gray}${B.h.repeat(Math.max(0, width - 10))}${B.tr}${ansi.reset}`;
@@ -694,6 +694,7 @@ export class Dashboard {
 
   // ── Helpers ─────────────────────────────────────────────────────
   #stripAnsi(s) {
+    // eslint-disable-next-line no-control-regex -- intentional ANSI escape stripping
     return s.replace(/\x1b\[[0-9;]*m/g, '');
   }
 

@@ -11,7 +11,7 @@
 // CLI: remoteagent skills list | enable <name> | disable <name> | install
 // Dir: ~/.remoteagent/skills/  (override with RA_SKILLS_DIR)
 
-import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, cpSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdirSync, existsSync, cpSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfig } from './config.js';

@@ -9,6 +9,12 @@
 // here is what the device daemon actually imports — nothing below may
 // import the server library back (CI enforces it).
 
+// Local bindings for createEngine below — re-exports don't create scope.
+import { Policy } from './policy.js';
+import { Budget } from './budget.js';
+import { MemoryStore } from './memory.js';
+import { TaskLoop } from './loop.js';
+
 export { Policy, PRESETS, auditWrite, auditVerify } from './policy.js';
 export { env } from './env.js';
 export { DEFAULT_CLOUD_HOSTS, assertSecureEndpoint, assertSecureWs, inspectEndpoint, matchesAllowlist } from './endpoints.js';

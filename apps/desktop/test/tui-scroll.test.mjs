@@ -11,9 +11,11 @@ class FakeTTY extends PassThrough {
   constructor(cols, rows) { super(); this.isTTY = true; this.columns = cols; this.rows = rows; }
 }
 
+/* eslint-disable no-control-regex -- test strips ANSI escapes from TUI output */
 const strip = (raw) => raw
   .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
   .replace(/\x1b\[[0-9;]*m/g, '');
+/* eslint-enable no-control-regex */
 
 const render = (out) => new Promise((resolve) => {
   setTimeout(() => resolve(strip(out.read()?.toString() || '')), 250);
@@ -58,7 +60,8 @@ describe('dashboard scroll', () => {
     dash.start();
     agent.emit('connected');
     for (let i = 0; i < 30; i++) agent.emit('tool:done', `gfill${i}`, {});
-    let text = await render(out);
+    let text;
+    await render(out);
 
     for (let i = 0; i < 8; i++) stdin.write('\x1b[A');
     text = await render(out);

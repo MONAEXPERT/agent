@@ -36,7 +36,7 @@ export function grantSigningInput(payload) {
 
 /** The grant object minus the detached signature field. */
 function payloadOf(grant) {
-  const { sig, ...payload } = (grant && typeof grant === 'object') ? grant : {};
+  const { sig: _sig, ...payload } = (grant && typeof grant === 'object') ? grant : {};
   return payload;
 }
 

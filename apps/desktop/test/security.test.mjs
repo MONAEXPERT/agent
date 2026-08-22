@@ -14,7 +14,6 @@ import path from 'node:path';
 import fs from 'node:fs';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 
 // ── Isolate HOME so nothing touches the real user config ─────────
 const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-sec-'));
@@ -311,7 +310,7 @@ describe('security/net — SSRF guard', () => {
   });
 
   it('rejects redirect to a blocked host (revalidation per hop)', async () => {
-    const fakeRequest = async (url) => ({
+    const fakeRequest = async (_url) => ({
       status: 302,
       headers: { location: 'http://169.254.169.254/latest/meta-data/' },
       body: Buffer.alloc(0),

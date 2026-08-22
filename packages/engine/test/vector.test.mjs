@@ -76,7 +76,7 @@ describe('VectorStore', () => {
   it('respects TTL and removal', () => {
     const p = path.join(TMP, 'vs4.json');
     const v = new VectorStore({ storePath: p });
-    const e = v.add('old secret fact', { }, { ttlDays: 1 });
+    const _e = v.add('old secret fact', { }, { ttlDays: 1 });
     // age it past TTL by rewriting the stored createdAt
     const entry = v.entries[0];
     entry.createdAt = Date.now() - 3 * 86400000;
@@ -112,8 +112,8 @@ describe('MemoryStore hybrid vector recall', () => {
 
   it('ignores stale entries beyond TTL', () => {
     const m = new MemoryStore({ storePath: path.join(TMP, 'mem-vec3.json') });
-    const e = m.remember('old secret', { ttlDays: 1 });
-    e.createdAt = Date.now() - 3 * 86400000;
+    const _e = m.remember('old secret', { ttlDays: 1 });
+    _e.createdAt = Date.now() - 3 * 86400000;
     assert.equal(m.recall('secret').length, 0);
   });
 

@@ -10,7 +10,7 @@ const PLATFORM = os.platform();
 
 function safeName(name) {
   // Allow letters, digits, spaces and a small set of safe characters.
-  return String(name || '').replace(/[^a-zA-Z0-9 ._\-]/g, '').trim();
+  return String(name || '').replace(/[^a-zA-Z0-9 ._-]/g, '').trim();
 }
 
 async function runCmd(cmd, timeoutMs = 8000) {

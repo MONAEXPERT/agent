@@ -47,14 +47,14 @@ const SHELL_CONFIG = {
 
 const cfg = SHELL_CONFIG[PLATFORM] || SHELL_CONFIG.linux;
 
-export function platformPathEntries(platform, env = process.env) {
-  const delimiter = platform === 'win32' ? ';' : ':';
-  return String(env.PATH || '').split(delimiter).filter(Boolean);
+export function platformPathEntries(osName, envObj = process.env) {
+  const delimiter = osName === 'win32' ? ';' : ':';
+  return String(envObj.PATH || '').split(delimiter).filter(Boolean);
 }
 
-export function executableCandidates(name, platform, env = process.env) {
-  if (platform !== 'win32') return [name];
-  const ext = String(env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
+export function executableCandidates(name, osName, envObj = process.env) {
+  if (osName !== 'win32') return [name];
+  const ext = String(envObj.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
   if (path.extname(name)) return [name];
   return ext.map((suffix) => `${name}${suffix.toLowerCase()}`);
 }
@@ -223,7 +223,7 @@ function parseCommand(cmd) {
   let word = '';
   let quote = null;    // "'" | '"' | null
   let escaped = false;
-  let expectOp = false; // after an operator we may start a new word
+  // Parser state (not yet tracked): after an operator we may start a new word.
 
   const pushWord = () => {
     if (word !== '') {
@@ -465,7 +465,7 @@ async function executeStages(stages, { cwd, timeoutMs }) {
   let lastExit = 0;
   let accumulated = '';  // stdout across chain segments, like a real shell
   let lastStderr = '';
-  let skipUntil = null; // '&&' → skip until a failure; '||' → skip until success
+  // Parser state (not yet tracked): '&&' would skip until a failure; '||' until success.
 
   const decide = (stage) => {
     const op = stage.op;
@@ -546,7 +546,7 @@ async function executeStages(stages, { cwd, timeoutMs }) {
         let out = '', errs = '', outCap = false, errCap = false, timedOut = false;
         const timer = setTimeout(() => {
           timedOut = true;
-          for (const p of pipes) { try { process.kill(-p.pid, 'SIGKILL'); } catch {} }
+          for (const p of pipes) { try { process.kill(-p.pid, 'SIGKILL'); } catch { /* best-effort: pipe already exited */ } }
         }, timeoutMs);
         last.stdout.on('data', (d) => {
           if (!outCap) {
@@ -564,7 +564,7 @@ async function executeStages(stages, { cwd, timeoutMs }) {
         }
         const exits = await Promise.all(pipes.map((p) => new Promise((r) => p.on('close', () => r(p.exitCode ?? 1)))));
         clearTimeout(timer);
-        for (const p of pipes) { try { process.kill(-p.pid, 'SIGKILL'); } catch {} }
+        for (const p of pipes) { try { process.kill(-p.pid, 'SIGKILL'); } catch { /* best-effort: pipe already exited */ } }
         lastExit = exits[exits.length - 1] === 0 ? 0 : 1;
         accumulated += out.slice(0, RESULT_STDOUT);
         lastStderr = errs.slice(0, RESULT_STDERR);

@@ -29,7 +29,7 @@
 // compares against the control plane's stored anchors.
 
 import { createHash } from 'node:crypto';
-import { readFileSync, existsSync, appendFileSync, mkdirSync, statSync, openSync, fstatSync, readSync, closeSync } from 'node:fs';
+import { readFileSync, existsSync, appendFileSync, mkdirSync, openSync, fstatSync, readSync, closeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { signAuditHash, verifyAuditHash, loadOrCreateAuditKey, keyPathFor } from './audit-sign.js';
@@ -324,7 +324,7 @@ export function auditVerify(path = DEFAULT_AUDIT_PATH, opts = {}) {
 }
 
 function stripHash(rec) {
-  const { hash, sig, pub, ...rest } = rec;
+  const { hash: _hash, sig: _sig, pub: _pub, ...rest } = rec;
   return rest;
 }
 

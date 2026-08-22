@@ -11,7 +11,7 @@
 // This module is pure state + prompt/parsing helpers: no brain, no tools,
 // no queue. Fully testable offline.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { env } from './env.js';

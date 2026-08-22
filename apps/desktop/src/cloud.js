@@ -4,7 +4,6 @@
 // No LLM provider keys are ever stored or used locally.
 
 import { CLOUD, DEFAULTS } from './config.js';
-import { log } from './log.js';
 
 const UA = `remoteagent/${DEFAULTS.version}`;
 const P = CLOUD.paths; // platform-aware API paths

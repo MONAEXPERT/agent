@@ -105,17 +105,17 @@ describe('tools/files', () => {
   });
 
   it('rejects symlink escapes out of the workspace', async () => {
-    const os = await import('node:os');
-    const path = await import('node:path');
-    const fs = await import('node:fs/promises');
-    const ws = process.env.MONA_WORKSPACE || path.join(os.homedir(), '.remoteagent', 'workspace');
-    const link = path.join(ws, '__escape_test');
+    const osMod = await import('node:os');
+    const pathMod = await import('node:path');
+    const fsProm = await import('node:fs/promises');
+    const ws = process.env.MONA_WORKSPACE || pathMod.join(osMod.homedir(), '.remoteagent', 'workspace');
+    const link = pathMod.join(ws, '__escape_test');
     try {
-      await fs.symlink(os.tmpdir(), link);
+      await fsProm.symlink(osMod.tmpdir(), link);
       const result = await files.run({ action: 'list', path: '__escape_test' });
       assert.ok(result.error && result.error.includes('Symlink escape'));
     } finally {
-      await fs.rm(link, { force: true });
+      await fsProm.rm(link, { force: true });
     }
   });
 

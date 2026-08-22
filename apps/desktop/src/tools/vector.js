@@ -69,6 +69,7 @@ async function indexFile(file, vs) {
   let text;
   try { text = await fs.readFile(file, 'utf8'); } catch { return { file, skipped: 'unreadable' }; }
   if (!text.trim()) return { file, skipped: 'empty' };
+  // eslint-disable-next-line no-control-regex -- deliberate binary-file detection over control chars
   if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text.slice(0, 4096))) return { file, skipped: 'binary' };
   const rel = path.relative(WORKSPACE, file);
   const chunks = chunkText(text);

@@ -130,7 +130,7 @@ describe('task loop', () => {
     const loop = new TaskLoop({
       policy: new Policy(null),
       budget: new Budget({}),
-      think: async (messages) => { seen = messages; return { text: '{"answer":"ok"}' }; },
+      think: async (_messages) => { seen = _messages; return { text: '{"answer":"ok"}' }; },
       runTool: async () => ({}),
     });
     await loop.run('hello', { system: 'You are a test brain.' });
@@ -145,12 +145,12 @@ describe('task loop', () => {
       policy: new Policy(null),
       budget: new Budget({}),
       maxSteps: 2,
-      think: async () => ({ text: '{"tool":"sysinfo","args":{}}' }),
+      think: async () => ({ text: '{"tool":"sysinfo","_args":{}}' }),
       runTool: async () => ({ ok: true }),
     });
     const res = await loop.run('endless', {
-      conclude: async (messages) => {
-        assert.ok(messages.some((m) => m.role === 'user'));
+      conclude: async (_messages) => {
+        assert.ok(_messages.some((m) => m.role === 'user'));
         return 'Forced final summary.';
       },
     });
@@ -163,7 +163,7 @@ describe('task loop', () => {
       policy: new Policy(null),
       budget: new Budget({}),
       maxSteps: 2,
-      think: async () => ({ text: '{"tool":"sysinfo","args":{}}' }),
+      think: async () => ({ text: '{"tool":"sysinfo","_args":{}}' }),
       runTool: async () => ({ ok: true }),
     });
     const res = await loop.run('endless', { conclude: async () => { throw new Error('brain down'); } });
@@ -174,7 +174,7 @@ describe('task loop', () => {
     const loop = new TaskLoop({
       policy: new Policy(null),
       budget: new Budget({}),
-      think: async () => ({ text: '{"tool":"sysinfo","args":{}}' }),
+      think: async () => ({ text: '{"tool":"sysinfo","_args":{}}' }),
       runTool: async () => ({ ok: true }),
     });
     const res = await loop.run('do the thing', { system: 'sys' });
@@ -187,13 +187,13 @@ describe('task loop', () => {
     const loop = new TaskLoop({
       policy: new Policy(null),
       budget: new Budget({}),
-      think: async (messages, prof) => {
+      think: async (_messages, _prof) => {
         if (calls.length === 0) {
-          return { text: '{"reasoning":"check the disk","tool":"sysinfo","args":{}}' };
+          return { text: '{"reasoning":"check the disk","tool":"sysinfo","_args":{}}' };
         }
         return { text: '{"answer":"All good."}' };
       },
-      runTool: async (name, args) => { calls.push(name); return { ok: true }; },
+      runTool: async (name, _args) => { calls.push(name); return { ok: true }; },
     });
     const res = await loop.run('check disk');
     assert.equal(res.answer, 'All good.');
@@ -205,7 +205,7 @@ describe('task loop', () => {
     const loop = new TaskLoop({
       policy: new Policy({ tools: { shell: 'deny' } }),
       budget: new Budget({}),
-      think: async () => ({ text: '{"tool":"shell","args":{"cmd":"ls"}}' }),
+      think: async () => ({ text: '{"tool":"shell","_args":{"cmd":"ls"}}' }),
       runTool: async (name) => { executed.push(name); return {}; },
     });
     const res = await loop.run('x');
@@ -218,7 +218,7 @@ describe('task loop', () => {
       policy: new Policy(null),
       budget: new Budget({}),
       maxSteps: 3,
-      think: async () => ({ text: '{"reasoning":"keep going","tool":"sysinfo","args":{}}' }),
+      think: async () => ({ text: '{"reasoning":"keep going","tool":"sysinfo","_args":{}}' }),
       runTool: async () => ({ ok: true }),
     });
     const steps = [];
@@ -243,7 +243,7 @@ describe('task loop', () => {
     const loop = new TaskLoop({
       policy: new Policy(null),
       budget: new Budget({}),
-      think: async () => ({ text: '{"tool":"memory","args":{}}' }),
+      think: async () => ({ text: '{"tool":"memory","_args":{}}' }),
       runTool: async () => ({ ok: true }),
     });
     loop.on('tool', () => events.push('tool'));
@@ -255,30 +255,30 @@ describe('task loop', () => {
 
   it('parses fenced, bare and salvaged brain replies', () => {
     assert.equal(parseBrainReply('```json\n{"answer":"done"}\n```').kind, 'answer');
-    assert.equal(parseBrainReply('{"tool":"files","args":{}}').kind, 'tools');
+    assert.equal(parseBrainReply('{"tool":"files","_args":{}}').kind, 'tools');
     assert.equal(parseBrainReply('here is the answer: done').kind, 'text');
     assert.equal(parseBrainReply('garbage {"answer":"saved"} tail').kind, 'answer');
     assert.equal(parseBrainReply('').kind, 'empty');
   });
 
   it('preserves reasoning on tool calls (trace quality)', () => {
-    const r = parseBrainReply('{"reasoning":"Need disk state first","tool":"shell","args":{"cmd":"df -h"}}');
+    const r = parseBrainReply('{"reasoning":"Need disk state first","tool":"shell","_args":{"cmd":"df -h"}}');
     assert.equal(r.kind, 'tools');
     assert.equal(r.calls[0].tool, 'shell');
     assert.equal(r.calls[0].reasoning, 'Need disk state first');
   });
 
   it('accepts multi-tool steps: {tool: [...]} and {calls: [...]}', () => {
-    const a = parseBrainReply('{"tool":[{"tool":"sysinfo","args":{}},{"tool":"shell","args":{"cmd":"uptime"}}]}');
+    const a = parseBrainReply('{"tool":[{"tool":"sysinfo","_args":{}},{"tool":"shell","_args":{"cmd":"uptime"}}]}');
     assert.equal(a.kind, 'tools');
     assert.equal(a.calls.length, 2);
-    const b = parseBrainReply('{"calls":[{"tool":"net","args":{}}]}');
+    const b = parseBrainReply('{"calls":[{"tool":"net","_args":{}}]}');
     assert.equal(b.kind, 'tools');
     assert.equal(b.calls[0].tool, 'net');
   });
 
   it('rejects bare JSON arrays and wrong shapes as malformed', () => {
-    assert.equal(parseBrainReply('[{"tool":"sysinfo","args":{}}]').kind, 'malformed');
+    assert.equal(parseBrainReply('[{"tool":"sysinfo","_args":{}}]').kind, 'malformed');
     assert.equal(parseBrainReply('{"foo":123}').kind, 'malformed');
   });
 

@@ -6,7 +6,7 @@
 // node/sleep for the fixtures only — the allowlist gate itself is still
 // verified by the disallowed-binary and blocked-pattern cases.
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';

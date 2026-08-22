@@ -31,7 +31,7 @@ function signManifestFixture(manifest) {
     if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
     return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}';
   };
-  const { signature, hash, signer, ...rest } = manifest;
+  const { signature: _signature, hash: _hash, signer: _signer, ...rest } = manifest;
   const h = createHash('sha256').update(canonical(rest)).digest('hex');
   const sig = cryptoSign(null, Buffer.from(h, 'hex'), createPrivateKey(PRIV_PEM)).toString('base64');
   return { ...manifest, hash: h, signature: sig };

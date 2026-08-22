@@ -152,7 +152,7 @@ export class AgentDaemon extends EventEmitter {
   #vectorStore = null;
   // Serial task queue: tasks run one at a time so steps never interleave.
   #tasks;
-  // Recent task ids (runId) — guards against double-enqueuing a task the
+  // Recent task ids (_runId) — guards against double-enqueuing a task the
   // server still lists as pending after we claimed it.
   #recentTasks = new Map();
   // Nonce replay cache for capability grants (per-process, like command frames).
@@ -176,6 +176,7 @@ export class AgentDaemon extends EventEmitter {
   #localConfig = null;
   // Localhost health/metrics (RA_METRICS_PORT) — bound to 127.0.0.1 only.
   #metricsPort = null;
+  // eslint-disable-next-line no-unused-private-class-members -- reserved stop handle; the metrics server runs for the daemon's lifetime
   #stopMetrics = null;
   #startedAt = 0;
 
@@ -210,19 +211,19 @@ export class AgentDaemon extends EventEmitter {
     for (const recovery of this.#runs.recoverable()) {
       if (recovery.action === 'manual_review') {
         log.warn(`Durable run ${recovery.run.id} needs manual recovery review: ${recovery.reason}`);
-        auditWrite({ kind: 'run', event: 'recovery_manual_review', runId: recovery.run.id, reason: recovery.reason });
+        auditWrite({ kind: 'run', event: 'recovery_manual_review', _runId: recovery.run.id, reason: recovery.reason });
       } else {
         log.info(`Durable run ${recovery.run.id} is eligible for safe resume`);
-        auditWrite({ kind: 'run', event: 'recovery_resume_available', runId: recovery.run.id });
+        auditWrite({ kind: 'run', event: 'recovery_resume_available', _runId: recovery.run.id });
       }
     }
 
     // Tasks run strictly one at a time. A task that arrives while another is
     // running waits in the queue and reports its position to the dashboard.
     this.#tasks = new TaskQueue();
-    this.#tasks.on('queued', ({ runId, position }) => {
-      if (position > 1) this.#control.step('task.queued', { runId, position });
-      auditWrite({ kind: 'task', event: 'queued', runId, position });
+    this.#tasks.on('queued', ({ _runId, position }) => {
+      if (position > 1) this.#control.step('task.queued', { _runId, position });
+      auditWrite({ kind: 'task', event: 'queued', _runId, position });
     });
     this.#tasks.on('error', (err) => this.emit('error', err));
 
@@ -312,75 +313,75 @@ export class AgentDaemon extends EventEmitter {
 
   // ── Command dispatcher ──────────────────────────────────────────
   /**
-   * Enqueue a task once. The same runId arriving again within 60 s (e.g. the
+   * Enqueue a task once. The same _runId arriving again within 60 s (e.g. the
    * server still listing a claimed task as pending) is ignored, so a task can
    * never run twice on this device.
    */
-  #enqueueTask(runId, task, cloudTask = null, meta = null) {
-    if (!runId) runId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  #enqueueTask(_runId, task, cloudTask = null, meta = null) {
+    if (!_runId) _runId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const now = Date.now();
-    const seen = this.#recentTasks.get(runId);
+    const seen = this.#recentTasks.get(_runId);
     if (seen && now - seen < 60_000) {
-      log.debug(`Task ${runId} already queued/running — skipping duplicate`);
+      log.debug(`Task ${_runId} already queued/running — skipping duplicate`);
       return;
     }
-    this.#recentTasks.set(runId, now);
+    this.#recentTasks.set(_runId, now);
     if (this.#recentTasks.size > 200) {
       for (const [id, ts] of this.#recentTasks) {
         if (now - ts > 60_000) this.#recentTasks.delete(id);
       }
     }
     this.#tasks.enqueue({
-      runId,
+      _runId,
       task,
       cloudTask,
       meta,
-      run: (job) => this.#runTask(job.task, job.runId, job.cloudTask || null, job.meta || null),
+      run: (job) => this.#runTask(job.task, job._runId, job.cloudTask || null, job.meta || null),
     });
   }
 
   async #onCommand(cmd) {
-    const { runId, action, payload } = cmd;
+    const { _runId, action, payload } = cmd;
     try {
       switch (action) {
         case 'run':
           // Serialized: runs after any task already in flight, never beside it.
-          this.#enqueueTask(runId, payload?.task, null);
+          this.#enqueueTask(_runId, payload?.task, null);
           break;
 
         case 'tool':
-          await this.#runTool(payload?.tool, payload?.args, runId);
+          await this.#runTool(payload?.tool, payload?.args, _runId);
           break;
 
         case 'ping':
-          this.#control.result(runId, { pong: true, ts: Date.now() });
+          this.#control.result(_runId, { pong: true, ts: Date.now() });
           break;
 
         case 'update':
           // Dashboard-triggered self-update: fetch latest release, swap,
           // then report back. The daemon keeps running the old code until
           // the next start — the update is applied on disk immediately.
-          await this.#handleUpdate(runId);
+          await this.#handleUpdate(_runId);
           break;
 
         case 'reset':
           this.#messages = [];
           log.info('Conversation history cleared');
-          this.#control.result(runId, { ok: true, action: 'reset' });
+          this.#control.result(_runId, { ok: true, action: 'reset' });
           break;
 
         case 'version':
-          this.#control.result(runId, { ok: true, action: 'version', version: VERSION });
+          this.#control.result(_runId, { ok: true, action: 'version', version: VERSION });
           break;
 
         default:
           log.warn(`Unknown action: ${action}`);
-          this.#control.result(runId, { error: `Unknown action: ${action}` });
+          this.#control.result(_runId, { error: `Unknown action: ${action}` });
       }
     } catch (err) {
       this.#stats.errors++;
       log.error(`${action} failed: ${err.message}`);
-      this.#control.result(runId, { error: err.message });
+      this.#control.result(_runId, { error: err.message });
       this.emit('error', err);
     }
   }
@@ -492,7 +493,7 @@ export class AgentDaemon extends EventEmitter {
   }
 
   /** think() with auto-retry for transient failures — fail is never allowed. */
-  async #thinkWithRetry(messages, runId, opts = {}) {
+  async #thinkWithRetry(messages, _runId, opts = {}) {
     let lastErr = null;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -502,8 +503,8 @@ export class AgentDaemon extends EventEmitter {
           temperature: opts.temperature ?? this.#brain.temperature,
           profile: opts.profile ?? null,
           onChunk: (delta) => {
-            this.#control.token(delta, runId);
-            this.emit('task:token', delta, runId);
+            this.#control.token(delta, _runId);
+            this.emit('task:token', delta, _runId);
           },
           onUsage: (usage) => this.emit('task:usage', usage),
         });
@@ -512,7 +513,7 @@ export class AgentDaemon extends EventEmitter {
         const msg = String(err?.message || err);
         const retriable = RETRIABLE.test(msg);
         log.warn(`Think attempt ${attempt}/${MAX_RETRIES} failed: ${msg}`);
-        await postActivity(this.#creds.apiKey, 'auto.retry', { attempt, error: msg.slice(0, 200) }, runId, this.#creds.agentId).catch(() => {});
+        await postActivity(this.#creds.apiKey, 'auto.retry', { attempt, error: msg.slice(0, 200) }, _runId, this.#creds.agentId).catch(() => {});
         if (!retriable || attempt === MAX_RETRIES) throw err;
         await sleep(500 * attempt + Math.random() * 400);
       }
@@ -535,11 +536,11 @@ export class AgentDaemon extends EventEmitter {
   }
 
   /** Dashboard-triggered self-update: check + apply, then report the result. */
-  async #handleUpdate(runId) {
+  async #handleUpdate(_runId) {
     log.info('Update requested from dashboard');
     const check = await checkForUpdates();
     if (!check.available) {
-      this.#control.result(runId, {
+      this.#control.result(_runId, {
         ok: true, action: 'update', upToDate: true,
         installed: check.installed, latest: check.latest,
         message: check.latest ? `Already on the latest release (v${check.installed}).` : 'Release feed unreachable — try again later.',
@@ -549,39 +550,39 @@ export class AgentDaemon extends EventEmitter {
     const r = await applyUpdate();
     if (r.ok) {
       log.info(`Self-update applied: v${r.from} → v${r.version}`);
-      this.#control.result(runId, {
+      this.#control.result(_runId, {
         ok: true, action: 'update', updated: true,
         from: r.from, to: r.version,
         message: `Updated v${r.from} → v${r.version}. Restart the daemon to run the new version.`,
       });
     } else {
       log.error(`Self-update failed: ${r.error}`);
-      this.#control.result(runId, { ok: false, action: 'update', error: r.error });
+      this.#control.result(_runId, { ok: false, action: 'update', error: r.error });
     }
   }
 
   /** Auto-debug: capture a system snapshot when things go wrong. */
-  async #debugSnapshot(runId, why) {    try {
+  async #debugSnapshot(_runId, why) {    try {
       const info = await tools.run('sysinfo', {});
       const uname = await tools.run('shell', { cmd: 'uname -a && which node && node -v' });
       await postActivity(this.#creds.apiKey, 'auto.debug', {
         why,
         sysinfo: truncate(JSON.stringify(info), 300),
         uname: truncate(JSON.stringify(uname), 300),
-      }, runId, this.#creds.agentId).catch(() => {});
+      }, _runId, this.#creds.agentId).catch(() => {});
     } catch { /* never break the task for debugging */ }
   }
 
   /** Dashboard system commands (!cmd) — version, update, status. */
-  async #runSystemCommand(name, arg, runId, cloudTask = null) {
+  async #runSystemCommand(name, arg, _runId, cloudTask = null) {
     const done = (payload) => {
       // Report back through whatever channel the task arrived on.
       if (cloudTask) {
         taskResult(this.#creds.apiKey, cloudTask.id, { result: JSON.stringify(payload), steps: [] }).catch(() => {});
       } else {
-        this.#control.result(runId, payload);
+        this.#control.result(_runId, payload);
       }
-      runFinish(this.#creds.apiKey, runId, { result: payload, status: 'done' }).catch(() => {});
+      runFinish(this.#creds.apiKey, _runId, { result: payload, status: 'done' }).catch(() => {});
     };
 
     switch (name) {
@@ -590,7 +591,7 @@ export class AgentDaemon extends EventEmitter {
         done({ ok: true, cmd: 'version', version: VERSION });
         break;
 
-      case 'update':
+      case 'update': {
         log.info('System command: update (dashboard-triggered)');
         const check = await checkForUpdates();
         if (!check.available) {
@@ -606,6 +607,7 @@ export class AgentDaemon extends EventEmitter {
           done({ ok: false, cmd: 'update', error: r.error });
         }
         break;
+      }
 
       case 'status':
         done({ ok: true, cmd: 'status', version: VERSION, mode: currentMode(), tools: tools.names() });
@@ -616,9 +618,9 @@ export class AgentDaemon extends EventEmitter {
     }
   }
 
-  async #runTask(task, runId, cloudTask = null, meta = null) {
+  async #runTask(task, _runId, cloudTask = null, meta = null) {
     if (!task) {
-      this.#control.result(runId, { error: 'No task provided' });
+      this.#control.result(_runId, { error: 'No task provided' });
       return;
     }
 
@@ -626,7 +628,7 @@ export class AgentDaemon extends EventEmitter {
     // never sent to the brain (no tokens burned, nothing logged as a chat).
     const cmdMatch = String(task).match(/^!cmd\s+([a-z0-9_-]+)(?:\s+(.*))?$/i);
     if (cmdMatch) {
-      await this.#runSystemCommand(cmdMatch[1].toLowerCase(), cmdMatch[2] || '', runId, cloudTask);
+      await this.#runSystemCommand(cmdMatch[1].toLowerCase(), cmdMatch[2] || '', _runId, cloudTask);
       return;
     }
 
@@ -636,33 +638,33 @@ export class AgentDaemon extends EventEmitter {
       const s = this.#budget.summary();
       const msg = `Daily budget exhausted (${s.tokens} tokens, $${s.costUsd.toFixed(4)}). Budget resets tomorrow.`;
       log.warn(msg);
-      this.#control.result(runId, { text: msg });
-      this.#control.step('task.done', { runId, blocked: 'budget' });
-      this.emit('task:done', { answer: msg, runId, blocked: 'budget' });
+      this.#control.result(_runId, { text: msg });
+      this.#control.step('task.done', { _runId, blocked: 'budget' });
+      this.emit('task:done', { answer: msg, _runId, blocked: 'budget' });
       return;
     }
 
-    const durableRun = this.#runs.get(runId) || this.#runs.create({
-      id: runId,
+    const durableRun = this.#runs.get(_runId) || this.#runs.create({
+      id: _runId,
       task: String(task),
-      correlationId: String(runId),
+      correlationId: String(_runId),
       policyRevision: String(this.#policy.version || ''),
       checkpoint: { phase: 'starting' },
     });
     if (durableRun.status === 'created' || durableRun.status === 'planned' || durableRun.status === 'awaiting_approval') {
-      this.#runs.transition(runId, 'running', { checkpoint: { phase: 'starting', task: truncate(String(task), 500) } });
+      this.#runs.transition(_runId, 'running', { checkpoint: { phase: 'starting', task: truncate(String(task), 500) } });
     }
-    this.#currentTask = { task, runId, startedAt: Date.now(), tokens: 0 };
-    this.#control.step('task.start', { task, runId });
+    this.#currentTask = { task, _runId, startedAt: Date.now(), tokens: 0 };
+    this.#control.step('task.start', { task, _runId });
     this.emit('task:start', { ...this.#currentTask, locked: this.#locked });
     log.info(`Task: "${task.slice(0, 100)}"`);
-    auditWrite({ kind: 'task', event: 'start', runId, task: truncate(String(task), 400) });
+    auditWrite({ kind: 'task', event: 'start', _runId, task: truncate(String(task), 400) });
     // OTel span for the whole task (no-op when the API is absent).
-    const taskSpan = startSpan('task.run', { runId: String(runId) });
+    const taskSpan = startSpan('task.run', { _runId: String(_runId) });
     const toolSpans = new Map();
 
     const steps = [];
-    let final = '';
+    let final;
     const sngine = CLOUD.platform === 'sngine';
     // Per-task brain: the cloud decides mode-aware settings for each task
     // (auto = best of smart & cheap, computed server-side per task).
@@ -693,14 +695,14 @@ export class AgentDaemon extends EventEmitter {
       policy: this.#policy,
       deviceFingerprint: this.#deviceFingerprint,
       tenantId: this.#creds.tenantId || null,
-      runId,
+      _runId,
       seen: this.#grantReplay,
     });
     if (resolved.verdict) {
       const v = resolved.verdict;
       auditWrite({
         kind: 'capability-grant',
-        runId,
+        _runId,
         verdict: v.ok ? 'accepted' : 'rejected',
         reason: v.reason || '',
         grantHash: v.grantHash,
@@ -725,10 +727,10 @@ export class AgentDaemon extends EventEmitter {
 
     // Best-effort deep-insight reporting — the loop never depends on it.
     const trace = async (kind, extra) => {
-      if (!sngine || !runId) return;
+      if (!sngine || !_runId) return;
       traceStepNo += 1;
       try {
-        await runStep(this.#creds.apiKey, runId, { stepNo: traceStepNo, kind, ...extra });
+        await runStep(this.#creds.apiKey, _runId, { stepNo: traceStepNo, kind, ...extra });
       } catch (err) {
         log.debug(`runStep ${kind} failed: ${err.message}`);
       }
@@ -744,10 +746,10 @@ export class AgentDaemon extends EventEmitter {
       usageTotals.costUsd += +u.costUsd || 0;
     };
 
-    if (sngine && runId) {
+    if (sngine && _runId) {
       try {
         await runStart(this.#creds.apiKey, {
-          runId, agentId: this.#creds.agentId, taskId: cloudTask?.id ?? 0, message: task,
+          _runId, agentId: this.#creds.agentId, taskId: cloudTask?.id ?? 0, message: task,
         });
       } catch (err) {
         log.debug(`runStart failed: ${err.message}`);
@@ -782,7 +784,7 @@ export class AgentDaemon extends EventEmitter {
         // so the device keeps its own tamper-evident copy of what was done.
         const wireLoop = (loop) => {
           loop.on('step', (i, m) => {
-            this.#runs.checkpoint(runId, { phase: 'thinking', step: i, maxSteps: m });
+            this.#runs.checkpoint(_runId, { phase: 'thinking', step: i, maxSteps: m });
             this.emit('task:step', i, m);
           });
           loop.on('profile', (prof) => {
@@ -791,31 +793,31 @@ export class AgentDaemon extends EventEmitter {
           });
           loop.on('think', (text) => {
             trace('think', { summary: truncate(String(text).slice(0, 500), 500), detail: truncate(String(text), 6000) });
-            auditWrite({ kind: 'task', event: 'think', runId, summary: truncate(String(text).slice(0, 300), 300) });
+            auditWrite({ kind: 'task', event: 'think', _runId, summary: truncate(String(text).slice(0, 300), 300) });
           });
           loop.on('compact', (info) => {
             log.info(`Context compacted: ${info.before} → ${info.after} chars (${info.shortened} shortened, ${info.dropped} dropped)`);
-            this.#control.step('task.compact', { runId, ...info });
-            auditWrite({ kind: 'task', event: 'compact', runId, ...info });
+            this.#control.step('task.compact', { _runId, ...info });
+            auditWrite({ kind: 'task', event: 'compact', _runId, ...info });
           });
           loop.on('tool', (name, args) => {
-            this.#runs.checkpoint(runId, { phase: 'tool', tool: name, args: truncate(JSON.stringify(args || {}), 1000) });
+            this.#runs.checkpoint(_runId, { phase: 'tool', tool: name, args: truncate(JSON.stringify(args || {}), 1000) });
             steps.push({ type: 'tool.call', tool: name, args });
             this.#control.step('tool.call', { tool: name });
             this.emit('tool:start', name, args);
             log.info(`Tool call: ${name}`);
-            postActivity(this.#creds.apiKey, 'tool.call', { tool: name, args }, runId, this.#creds.agentId).catch(() => {});
+            postActivity(this.#creds.apiKey, 'tool.call', { tool: name, args }, _runId, this.#creds.agentId).catch(() => {});
             trace('tool.call', { summary: name, detail: JSON.stringify(args || {}, null, 2) });
-            auditWrite({ kind: 'task', event: 'tool', runId, tool: name, args: truncate(JSON.stringify(args || {}), 500) });
-            toolSpans.set(name, startSpan(`tool.${name}`, { runId: String(runId) }));
+            auditWrite({ kind: 'task', event: 'tool', _runId, tool: name, args: truncate(JSON.stringify(args || {}), 500) });
+            toolSpans.set(name, startSpan(`tool.${name}`, { _runId: String(_runId) }));
           });
           loop.on('tool:result', (name, out) => {
             this.#stats.toolCalls++;
             const outStr = truncate(JSON.stringify(out), TOOL_OUT_MAX);
             steps.push({ type: 'tool.result', tool: name, output: truncate(outStr, 400) });
-            postActivity(this.#creds.apiKey, 'tool.result', { tool: name, output: truncate(outStr, 200) }, runId, this.#creds.agentId).catch(() => {});
+            postActivity(this.#creds.apiKey, 'tool.result', { tool: name, output: truncate(outStr, 200) }, _runId, this.#creds.agentId).catch(() => {});
             trace('tool.result', { summary: truncate(outStr, 500), detail: truncate(outStr, 4000) });
-            auditWrite({ kind: 'task', event: 'tool:result', runId, tool: name, output: truncate(outStr, 500) });
+            auditWrite({ kind: 'task', event: 'tool:result', _runId, tool: name, output: truncate(outStr, 500) });
             log.info(`Tool result (${name}): ${truncate(outStr, 120)}`);
             const toolSpan = toolSpans.get(name);
             if (toolSpan) {
@@ -823,16 +825,16 @@ export class AgentDaemon extends EventEmitter {
               endSpan(toolSpan, !(out && out.error));
               toolSpans.delete(name);
             }
-            if (out && (out.error || out.exitCode)) this.#debugSnapshot(runId, `tool ${name} failed`);
+            if (out && (out.error || out.exitCode)) this.#debugSnapshot(_runId, `tool ${name} failed`);
           });
           loop.on('tool:denied', (name, verdict) => {
             log.warn(`Tool denied by policy: ${name} (${verdict.reason})`);
-            postActivity(this.#creds.apiKey, 'auto.denied', { tool: name, reason: verdict.reason, tier: verdict.tier }, runId, this.#creds.agentId).catch(() => {});
+            postActivity(this.#creds.apiKey, 'auto.denied', { tool: name, reason: verdict.reason, tier: verdict.tier }, _runId, this.#creds.agentId).catch(() => {});
             trace('denied', { summary: `${name}: ${verdict.reason}` });
-            auditWrite({ kind: 'task', event: 'denied', runId, tool: name, reason: verdict.reason });
+            auditWrite({ kind: 'task', event: 'denied', _runId, tool: name, reason: verdict.reason });
           });
           loop.on('nudge', (why) => {
-            postActivity(this.#creds.apiKey, 'auto.correct', { reason: why }, runId, this.#creds.agentId).catch(() => {});
+            postActivity(this.#creds.apiKey, 'auto.correct', { reason: why }, _runId, this.#creds.agentId).catch(() => {});
             trace('correct', { summary: `${why} reply — corrective nudge` });
           });
           loop.on('blocked', (kind, s) => {
@@ -841,7 +843,7 @@ export class AgentDaemon extends EventEmitter {
           });
           loop.on('answer', (text) => {
             trace('answer', { summary: truncate(String(text).slice(0, 500), 500), detail: truncate(String(text), 6000) });
-            auditWrite({ kind: 'task', event: 'answer', runId, answer: truncate(String(text), 500) });
+            auditWrite({ kind: 'task', event: 'answer', _runId, answer: truncate(String(text), 500) });
           });
           loop.on('error', (err) => log.warn(`Loop error: ${err.message}`));
         };
@@ -850,7 +852,7 @@ export class AgentDaemon extends EventEmitter {
         // dashboard, tracks usage/model/provider, maps to the engine's usage
         // shape (input/output/total/costUsd) for the budget governor.
         const loopThink = async (messages, prof) => {
-          const res = await this.#thinkWithRetry(messages, runId, {
+          const res = await this.#thinkWithRetry(messages, _runId, {
             temperature: prof?.temperature ?? brain.temperature,
             // 'standard' means no steering — let the cloud auto-pick.
             profile: prof?.profile && prof.profile !== 'standard' ? prof.profile : (brain.profile ?? null),
@@ -873,10 +875,10 @@ export class AgentDaemon extends EventEmitter {
           think: loopThink,
           runTool: (name, args) => tools.run(name, args, {
             ...(agentCaps ? { agent: agentCaps } : {}),
-            runId,
+            _runId,
             // Deterministic per task/tool invocation. Tool registry refuses
             // side effects without this durable retry contract.
-            idempotencyKey: `${runId}:${name}:${traceStepNo + 1}`,
+            idempotencyKey: `${_runId}:${name}:${traceStepNo + 1}`,
             policyRevision: String(this.#policy.version || ''),
           }),
           policy: this.#policy,
@@ -894,14 +896,14 @@ export class AgentDaemon extends EventEmitter {
           maxChars: 60000,
           resume: meta?.resume?.checkpoint || null,
           onCheckpoint: async (snapshot) => {
-            this.#runs.checkpoint(runId, { phase: snapshot.phase, step: snapshot.stepNo, loop: snapshot });
+            this.#runs.checkpoint(_runId, { phase: snapshot.phase, step: snapshot.stepNo, loop: snapshot });
           },
           conclude: async (messages) => {
             // Never give up: one forced conclusion when steps run out.
             messages.push({ role: 'user', content: 'Step limit reached. Reply {"reasoning":"brief summary of what you did","answer":"..."} — or plain text. No more tools.' });
             try {
               const tThink = Date.now();
-              const thinkRes = await this.#thinkWithRetry(messages, runId, { temperature: brain.temperature, profile: brain.profile });
+              const thinkRes = await this.#thinkWithRetry(messages, _runId, { temperature: brain.temperature, profile: brain.profile });
               const r2 = parseBrainReply(thinkRes.text ?? '');
               if (thinkRes.usage) addUsage(thinkRes.usage);
               if (thinkRes.model) lastModel = thinkRes.model;
@@ -932,7 +934,7 @@ export class AgentDaemon extends EventEmitter {
             vMessages.push({ role: 'assistant', content: final });
             vMessages.push({ role: 'user', content: 'VERIFY: You are about to send this answer to the user. Check it against the tool results above: is every claim factual, complete and direct? If something is wrong or missing, fix it. Reply {"reasoning":"what you checked","answer":"<corrected or unchanged answer>"}.' });
             const tThink = Date.now();
-            const vRes = await this.#thinkWithRetry(vMessages, runId, { temperature: brain.temperature, profile: 'complex' });
+            const vRes = await this.#thinkWithRetry(vMessages, _runId, { temperature: brain.temperature, profile: 'complex' });
             const vr = parseBrainReply(vRes.text ?? '');
             if (vr && vr.kind === 'answer' && vr.answer.trim()) final = vr.answer;
             else if (vr && vr.kind === 'text' && (vRes.text ?? '').trim()) final = vRes.text;
@@ -957,13 +959,13 @@ export class AgentDaemon extends EventEmitter {
       this.#control.step('task.error', { error: err.message });
       this.emit('task:error', err);
       log.error(`Think failed: ${err.message}`);
-      try { this.#runs.transition(runId, 'failed', { reason: err.message, checkpoint: { phase: 'error' } }); } catch { /* durable record is best-effort */ }
-      auditWrite({ kind: 'task', event: 'error', runId, error: truncate(err.message, 500) });
-      await this.#debugSnapshot(runId, 'task error: ' + err.message);
+      try { this.#runs.transition(_runId, 'failed', { reason: err.message, checkpoint: { phase: 'error' } }); } catch { /* durable record is best-effort */ }
+      auditWrite({ kind: 'task', event: 'error', _runId, error: truncate(err.message, 500) });
+      await this.#debugSnapshot(_runId, 'task error: ' + err.message);
       const msg = `I hit an error and could not complete the task: ${err.message}. A debug snapshot was captured — retry the request or check the activity feed.`;
-      if (sngine && runId) {
+      if (sngine && _runId) {
         try {
-          await runFinish(this.#creds.apiKey, runId, {
+          await runFinish(this.#creds.apiKey, _runId, {
             status: 'failed',
             error: truncate(err.message, 2000),
             model: lastModel,
@@ -975,7 +977,7 @@ export class AgentDaemon extends EventEmitter {
           log.debug(`runFinish failed: ${fe.message}`);
         }
       }
-      if (cloudTask) await this.#reportResult(cloudTask, msg, steps, { runId, usage: usageTotals, model: lastModel, provider: lastProvider });
+      if (cloudTask) await this.#reportResult(cloudTask, msg, steps, { _runId, usage: usageTotals, model: lastModel, provider: lastProvider });
       endSpan(taskSpan, false);
       return;
     } finally {
@@ -991,8 +993,8 @@ export class AgentDaemon extends EventEmitter {
     }
 
     try {
-      this.#runs.transition(runId, 'verifying', { checkpoint: { phase: 'verifying', answer: truncate(final, 1000) } });
-      this.#runs.transition(runId, 'succeeded', { checkpoint: { phase: 'complete' } });
+      this.#runs.transition(_runId, 'verifying', { checkpoint: { phase: 'verifying', answer: truncate(final, 1000) } });
+      this.#runs.transition(_runId, 'succeeded', { checkpoint: { phase: 'complete' } });
     } catch (err) {
       log.warn(`Durable run completion record failed: ${err.message}`);
     }
@@ -1004,7 +1006,7 @@ export class AgentDaemon extends EventEmitter {
     // Goal rounds: persist the round outcome, strip the completion marker,
     // and enqueue the next round when the objective is still open.
     if (meta?.goal) {
-      const gf = this.#finalizeGoalRound(meta.goal, final, usageTotals, runId);
+      const gf = this.#finalizeGoalRound(meta.goal, final, usageTotals, _runId);
       if (gf && gf.clean) final = gf.clean;
     }
 
@@ -1015,11 +1017,11 @@ export class AgentDaemon extends EventEmitter {
     } catch { /* memory is best-effort */ }
 
     if (cloudTask) {
-      await this.#reportResult(cloudTask, final, steps, { runId, usage: usageTotals, model: lastModel, provider: lastProvider });
+      await this.#reportResult(cloudTask, final, steps, { _runId, usage: usageTotals, model: lastModel, provider: lastProvider });
     }
-    if (sngine && runId) {
+    if (sngine && _runId) {
       try {
-        await runFinish(this.#creds.apiKey, runId, {
+        await runFinish(this.#creds.apiKey, _runId, {
           status: 'done',
           model: lastModel,
           provider: lastProvider,
@@ -1030,17 +1032,17 @@ export class AgentDaemon extends EventEmitter {
         log.debug(`runFinish failed: ${fe.message}`);
       }
     }
-    this.#control.result(runId, { text: final });
-    this.#control.step('task.done', { runId, tokens: final.length, chars: final.length });
-    this.emit('task:done', { answer: final, tokens: final.length, runId });
-    auditWrite({ kind: 'task', event: 'done', runId, answer: truncate(final, 500), model: lastModel, provider: lastProvider, usage: usageTotals, durationMs: Date.now() - t0 });
+    this.#control.result(_runId, { text: final });
+    this.#control.step('task.done', { _runId, tokens: final.length, chars: final.length });
+    this.emit('task:done', { answer: final, tokens: final.length, _runId });
+    auditWrite({ kind: 'task', event: 'done', _runId, answer: truncate(final, 500), model: lastModel, provider: lastProvider, usage: usageTotals, durationMs: Date.now() - t0 });
     log.info(`Task complete`, { tokens: final.length, chars: final.length });
   }
 
   // ── Tool execution ──────────────────────────────────────────────
-  async #runTool(toolName, toolArgs, runId) {
+  async #runTool(toolName, toolArgs, _runId) {
     if (!toolName) {
-      this.#control.result(runId, { error: 'No tool specified' });
+      this.#control.result(_runId, { error: 'No tool specified' });
       return;
     }
 
@@ -1054,7 +1056,7 @@ export class AgentDaemon extends EventEmitter {
     const result = await tools.run(toolName, toolArgs || {});
     this.#stats.toolCalls++;
 
-    this.#control.result(runId, result);
+    this.#control.result(_runId, result);
     this.#control.step('tool.done', { tool: toolName });
     this.emit('tool:done', toolName, result);
 
@@ -1096,7 +1098,7 @@ export class AgentDaemon extends EventEmitter {
         };
       };
       const onEvent = (subId, kind, payload) => {
-        auditWrite({ kind: 'subtask', runId: parent?.runId || '', subId, event: kind, ...payload });
+        auditWrite({ kind: 'subtask', _runId: parent?._runId || '', subId, event: kind, ...payload });
       };
       return await runSubtasks({
         tasks,
@@ -1144,7 +1146,7 @@ export class AgentDaemon extends EventEmitter {
         };
       };
       const onEvent = (phase, subId, kind, payload) => {
-        auditWrite({ kind: 'workflow', runId: parent?.runId || '', phase, subId: subId || '', event: kind, ...payload });
+        auditWrite({ kind: 'workflow', _runId: parent?._runId || '', phase, subId: subId || '', event: kind, ...payload });
       };
       return await runWorkflow({
         phases,
@@ -1187,13 +1189,13 @@ export class AgentDaemon extends EventEmitter {
   #enqueueGoalRound(goalId, roundNo) {
     const goal = this.#goals.get(goalId);
     if (!goal || goal.status !== 'active') return;
-    const runId = `goal_${goalId}_r${roundNo}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const _runId = `goal_${goalId}_r${roundNo}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     // Round runs as a normal queued task (serial — never interleaves with
     // user tasks); meta.goal tells #runTask to seed the goal context.
-    this.#enqueueTask(runId, goalRoundTaskText(goal, roundNo), null, { goal: { id: goalId, roundNo } });
+    this.#enqueueTask(_runId, goalRoundTaskText(goal, roundNo), null, { goal: { id: goalId, roundNo } });
   }
 
-  #finalizeGoalRound(goalMeta, rawFinal, usage, runId) {
+  #finalizeGoalRound(goalMeta, rawFinal, usage, _runId) {
     try {
       const goal = this.#goals.get(goalMeta.id);
       if (!goal || goal.status !== 'active') return null;

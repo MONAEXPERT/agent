@@ -111,7 +111,7 @@ describe('audit chain + signatures', () => {
     let prev = '';
     const rebuilt = lines.map((l) => {
       const rec = JSON.parse(l);
-      const { hash, sig, pub, ...body } = rec;
+      const { hash: _hash, sig: _sig, pub: _pub, ...body } = rec;
       const line = JSON.stringify({ ...body, prev });
       const h = sha256(line);
       const s = cryptoSign(null, Buffer.from(`${AUDIT_DOMAIN}.${h}`), foreignPriv).toString('base64url');

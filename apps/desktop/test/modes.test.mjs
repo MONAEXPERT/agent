@@ -1,7 +1,7 @@
 // Modes + daemon tests — capability dial (minimal → full) and the
 // single-instance guard. All state is isolated under a temp HOME.
 
-import { test, describe, before, after, beforeEach } from 'node:test';
+import { test, describe, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

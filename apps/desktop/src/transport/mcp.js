@@ -130,7 +130,7 @@ export function createMcpServer({ registry }) {
  * input, write responses to output. Resolves when the stream ends or
  * shutdown is requested.
  */
-export async function runMcpServer({ registry, input = process.stdin, output = process.stdout, log = () => {} }) {
+export async function runMcpServer({ registry, input = process.stdin, output = process.stdout, log: _log = () => {} }) {
   const server = createMcpServer({ registry });
   const encoder = (obj) => output.write(JSON.stringify(obj) + '\n');
   let buf = '';
@@ -142,7 +142,7 @@ export async function runMcpServer({ registry, input = process.stdin, output = p
       const line = buf.slice(0, idx).trim();
       buf = buf.slice(idx + 1);
       if (!line) continue;
-      let msg = null;
+      let msg;
       try { msg = JSON.parse(line); } catch { encoder(jsonRpcError(null, -32700, 'Parse error')); continue; }
       const resp = await server.handle(msg);
       if (resp) encoder(resp);

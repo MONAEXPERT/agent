@@ -10,12 +10,12 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
-let runSubtasks, buildSubSystemPrompt, MAX_SUBTASKS, Policy, Budget;
+let runSubtasks, buildSubSystemPrompt, Policy, Budget;
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-delegate-'));
 
 before(async () => {
-  ({ runSubtasks, buildSubSystemPrompt, MAX_SUBTASKS, Policy, Budget } = await import('../src/index.mjs'));
+  ({ runSubtasks, buildSubSystemPrompt, Policy, Budget } = await import('../src/index.mjs'));
 });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -27,11 +27,11 @@ function mkBudget(over = {}) {
 
 /** Scripted brain: answers depend on keywords in the task prompt. */
 function scriptedThink(state) {
-  return async (messages, prof) => {
+  return async (messages, _prof) => {
     const user = [...messages].reverse().find((m) => m.role === 'user');
     const p = String(user?.content || '');
     await sleep(15);
-    // Second calls (after a tool result) answer — keyed by state, because the
+    // Second calls (after _a tool result) answer — keyed by state, because the
     // last user message is then the injected TOOL RESULT wrapper.
     if (state.toolAsked) {
       return { text: JSON.stringify({ reasoning: 'data obtained', answer: 'answer with tool' }), usage: USAGE };
@@ -66,11 +66,11 @@ describe('delegate — runSubtasks', () => {
     const state = {};
     const results = await runSubtasks({
       tasks: [
-        { id: 'a', prompt: 'answer-immediately' },
+        { id: '_a', prompt: 'answer-immediately' },
         { id: 'b', prompt: 'answer-immediately' },
       ],
       think: scriptedThink(state),
-      runTool: async (n, a) => ({ ok: true, tool: n }),
+      runTool: async (_n, _a) => ({ ok: true, tool: _n }),
       policy: policy(),
       budget: mkBudget(),
       tools: [{ name: 'files', description: 'Files', args: {} }],
@@ -87,9 +87,9 @@ describe('delegate — runSubtasks', () => {
 
   it('bounds concurrency to the requested pool size', async () => {
     let active = 0, maxActive = 0;
-    const tracked = async (messages, prof) => {
+    const tracked = async (messages, _prof) => {
       active++; maxActive = Math.max(maxActive, active);
-      try { return await scriptedThink({})(messages, prof); }
+      try { return await scriptedThink({})(messages, _prof); }
       finally { active--; }
     };
     await runSubtasks({
@@ -100,7 +100,7 @@ describe('delegate — runSubtasks', () => {
         { id: '4', prompt: 'answer-immediately' },
       ],
       think: tracked,
-      runTool: async (n, a) => ({ ok: true }),
+      runTool: async (_n, _a) => ({ ok: true }),
       policy: policy(),
       budget: mkBudget(),
       concurrency: 2,
@@ -108,13 +108,13 @@ describe('delegate — runSubtasks', () => {
     assert.equal(maxActive, 2, 'at most 2 sub-thinks in flight');
   });
 
-  it('lets a sub-task use tools inside its own loop', async () => {
+  it('lets _a sub-task use tools inside its own loop', async () => {
     const state = {};
     const calls = [];
     const results = await runSubtasks({
       tasks: [{ id: 't', prompt: 'use-tool' }],
       think: scriptedThink(state),
-      runTool: async (n, a) => { calls.push(n); return { ok: true, listing: [] }; },
+      runTool: async (_n, _a) => { calls.push(_n); return { ok: true, listing: [] }; },
       policy: policy(),
       budget: mkBudget(),
     });
@@ -128,7 +128,7 @@ describe('delegate — runSubtasks', () => {
     const results = await runSubtasks({
       tasks: [{ id: 'd', prompt: 'denied-tool' }],
       think: scriptedThink(state),
-      runTool: async (n, a) => ({ ok: true }),
+      runTool: async (_n, _a) => ({ ok: true }),
       policy: policy(),
       budget: mkBudget(),
     });
@@ -139,7 +139,7 @@ describe('delegate — runSubtasks', () => {
     assert.ok(trace.length >= 2, 'tool call + answer steps recorded');
   });
 
-  it('reports a crashing sub-brain as status error, others still run', async () => {
+  it('reports _a crashing sub-brain as status error, others still run', async () => {
     const state = {};
     const results = await runSubtasks({
       tasks: [
@@ -147,7 +147,7 @@ describe('delegate — runSubtasks', () => {
         { id: 'bad', prompt: 'crash' },
       ],
       think: scriptedThink(state),
-      runTool: async (n, a) => ({ ok: true }),
+      runTool: async (_n, _a) => ({ ok: true }),
       policy: policy(),
       budget: mkBudget(),
       concurrency: 2,
@@ -166,7 +166,7 @@ describe('delegate — runSubtasks', () => {
         { id: 'y', prompt: 'answer-immediately' },
       ],
       think: scriptedThink({}),
-      runTool: async (n, a) => ({ ok: true }),
+      runTool: async (_n, _a) => ({ ok: true }),
       policy: policy(),
       budget: shared,
     });
@@ -177,10 +177,10 @@ describe('delegate — runSubtasks', () => {
     await assert.rejects(() => runSubtasks({ tasks: [], think() {}, runTool() {} }), TypeError);
     const tooMany = Array.from({ length: 7 }, (_, i) => ({ id: 't' + i, prompt: 'x' }));
     await assert.rejects(() => runSubtasks({ tasks: tooMany, think() {}, runTool() {} }), RangeError);
-    await assert.rejects(() => runSubtasks({ tasks: [{ id: 'a', prompt: 'x' }], runTool() {} }), TypeError);
+    await assert.rejects(() => runSubtasks({ tasks: [{ id: '_a', prompt: 'x' }], runTool() {} }), TypeError);
   });
 
-  it('builds a sub system prompt listing the tools', () => {
+  it('builds _a sub system prompt listing the tools', () => {
     const p = buildSubSystemPrompt([{ name: 'shell', description: 'Run commands', args: { cmd: 'string' } }], 'researcher');
     assert.ok(p.includes('researcher'));
     assert.ok(p.includes('shell'));

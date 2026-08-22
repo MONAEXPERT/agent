@@ -108,9 +108,9 @@ export function windowsDpapiBackend({ account = 'default', command = 'powershell
       writeScope(current);
     },
     clear: () => {
-      try { unlinkSync(blobFile); } catch {}
-      try { unlinkSync(scopeFile); } catch {}
-      try { unlinkSync(tmpFile); } catch {}
+      try { unlinkSync(blobFile); } catch { /* best-effort: blob may not exist */ }
+      try { unlinkSync(scopeFile); } catch { /* best-effort: scope file may not exist */ }
+      try { unlinkSync(tmpFile); } catch { /* best-effort: tmp file may not exist */ }
     },
     scope: resolveScope,
     account,
@@ -129,7 +129,7 @@ export function fileBackend(file) {
       mkdirSync(join(file, '..'), { recursive: true });
       writeFileSync(file, JSON.stringify(validate(value), null, 2), { mode: 0o600 });
     },
-    clear: () => { try { unlinkSync(file); } catch {} },
+    clear: () => { try { unlinkSync(file); } catch { /* best-effort: file may not exist */ } },
   };
 }
 
@@ -163,7 +163,7 @@ export function createCredentialStore({
       writeMeta({ agentId: safe.agentId, createdAt: readMeta()?.createdAt || now(), rotatedAt: now() });
       return this.metadata();
     },
-    clear() { selected.clear(SERVICE, os); try { unlinkSync(metadataFile); } catch {} },
+    clear() { selected.clear(SERVICE, os); try { unlinkSync(metadataFile); } catch { /* best-effort: metadata may not exist */ } },
     metadata() {
       const meta = readMeta();
       if (!meta) return { backend: selected.name, secure: selected.secure === true, present: Boolean(this.load()) };

@@ -56,7 +56,7 @@ export const browser = {
   async run(args) {
     const action = String(args.action || 'open').toLowerCase();
 
-    let url = null;
+    let url;
     if (action === 'open') {
       url = validateUrl(args.url);
       if (!url) return { error: 'A valid http(s) URL is required (url=...)' };

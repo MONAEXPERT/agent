@@ -72,7 +72,6 @@ async function guardSymlinks(target) {
         if (real === rr || real.startsWith(rr + path.sep)) return;
       }
       throw new Error(`Symlink escape denied: ${cur}`);
-      return;
     } catch (err) {
       if (err && err.code === 'ENOENT' && stack.length < 64) {
         stack.push(path.basename(cur));

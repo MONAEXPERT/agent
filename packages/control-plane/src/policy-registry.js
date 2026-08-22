@@ -83,5 +83,5 @@ export class PolicyRegistry {
     r.state = 'active'; r.activatedAt = nowIso(); r.activatedBy = activatedBy; this.active.set(tenantId, r.id); this.#save();
     auditWrite({ kind: 'policy', action: 'activate', tenantId, revisionId: r.id, policyVersion: r.version, activatedBy }); return own(r);
   }
-  rollback(tenantId, revisionId, opts = {}) { return this.activate(revisionId, { ...opts, tenantId }); }
+  rollback(tenantId, targetRevisionId, opts = {}) { return this.activate(targetRevisionId, { ...opts, tenantId }); }
 }

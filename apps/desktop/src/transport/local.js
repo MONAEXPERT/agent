@@ -92,7 +92,7 @@ export function loadProviderConfig({ env = process.env } = {}) {
     try {
       fileCfg = JSON.parse(readFileSync(path, 'utf8'));
     } catch (err) {
-      throw new Error(`provider.json is not valid JSON (${path}): ${err.message}`);
+      throw new Error(`provider.json is not valid JSON (): `, { cause: err });
     }
   }
 

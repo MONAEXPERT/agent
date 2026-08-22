@@ -106,7 +106,7 @@ export function compareAnchors(localPath, anchors) {
       if (!line) return { ok: false, divergentAt: seq, reason: 'local chain has no entry for anchored seq' };
       let rec;
       try { rec = JSON.parse(line); } catch { return { ok: false, divergentAt: seq, reason: 'corrupt local entry at anchored seq' }; }
-      const { hash, sig, pub, ...rest } = rec;
+      const { hash: _hash, sig: _sig, pub: _pub, ...rest } = rec;
       const recomputed = sha256(JSON.stringify({ seq: rec.seq, ts: rec.ts, ...rest, prev: rec.prev }));
       if (recomputed !== a.hash) return { ok: false, divergentAt: seq, reason: 'hash diverges from cloud anchor' };
     }

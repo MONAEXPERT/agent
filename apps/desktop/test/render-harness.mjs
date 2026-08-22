@@ -7,9 +7,11 @@ class FakeTTY extends PassThrough {
   constructor(cols, rows) { super(); this.isTTY = true; this.columns = cols; this.rows = rows; }
 }
 
+/* eslint-disable no-control-regex -- harness strips ANSI escapes from TUI output */
 const strip = (raw) => raw
   .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
   .replace(/\x1b\[[0-9;]*m/g, '');
+/* eslint-enable no-control-regex */
 
 function renderScenario(name, setup, { cols = 100, rows = 30 } = {}) {
   return new Promise((resolve) => {

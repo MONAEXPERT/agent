@@ -15,7 +15,7 @@ import {
   resolveCapabilityGrant,
   intersectCapabilities,
   grantSigningInput,
-  GRANT_DOMAIN,
+  
 } from '../src/index.mjs';
 
 const { publicKey, privateKey } = generateKeyPairSync('ed25519');

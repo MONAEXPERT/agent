@@ -129,7 +129,7 @@ export async function resolveAndCheck(hostname, { resolver = dns.lookup, allowLo
   try {
     addrs = await resolver(hostname, { all: true, verbatim: true });
   } catch (err) {
-    throw new Error(`DNS resolution failed for ${hostname}: ${err.code || err.message}`);
+    throw new Error(`DNS resolution failed for : `, { cause: err });
   }
   const ips = addrs.map((a) => a.address);
   let blocked = ips.filter((ip) => isBlockedIp(ip));

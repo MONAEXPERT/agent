@@ -15,7 +15,7 @@ const ROOT = path.resolve(here, '..');
 describe('windows-service adapter (portable unit tests)', () => {
   it('requires absolute service paths and quotes them safely', () => {
     const binary = serviceBinaryPath({ nodePath: 'C:\\Program Files\\nodejs\\node.exe', entrypoint: 'C:\\Program Files\\remoteagent\\bin\\remoteagent.js' });
-    assert.equal(binary, '\"C:\\Program Files\\nodejs\\node.exe\" \"C:\\Program Files\\remoteagent\\bin\\remoteagent.js\" start --force');
+    assert.equal(binary, '"C:\\Program Files\\nodejs\\node.exe" "C:\\Program Files\\remoteagent\\bin\\remoteagent.js" start --force');
     assert.throws(() => serviceBinaryPath({ nodePath: 'relative.exe' }), /absolute/);
   });
 
