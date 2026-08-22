@@ -8,7 +8,8 @@
 # command also works in every new terminal.
 #
 # Options:
-#   --version <tag>   install a specific release tag (default: latest release)
+#   --version <tag>   install a specific release tag (default: latest release;
+#                     falls back to the default branch when none exists yet)
 #   --branch <name>   install from a branch (opt-in, unverified — use with care)
 #   --dry-run         print what would happen, change nothing
 #   --allow-root      permit running as root (refused by default)
@@ -49,6 +50,12 @@ latest_release_tag() {
     | sed -nE 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1
 }
 
+# Default branch from the repo metadata (fallback when no release exists).
+default_branch() {
+  curl -fsSL "https://api.github.com/repos/$REPO" 2>/dev/null \
+    | sed -nE 's/.*"default_branch"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1
+}
+
 REF=""
 URL=""
 CHECKSUM_URL=""
@@ -66,16 +73,25 @@ elif [ -n "$BRANCH_REQ" ]; then
   URL="https://github.com/$REPO/archive/refs/heads/$BRANCH_REQ.tar.gz"
   echo -e "  ${YELLOW}WARNING: installing from branch \"$BRANCH_REQ\" (no release checksums).${RESET}"
 else
-  # Default: the latest release tag (checksum-verified), never an unverified branch.
-  REF="$(latest_release_tag)"
+  # Default: the latest release tag (checksum-verified). When the repo has
+  # no releases yet (pre-first-release), fall back to the default-branch
+  # source archive with a loud warning — a working unverified install is
+  # strictly better than a broken install.
+  REF="$(latest_release_tag || true)"
   if [ -z "$REF" ]; then
-    echo -e "  ${RED}Could not determine the latest release tag. Use --version <tag> or --branch <name>.${RESET}" >&2
-    exit 1
+    REF="$(default_branch || true)"
+    if [ -z "$REF" ]; then
+      echo -e "  ${RED}Could not determine the latest release tag. Use --version <tag> or --branch <name>.${RESET}" >&2
+      exit 1
+    fi
+    echo -e "  ${YELLOW}WARNING: no GitHub release found for $REPO — installing from the default branch \"$REF\" source archive (no checksum manifest).${RESET}"
+    URL="https://github.com/$REPO/archive/refs/heads/$REF.tar.gz"
+  else
+    VERSION_REQ="$REF"
+    TARBALL_NAME="remoteagent-$VERSION_REQ.tar.gz"
+    URL="https://github.com/$REPO/releases/download/$VERSION_REQ/$TARBALL_NAME"
+    CHECKSUM_URL="https://github.com/$REPO/releases/download/$VERSION_REQ/SHA256SUMS"
   fi
-  VERSION_REQ="$REF"
-  TARBALL_NAME="remoteagent-$VERSION_REQ.tar.gz"
-  URL="https://github.com/$REPO/releases/download/$VERSION_REQ/$TARBALL_NAME"
-  CHECKSUM_URL="https://github.com/$REPO/releases/download/$VERSION_REQ/SHA256SUMS"
 fi
 
 echo ""
