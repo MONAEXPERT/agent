@@ -60,7 +60,7 @@ audit-chain tampering, rate limits. Run with `npm test`.
 
 Please report privately first so we can fix before disclosure:
 
-1. Email: `security@mona.expert` (use an encrypted channel when appropriate).
+1. Email: `security@remoteagent.online` (use an encrypted channel when appropriate).
 2. Include a safe subject, affected version/commit and component, impact, and concise reproduction steps. Attach only sanitized logs or proof-of-concept material; never include real credentials or customer data.
 3. Tell us whether the issue is being actively exploited, whether you want credit, and your preferred disclosure timeline. We will acknowledge within 48 hours and aim to publish a fix + advisory within 14 days, extending the timeline collaboratively when needed.
 4. If you do not receive an acknowledgment within 3 business days, follow up through the contact listed in the repository metadata rather than opening a public issue.
