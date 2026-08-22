@@ -21,9 +21,21 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { env as shimEnv } from '@remoteagent/engine';
 
 const DIR = join(homedir(), '.remoteagent');
 const DEFAULT_FILE = join(DIR, 'provider.json');
+
+// Env resolution for the BYO transport: RA_* wins, MONA_* keeps working
+// (the plan's compat guarantee). When a plain object is injected (tests),
+// resolve both prefixes from it; when nothing is injected, delegate to the
+// engine shim so legacy users get the one-shot deprecation warning.
+function resolveEnvName(envObj, name) {
+  if (!envObj || envObj === process.env) return shimEnv(name);
+  const next = envObj['RA_' + name];
+  if (next !== undefined) return next;
+  return envObj['MONA_' + name];
+}
 
 export const PROVIDERS = ['anthropic', 'openai', 'ollama'];
 
@@ -75,7 +87,7 @@ export function tokenCost(provider, model, input, output, override = null) {
  */
 export function loadProviderConfig({ env = process.env } = {}) {
   let fileCfg = null;
-  const path = env.RA_PROVIDER_FILE || DEFAULT_FILE;
+  const path = (env.RA_PROVIDER_FILE ?? env.MONA_PROVIDER_FILE) || DEFAULT_FILE;
   if (existsSync(path)) {
     try {
       fileCfg = JSON.parse(readFileSync(path, 'utf8'));
@@ -84,7 +96,7 @@ export function loadProviderConfig({ env = process.env } = {}) {
     }
   }
 
-  const envProvider = env.RA_PROVIDER || null;
+  const envProvider = resolveEnvName(env, 'PROVIDER') || null;
   if (!envProvider && !fileCfg) return null;
 
   const provider = (envProvider || fileCfg?.provider || '').toLowerCase();
@@ -94,9 +106,9 @@ export function loadProviderConfig({ env = process.env } = {}) {
   const defaults = PROVIDER_DEFAULTS[provider];
   const cfg = {
     provider,
-    apiKey:      env.RA_PROVIDER_KEY ?? fileCfg?.apiKey ?? null,
-    baseUrl:     (env.RA_PROVIDER_URL || fileCfg?.baseUrl || defaults.baseUrl).replace(/\/+$/, ''),
-    model:       env.RA_PROVIDER_MODEL || fileCfg?.model || defaults.model,
+    apiKey:      resolveEnvName(env, 'PROVIDER_KEY') ?? fileCfg?.apiKey ?? null,
+    baseUrl:     (resolveEnvName(env, 'PROVIDER_URL') || fileCfg?.baseUrl || defaults.baseUrl).replace(/\/+$/, ''),
+    model:       resolveEnvName(env, 'PROVIDER_MODEL') || fileCfg?.model || defaults.model,
     prices:      fileCfg?.prices && typeof fileCfg.prices === 'object' ? fileCfg.prices : null,
     enabled:     fileCfg?.enabled !== false,
     file:        path,
@@ -111,7 +123,7 @@ export function loadProviderConfig({ env = process.env } = {}) {
 export function saveProviderConfig({ provider, apiKey = null, baseUrl = null, model = null, prices = null, enabled = true, env = process.env }) {
   const p = (provider || '').toLowerCase();
   if (!PROVIDERS.includes(p)) throw new Error(`Unknown provider "${provider}" — expected one of: ${PROVIDERS.join(', ')}`);
-  const path = env.RA_PROVIDER_FILE || DEFAULT_FILE;
+  const path = resolveEnvName(env, 'PROVIDER_FILE') || DEFAULT_FILE;
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const existing = existsSync(path) ? safeParse(readFileSync(path, 'utf8')) : {};
   const next = {
@@ -131,7 +143,7 @@ export function saveProviderConfig({ provider, apiKey = null, baseUrl = null, mo
 function safeParse(s) { try { return JSON.parse(s); } catch { return {}; } }
 
 export function removeProviderConfig({ env = process.env } = {}) {
-  const path = env.RA_PROVIDER_FILE || DEFAULT_FILE;
+  const path = resolveEnvName(env, 'PROVIDER_FILE') || DEFAULT_FILE;
   if (existsSync(path)) {
     try { unlinkSync(path); return true; } catch { return false; }
   }
@@ -396,7 +408,7 @@ export async function localThink({ config, messages, temperature = null, onChunk
 
 /** Is the local transport explicitly requested via RA_TRANSPORT? */
 export function transportMode(env = process.env) {
-  return String(env.RA_TRANSPORT || 'auto').toLowerCase();
+  return String(resolveEnvName(env, 'TRANSPORT') || 'auto').toLowerCase();
 }
 
 /** Fail-fast check for `remoteagent start` when RA_TRANSPORT=local. */

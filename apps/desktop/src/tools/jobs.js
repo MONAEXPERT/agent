@@ -46,9 +46,10 @@ let seq = 0;
 
 // ── process spawning (process-group detached, output teed) ────────
 function spawnProc(job, bin, argv) {
-  const env = {};
-  for (const k of safeEnvKeys) if (process.env[k] !== undefined) env[k] = process.env[k];
-  env.PATH = shellCfg.path || env.PATH || '/usr/bin:/bin';
+  // Named childEnv to avoid shadowing the imported env() shim.
+  const childEnv = {};
+  for (const k of safeEnvKeys) if (process.env[k] !== undefined) childEnv[k] = process.env[k];
+  childEnv.PATH = shellCfg.path || childEnv.PATH || '/usr/bin:/bin';
   let child;
   try {
     let cmd = bin;
@@ -59,7 +60,7 @@ function spawnProc(job, bin, argv) {
       ({ cmd, args } = spawnTuple(bin, argv, { required: true, writeRoots: [job.cwd || process.cwd()] }));
     }
     child = spawn(cmd, args, {
-      env,
+      env: childEnv,
       cwd: job.cwd,
       detached: true, // own process group → kill() takes the whole tree
       stdio: ['pipe', 'pipe', 'pipe'],

@@ -402,12 +402,12 @@ function runStage(stage, { stdin = null, cwd, timeoutMs }) {
         return resolve({ error: err.message, stage: stage.argv[0] });
       }
     }
-    const env = {};
-    for (const k of SAFE_ENV_KEYS) if (process.env[k] !== undefined) env[k] = process.env[k];
-    env.PATH = cfg.path || env.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
+    const childEnv = {};
+    for (const k of SAFE_ENV_KEYS) if (process.env[k] !== undefined) childEnv[k] = process.env[k];
+    childEnv.PATH = cfg.path || childEnv.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
 
     const child = spawn(bin, stage.argv.slice(1), {
-      env,
+      env: childEnv,
       cwd,
       detached: true,   // own process group → we can kill the whole tree
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -533,10 +533,10 @@ async function executeStages(stages, { cwd, timeoutMs }) {
               return { results, error: err.message, allowed: null, stdout: '', stderr: '' };
             }
           }
-          const env = {};
-          for (const key of SAFE_ENV_KEYS) if (process.env[key] !== undefined) env[key] = process.env[key];
-          env.PATH = cfg.path || env.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
-          const child = spawn(bin, args, { env, cwd, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
+          const childEnv = {};
+          for (const key of SAFE_ENV_KEYS) if (process.env[key] !== undefined) childEnv[key] = process.env[key];
+          childEnv.PATH = cfg.path || childEnv.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
+          const child = spawn(bin, args, { env: childEnv, cwd, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
           if (prevOut) prevOut.pipe(child.stdin);
           else child.stdin.end();
           pipes.push(child);
@@ -700,13 +700,13 @@ export const shell = {
       const logFile = path.join(os.homedir(), '.remoteagent', `bg-${Date.now()}.log`);
       fs.mkdirSync(path.dirname(logFile), { recursive: true });
       const out = fs.openSync(logFile, 'a');
-      const env = {};
-      for (const k of SAFE_ENV_KEYS) if (process.env[k] !== undefined) env[k] = process.env[k];
-      env.PATH = cfg.path || env.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
+      const childEnv = {};
+      for (const k of SAFE_ENV_KEYS) if (process.env[k] !== undefined) childEnv[k] = process.env[k];
+      childEnv.PATH = cfg.path || childEnv.PATH || (PLATFORM === 'win32' ? process.env.PATH || '' : '/usr/bin:/bin');
       const child = spawn(bin, bgArgs, {
         detached: true,
         stdio: ['ignore', out, out],
-        env,
+        env: childEnv,
         cwd: bgCwd,
       });
       child.unref();
