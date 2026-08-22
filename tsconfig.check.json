@@ -1,0 +1,26 @@
+{
+  // Incremental strictness rollout (CODE-AUDIT.md §4.2): the real typecheck.
+  // Extends the SDK config but covers the engine sources with strictNullChecks
+  // ON. Directories join one at a time, each as its own commit, until the
+  // escape hatches can be deleted from the base config:
+  //   1. packages/engine/src        (this config, now)
+  //   2. packages/control-plane/src
+  //   3. apps/desktop/src
+  //
+  // Baseline when strictNullChecks landed (2026-08-22): 92 findings across
+  // the engine (null-safety holes + a few `{}`-initialised option objects).
+  // They are being fixed file by file, each fix its own commit with the full
+  // gate green; CI joins when the count reaches zero.
+  //
+  // Run:  npx tsc -p tsconfig.check.json --noEmit   (or: npm run typecheck:engine)
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strictNullChecks": true
+  },
+  "include": [
+    "packages/engine/src/**/*.js",
+    "packages/engine/src/**/*.mjs"
+  ],
+  "exclude": ["node_modules"]
+}
+

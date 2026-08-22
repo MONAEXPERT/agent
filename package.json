@@ -20,6 +20,7 @@
     "login": "node apps/desktop/bin/remoteagent.js login",
     "lint": "node scripts/lint.mjs && eslint apps packages scripts",
     "typecheck": "tsd",
+    "typecheck:engine": "tsc -p tsconfig.check.json --noEmit",
     "test": "node scripts/run-tests.mjs"
   },
   "engines": {

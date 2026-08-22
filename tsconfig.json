@@ -1,4 +1,12 @@
 {
+  // WHY THE NARROW INCLUDE LIST: this config is the SDK-surface contract,
+  // not a whole-repo typecheck. `types/index.d.ts` declares the public
+  // plugin-SDK surface, and the three listed source files are the ones a
+  // plugin author imports from (`defineTool`, the registry, the entry).
+  // Nothing else belongs here — full-repo strictness lives in
+  // `tsconfig.check.json`, which is being rolled out directory by
+  // directory (engine first, then control-plane, then apps/desktop) as
+  // the strictNullChecks findings get fixed.
   "compilerOptions": {
     "checkJs": true,
     "noEmit": true,
