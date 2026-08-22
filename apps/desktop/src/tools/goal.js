@@ -9,7 +9,7 @@
 //   goal resume <id>                     → enqueue the next round now
 //   goal abort <id>                      → stop (status: aborted)
 //
-// Goals persist to ~/.mona-agent/goals.json (0600) — they survive daemon
+// Goals persist to ~/.remoteagent/goals.json (0600) — they survive daemon
 // restarts. Each round runs as a normal queued task (serial — steps never
 // interleave with user tasks), seeded with the objective + every previous
 // round's summary, and must end with a GOAL_COMPLETE marker. Starting and

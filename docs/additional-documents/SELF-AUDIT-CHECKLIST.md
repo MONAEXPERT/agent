@@ -29,7 +29,7 @@ verify and where the evidence lives.
 ## 4. Tool policy
 
 - [ ] Policy file exists and is reviewed: `remoteagent policy status`
-      (or `cat ~/.mona-agent/policy.json`).
+      (or `cat ~/.remoteagent/policy.json`).
 - [ ] A preset is applied deliberately — `strict` for unattended
       machines, `standard` for human-supervised, `permissive` never for
       high-stakes devices.

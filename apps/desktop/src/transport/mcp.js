@@ -164,8 +164,8 @@ export async function runMcpHttpServer({ registry, port = 4301, host = '127.0.0.
   // echoed on stdout once. Requests must present it or are rejected 401.
   const token = randomBytes(32).toString('base64url');
   try {
-    mkdirSync(join(homedir(), '.mona-agent'), { recursive: true });
-    writeFileSync(join(homedir(), '.mona-agent', 'mcp-token'), token + '\n', { mode: 0o600 });
+    mkdirSync(join(homedir(), '.remoteagent'), { recursive: true });
+    writeFileSync(join(homedir(), '.remoteagent', 'mcp-token'), token + '\n', { mode: 0o600 });
   } catch { /* token file is best-effort; stdout still carries the token */ }
   process.stdout.write(token + '\n');
 

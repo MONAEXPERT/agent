@@ -22,10 +22,10 @@
 // Jobs are in-memory and live for the daemon process lifetime; restarting the
 // daemon clears them (documented in the tool description).
 
-import { env,  spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { Policy } from '@remoteagent/engine';
+import { env, Policy } from '@remoteagent/engine';
 import { log } from '../log.js';
 import { spawnTuple } from '../sandbox.js';
 import { currentMode } from '../modes.js';

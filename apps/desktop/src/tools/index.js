@@ -11,8 +11,8 @@
 // and an owner explicitly allows a plugin with a policy rule
 // ("tools": {"my.tool": "allow"}).
 
-import { env,  log } from '../log.js';
-import { Policy } from '@remoteagent/engine';
+import { log } from '../log.js';
+import { env, Policy } from '@remoteagent/engine';
 import { isTool } from './define.js';
 import { discoverExternalTools } from './registry.js';
 import { sysinfo } from './sysinfo.js';

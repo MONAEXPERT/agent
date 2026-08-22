@@ -26,7 +26,7 @@ minimises it. This document supports both end-user transparency
 ## Data minimisation by design
 
 - **The device stores no provider keys.** Only a remoteagent.online token
-  lives locally (`~/.mona-agent/credentials.json`, mode 0600).
+  lives locally (`~/.remoteagent/credentials.json`, mode 0600).
 - **Telemetry is system metrics only** — no keystrokes, no screen
   content, no file contents. Command results are sent only because you
   asked the agent to run them.

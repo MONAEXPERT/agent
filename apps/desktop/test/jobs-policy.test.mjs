@@ -15,7 +15,7 @@ process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 process.env.MONA_ALLOW_CMDS = 'echo,node';
 
-const POLICY_PATH = path.join(FAKE_HOME, '.mona-agent', 'policy.json');
+const POLICY_PATH = path.join(FAKE_HOME, '.remoteagent', 'policy.json');
 const writePolicy = (obj) => {
   fs.mkdirSync(path.dirname(POLICY_PATH), { recursive: true });
   fs.writeFileSync(POLICY_PATH, JSON.stringify(obj));

@@ -12,16 +12,16 @@
 // globs and arbitrary $VAR expansion are NOT supported by design.
 //
 // Unrestricted execution is a policy decision (`shell.unsafe: true` in
-// ~/.mona-agent/policy.json), never a one-word env flag. The deprecated
+// ~/.remoteagent/policy.json), never a one-word env flag. The deprecated
 // RA_SHELL_UNSAFE=1 still works for one minor version but logs a warning.
 //
 // Set RA_ALLOW_CMDS to extend the allowlist.
 
-import { env,  spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
-import { Policy } from '@remoteagent/engine';
+import { env, Policy } from '@remoteagent/engine';
 import { spawnTuple } from '../sandbox.js';
 import { currentMode } from '../modes.js';
 
@@ -107,7 +107,7 @@ const UNSAFE_SOURCE = POLICY.unsafeSource;
 if (UNSAFE && UNSAFE_SOURCE === 'env') {
   // Deprecation warning, printed once.
   process.stderr.write(
-    'remoteagent: MONA_SHELL_UNSAFE=1 is deprecated — set "shell": {"unsafe": true} in ~/.mona-agent/policy.json instead\n'
+    'remoteagent: MONA_SHELL_UNSAFE=1 is deprecated — set "shell": {"unsafe": true} in ~/.remoteagent/policy.json instead\n'
   );
 }
 
@@ -170,7 +170,7 @@ const EXPANDABLE_VARS = new Set(['HOME', 'PATH', 'USER', 'LANG', 'PWD', 'TMPDIR'
 const SENSITIVE_PATHS = [
   '~/.ssh', '~/.gnupg', '~/.aws', '~/.azure', '~/.kube',
   '~/.config/gh', '~/.docker/config.json', '~/.netrc',
-  '~/.mona-agent',   // the agent's own key material
+  '~/.remoteagent',   // the agent's own key material
   '/etc/shadow', '/etc/sudoers', '/etc/ssh',
   '/proc/self/environ',
 ];
@@ -697,7 +697,7 @@ export const shell = {
           return { error: err.message, platform: PLATFORM };
         }
       }
-      const logFile = path.join(os.homedir(), '.mona-agent', `bg-${Date.now()}.log`);
+      const logFile = path.join(os.homedir(), '.remoteagent', `bg-${Date.now()}.log`);
       fs.mkdirSync(path.dirname(logFile), { recursive: true });
       const out = fs.openSync(logFile, 'a');
       const env = {};

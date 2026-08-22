@@ -6,10 +6,10 @@
 // Update mechanics:
 //   - Latest version is read from the GitHub releases API of
 //     remoteagent-online/remoteagent (public repo, no auth needed).
-//   - The install lives in ~/.mona-agent/agent/ as a full copy of the
+//   - The install lives in ~/.remoteagent/agent/ as a full copy of the
 //     repo. Self-update replaces it with the release tarball, re-runs
 //     `npm install`, and restarts the daemon if it was running.
-//   - A version lifecycle record (~/.mona-agent/update.json) tracks
+//   - A version lifecycle record (~/.remoteagent/update.json) tracks
 //     when we last checked, what we saw, and what we installed — so
 //     the dashboard can show "update available" per agent.
 //
@@ -129,12 +129,12 @@ export async function applyUpdate() {
   if (!latest) return { ok: false, error: 'Could not reach the release feed (offline or rate-limited).' };
   if (!available) return { ok: true, upToDate: true, version: VERSION, latest };
 
-  const installDir = join(homedir(), '.mona-agent', 'agent');
+  const installDir = join(homedir(), '.remoteagent', 'agent');
   if (!existsSync(join(installDir, 'package.json'))) {
     return { ok: false, error: `Install dir not found at ${installDir}. Re-run the installer.` };
   }
 
-  const tmpDir = join(homedir(), '.mona-agent', '.update-tmp');
+  const tmpDir = join(homedir(), '.remoteagent', '.update-tmp');
   const tarball = join(tmpDir, 'release.tar.gz');
   const extracted = join(tmpDir, 'extracted');
 
@@ -174,7 +174,7 @@ export async function applyUpdate() {
     }
 
     // 3) Preserve the user's local state, swap the tree
-    const backup = join(homedir(), '.mona-agent', `.agent.bak-${VERSION}`);
+    const backup = join(homedir(), '.remoteagent', `.agent.bak-${VERSION}`);
     rmSync(backup, { recursive: true, force: true });
     renameSync(installDir, backup);
     try {

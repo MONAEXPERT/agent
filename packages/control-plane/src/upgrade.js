@@ -6,12 +6,12 @@
 // and fails the upgrade rather than propagating a bad version. Every start,
 // promotion, and rollback is written to the shared hash-chained audit log.
 
-import { env,  readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { auditWrite } from '@remoteagent/engine';
+import { env, auditWrite } from '@remoteagent/engine';
 
-const DEFAULT_STORE = env('UPGRADES_STORE') || join(homedir(), '.mona-agent', 'upgrades.json');
+const DEFAULT_STORE = env('UPGRADES_STORE') || join(homedir(), '.remoteagent', 'upgrades.json');
 const MAX_UPGRADES = 500;
 
 export const UPGRADE_STATES = Object.freeze(['pending', 'canary', 'rollout', 'complete', 'rolled_back', 'failed']);

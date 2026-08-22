@@ -11,7 +11,7 @@ const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-mcp-'));
 process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 fs.mkdirSync(process.env.MONA_WORKSPACE, { recursive: true });
-process.env.MONA_POLICY = path.join(FAKE_HOME, '.mona-agent', 'policy.json');
+process.env.MONA_POLICY = path.join(FAKE_HOME, '.remoteagent', 'policy.json');
 fs.mkdirSync(path.dirname(process.env.MONA_POLICY), { recursive: true });
 fs.writeFileSync(process.env.MONA_POLICY, JSON.stringify({ version: 1, tools: { shell: 'deny', net: 'deny' } }));
 
@@ -112,7 +112,7 @@ describe('MCP transport', () => {
     const port = 4398;
     const stop = await runMcpHttpServer({ registry: allowRegistry, port });
     try {
-      const token = fs.readFileSync(path.join(FAKE_HOME, '.mona-agent', 'mcp-token'), 'utf8').trim();
+      const token = fs.readFileSync(path.join(FAKE_HOME, '.remoteagent', 'mcp-token'), 'utf8').trim();
       assert.ok(token.length >= 32, 'token must be generated and persisted');
 
       // No token → 401.

@@ -7,7 +7,7 @@
 // `mona-agent daemon uninstall` stops + removes it.
 // `mona-agent daemon status` reports service + single-instance state.
 //
-// Single-instance guard: a PID file (~/.mona-agent/daemon.pid) prevents two
+// Single-instance guard: a PID file (~/.remoteagent/daemon.pid) prevents two
 // daemons racing for the same control-plane connection. `start` refuses to
 // run twice (unless --force is given, e.g. after a crash with a stale PID).
 
@@ -103,7 +103,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=%h/.mona-agent
+ReadWritePaths=%h/.remoteagent
 MemoryMax=1G
 
 [Install]

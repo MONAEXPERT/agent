@@ -10,9 +10,9 @@ const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-doctor-'));
 process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 fs.mkdirSync(process.env.MONA_WORKSPACE, { recursive: true });
-fs.mkdirSync(path.join(FAKE_HOME, '.mona-agent'), { recursive: true });
-fs.writeFileSync(path.join(FAKE_HOME, '.mona-agent', 'credentials.json'), JSON.stringify({ apiKey: 'k', agentId: 'a1' }));
-process.env.MONA_POLICY = path.join(FAKE_HOME, '.mona-agent', 'policy.json');
+fs.mkdirSync(path.join(FAKE_HOME, '.remoteagent'), { recursive: true });
+fs.writeFileSync(path.join(FAKE_HOME, '.remoteagent', 'credentials.json'), JSON.stringify({ apiKey: 'k', agentId: 'a1' }));
+process.env.MONA_POLICY = path.join(FAKE_HOME, '.remoteagent', 'policy.json');
 fs.writeFileSync(process.env.MONA_POLICY, JSON.stringify({ version: 1, tools: {} }));
 
 const doctor = await import('../src/doctor.js');

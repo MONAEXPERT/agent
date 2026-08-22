@@ -10,7 +10,7 @@ import { join } from 'node:path';
 // Isolate before importing modules that read config at import time.
 const HOME = mkdtempSync(join(tmpdir(), 'remoteagent-modes-'));
 process.env.HOME = HOME;
-process.env.MONA_POLICY = join(HOME, '.mona-agent', 'policy.json');
+process.env.MONA_POLICY = join(HOME, '.remoteagent', 'policy.json');
 
 const { MODES, MODE_NAMES, applyMode, modeSummary, currentMode } = await import('../src/modes.js');
 const { writePid, clearPid, alreadyRunning, readPid, daemonStatus } = await import('../src/daemon.js');
@@ -55,7 +55,7 @@ describe('modes', () => {
     assert.equal(r.mode, 'minimal');
     assert.equal(r.policy, 'strict');
     assert.equal(r.skills.length, 0);
-    const policy = JSON.parse(readFileSync(join(HOME, '.mona-agent', 'policy.json'), 'utf8'));
+    const policy = JSON.parse(readFileSync(join(HOME, '.remoteagent', 'policy.json'), 'utf8'));
     assert.equal(policy.tools.shell, 'deny');
     assert.equal(policy.tools.web, 'deny');
     assert.equal(currentMode(), 'minimal');
@@ -68,10 +68,10 @@ describe('modes', () => {
     assert.equal(r.policy, 'permissive');
     assert.deepEqual(r.skills, ['briefing', 'disk-health', 'web-research']);
     assert.equal(r.daemon, true);
-    const policy = JSON.parse(readFileSync(join(HOME, '.mona-agent', 'policy.json'), 'utf8'));
+    const policy = JSON.parse(readFileSync(join(HOME, '.remoteagent', 'policy.json'), 'utf8'));
     assert.equal(policy.tools.shell, 'allow');
     assert.equal(policy.tools.browser, 'allow');
-    const cfg = JSON.parse(readFileSync(join(HOME, '.mona-agent', 'config.json'), 'utf8'));
+    const cfg = JSON.parse(readFileSync(join(HOME, '.remoteagent', 'config.json'), 'utf8'));
     assert.equal(cfg.mode, 'full');
     assert.equal(cfg.daemon, 'installed');
   });
@@ -83,7 +83,7 @@ describe('modes', () => {
       /requires an OS sandbox/
     );
     // A refused activation must not have written anything.
-    assert.equal(existsSync(join(HOME, '.mona-agent', 'policy.json')), false);
+    assert.equal(existsSync(join(HOME, '.remoteagent', 'policy.json')), false);
   });
 
   test('full mode with --i-accept-no-sandbox records the decision', () => {
@@ -91,7 +91,7 @@ describe('modes', () => {
     const r = applyMode('full', { acceptNoSandbox: true, sandboxDetect: noSandbox });
     assert.equal(r.mode, 'full');
     assert.equal(r.sandbox.available, false);
-    const cfg = JSON.parse(readFileSync(join(HOME, '.mona-agent', 'config.json'), 'utf8'));
+    const cfg = JSON.parse(readFileSync(join(HOME, '.remoteagent', 'config.json'), 'utf8'));
     assert.equal(cfg.acceptNoSandbox, true);
   });
 
@@ -113,7 +113,7 @@ describe('modes', () => {
     assert.equal(r.policy, 'standard');
     assert.ok(r.skills.includes('briefing'));
     assert.ok(!r.skills.includes('web-research'));
-    const policy = JSON.parse(readFileSync(join(HOME, '.mona-agent', 'policy.json'), 'utf8'));
+    const policy = JSON.parse(readFileSync(join(HOME, '.remoteagent', 'policy.json'), 'utf8'));
     assert.equal(policy.tools.shell, 'confirm');
   });
 
@@ -143,10 +143,10 @@ describe('daemon single-instance guard', () => {
 
   test('stale pid file is cleaned automatically', () => {
     clearPid();
-    mkdirSync(join(HOME, '.mona-agent'), { recursive: true });
-    writeFileSync(join(HOME, '.mona-agent', 'daemon.pid'), JSON.stringify({ pid: 999_999_999, ts: Date.now() }));
+    mkdirSync(join(HOME, '.remoteagent'), { recursive: true });
+    writeFileSync(join(HOME, '.remoteagent', 'daemon.pid'), JSON.stringify({ pid: 999_999_999, ts: Date.now() }));
     assert.equal(alreadyRunning(), false, 'dead pid must not count as running');
-    assert.ok(!existsSync(join(HOME, '.mona-agent', 'daemon.pid')), 'stale pid file removed');
+    assert.ok(!existsSync(join(HOME, '.remoteagent', 'daemon.pid')), 'stale pid file removed');
   });
 
   test('daemonStatus never throws on any platform', () => {

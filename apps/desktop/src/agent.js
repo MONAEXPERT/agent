@@ -9,7 +9,7 @@
 // brain (think) and the local tool registry, and reports every step to the
 // dashboard (never silent).
 
-import { env,  EventEmitter } from 'node:events';
+import {  EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -24,7 +24,7 @@ import { setAgentRoots } from './tools/files.js';
 import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
-import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, auditHead, anchorDue, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, runWorkflow, RunStore, resolveCapabilityGrant } from '@remoteagent/engine';
+import { env, TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, auditHead, anchorDue, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, runWorkflow, RunStore, resolveCapabilityGrant } from '@remoteagent/engine';
 import { TaskQueue } from './taskqueue.js';
 import { configureDelegateRunner } from './tools/delegate.js';
 import { configureGoalRunner } from './tools/goal.js';
@@ -51,7 +51,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * brain sees at task start — facts, preferences and lessons accumulate
  * across tasks and restarts. Capped to keep the prompt lean.
  */
-export function loadMemoryContext(dir = env('MEMORY_DIR') || join(homedir(), '.mona-agent', 'memory'), maxChars = 3000) {
+export function loadMemoryContext(dir = env('MEMORY_DIR') || join(homedir(), '.remoteagent', 'memory'), maxChars = 3000) {
   try {
     if (!existsSync(dir)) return '';
     const files = readdirSync(dir).filter((f) => f.endsWith('.md')).sort();
@@ -195,7 +195,7 @@ export class AgentDaemon extends EventEmitter {
     if (mode === 'local') this.#localConfig = requireLocalProvider();
     else this.#localConfig = loadProviderConfig();
 
-    // Policy file (RA_POLICY or ~/.mona-agent/policy.json) governs tool
+    // Policy file (RA_POLICY or ~/.remoteagent/policy.json) governs tool
     // authorization and budget caps; safe defaults apply when absent.
     this.#policy = Policy.load();
     this.#budget = new Budget({
@@ -254,7 +254,7 @@ export class AgentDaemon extends EventEmitter {
   /** Start the daemon — connect to cloud and begin accepting commands. */
   start({ force = false } = {}) {
     if (!force && alreadyRunning()) {
-      const err = new Error('remoteagent is already running (see ~/.mona-agent/daemon.pid). Use `remoteagent daemon status`, or start with --force after a crash.');
+      const err = new Error('remoteagent is already running (see ~/.remoteagent/daemon.pid). Use `remoteagent daemon status`, or start with --force after a crash.');
       err.code = 'EALREADYRUNNING';
       throw err;
     }
@@ -435,7 +435,7 @@ export class AgentDaemon extends EventEmitter {
     if (this.#anchor.inFlight) return;
     let head;
     try {
-      head = auditHead(env('AUDIT') || join(homedir(), '.mona-agent', 'audit.jsonl'));
+      head = auditHead(env('AUDIT') || join(homedir(), '.remoteagent', 'audit.jsonl'));
     } catch { return; }
     if (!head) return;
     if (!anchorDue(this.#anchor, { head })) return;
@@ -1165,7 +1165,7 @@ export class AgentDaemon extends EventEmitter {
   // ── Persistent multi-round goals (the `goal` tool) ──────────────
   // A goal keeps running rounds through the serial task queue until the
   // brain reports GOAL_COMPLETE: true or the round cap is reached. State
-  // persists in ~/.mona-agent/goals.json, so goals survive restarts.
+  // persists in ~/.remoteagent/goals.json, so goals survive restarts.
   async #startGoal({ objective, maxRounds }) {
     const goal = this.#goals.create({ objective, maxRounds });
     log.info(`Goal ${goal.id} started (${maxRounds} rounds max): ${objective.slice(0, 80)}`);

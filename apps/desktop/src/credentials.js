@@ -62,7 +62,7 @@ export function dpapiUnprotectScript(scope) {
   ].join(';');
 }
 
-export function windowsDpapiBackend({ account = 'default', command = 'powershell.exe', runner = spawnFileSync, scope, dir = join(homedir(), '.mona-agent') } = {}) {
+export function windowsDpapiBackend({ account = 'default', command = 'powershell.exe', runner = spawnFileSync, scope, dir = join(homedir(), '.remoteagent') } = {}) {
   const blobFile = join(dir, 'credentials.dpapi');
   const scopeFile = join(dir, 'credentials.dpapi.scope');
   const tmpFile = join(dir, 'credentials.dpapi.tmp');
@@ -140,7 +140,7 @@ export function createCredentialStore({
   allowFileFallback = true,
   now = () => new Date().toISOString(),
 } = {}) {
-  const dir = join(homeDir, '.mona-agent');
+  const dir = join(homeDir, '.remoteagent');
   const legacy = join(dir, 'credentials.json');
   const metadataFile = join(dir, 'credentials.meta.json');
   const selected = backend || (os === 'win32' ? windowsDpapiBackend({ dir }) : (allowFileFallback ? fileBackend(legacy) : null));

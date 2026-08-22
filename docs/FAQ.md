@@ -36,7 +36,7 @@ OpenRouter) work the same way.
 
 ## Where is my key stored?
 
-`~/.mona-agent/credentials.json`, with restrictive permissions, outside the
+`~/.remoteagent/credentials.json`, with restrictive permissions, outside the
 install directory (which can be wiped and reinstalled safely).
 
 ## What does remoteagent send to the cloud?
@@ -74,7 +74,7 @@ The installer replaces the agent in place; your credentials are untouched.
 ## How do I uninstall?
 
 ```bash
-rm -rf ~/.mona-agent ~/.local/bin/remoteagent
+rm -rf ~/.remoteagent ~/.local/bin/remoteagent
 ```
 
 ## Why does my dashboard show my device as offline?
@@ -89,7 +89,7 @@ The sandbox is layered: the shell executes argv arrays (no shell strings)
 with a realpath-resolved allowlist, the files tool is confined to a
 workspace (traversal, symlink and TOCTOU escapes rejected; deletes go to
 trash), and the network tool is SSRF-safe (private ranges and cloud
-metadata unreachable). A local policy file (`~/.mona-agent/policy.json`)
+metadata unreachable). A local policy file (`~/.remoteagent/policy.json`)
 can deny or gate any tool, and every decision lands in a hash-chained
 local audit log (`remoteagent audit verify`). Start with
 `remoteagent policy preset strict` for a read-only agent. Treat the agent
@@ -105,7 +105,7 @@ remoteagent policy explain <tool> …   # why a call is allowed/denied
 remoteagent audit verify              # confirm the audit chain is intact
 ```
 
-Edit `~/.mona-agent/policy.json` directly for rate limits, budget caps
+Edit `~/.remoteagent/policy.json` directly for rate limits, budget caps
 and extra shell patterns — see [TOOLS.md](TOOLS.md).
 
 ## Where do I report bugs or security issues?

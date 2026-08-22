@@ -1,6 +1,6 @@
 // Policy-as-code: user-editable rules that govern what the agent may do.
 //
-// Loaded from RA_POLICY (path to a JSON file) or ~/.mona-agent/policy.json.
+// Loaded from RA_POLICY (path to a JSON file) or ~/.remoteagent/policy.json.
 // If neither exists, a safe default policy applies (allow known tools,
 // block destructive shell patterns, require confirmation on dangerous ones).
 //
@@ -21,7 +21,7 @@
 //   "audit":   true                                          // write decisions to audit log
 // }
 //
-// Audit log: ~/.mona-agent/audit.jsonl (RA_AUDIT to override). Hash-chained
+// Audit log: ~/.remoteagent/audit.jsonl (RA_AUDIT to override). Hash-chained
 // (h_n = sha256(h_{n-1} || entry)), append-only, and ED25519-SIGNED with the
 // device audit key (domain `mona-audit-v1`, see audit-sign.js) — a chain
 // recomputed under a foreign key fails verification. Verify with
@@ -34,8 +34,8 @@ import { homedir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { signAuditHash, verifyAuditHash, loadOrCreateAuditKey, keyPathFor } from './audit-sign.js';
 
-const DEFAULT_POLICY_PATH = env('POLICY') || join(homedir(), '.mona-agent', 'policy.json');
-const DEFAULT_AUDIT_PATH  = env('AUDIT')  || join(homedir(), '.mona-agent', 'audit.jsonl');
+const DEFAULT_POLICY_PATH = env('POLICY') || join(homedir(), '.remoteagent', 'policy.json');
+const DEFAULT_AUDIT_PATH  = env('AUDIT')  || join(homedir(), '.remoteagent', 'audit.jsonl');
 
 // Destructive shell patterns that are always denied, regardless of policy.
 const BASE_DENY = [
@@ -71,7 +71,7 @@ const VALID_TIERS = new Set(['allow', 'deny', 'confirm', 'prompt']);
 //   "rules": [
 //     { "tool": "sysinfo.*", "effect": "allow" },
 //     { "tool": "fs.read", "effect": "allow",
-//       "when": { "path": { "within": ["~/.mona-agent/workspace"] } } },
+//       "when": { "path": { "within": ["~/.remoteagent/workspace"] } } },
 //     { "tool": "shell.run", "effect": "prompt",
 //       "when": { "argv0": { "in": ["git", "npm", "ls"] } } },
 //     { "tool": "net.fetch", "effect": "allow",

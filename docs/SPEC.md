@@ -182,7 +182,7 @@ Migrate all builtins; the existing tests must pass unchanged.
 
 ### P3 — Policy engine (the security pivot)
 New `src/policy/`. Deny-by-default, evaluated on every tool invocation
-including tool→tool. Policy file `~/.mona-agent/policy.json`:
+including tool→tool. Policy file `~/.remoteagent/policy.json`:
 
 ```json
 {
@@ -191,9 +191,9 @@ including tool→tool. Policy file `~/.mona-agent/policy.json`:
   "rules": [
     { "tool": "sysinfo.*", "effect": "allow" },
     { "tool": "fs.read", "effect": "allow",
-      "when": { "path": { "within": ["~/.mona-agent/workspace"] } } },
+      "when": { "path": { "within": ["~/.remoteagent/workspace"] } } },
     { "tool": "fs.write", "effect": "prompt",
-      "when": { "path": { "within": ["~/.mona-agent/workspace"] },
+      "when": { "path": { "within": ["~/.remoteagent/workspace"] },
                 "size": { "max": 10485760 } } },
     { "tool": "shell.run", "effect": "prompt",
       "when": { "argv0": { "in": ["git","npm","ls","df"] } } },
@@ -277,7 +277,7 @@ and consume external MCP servers as tools.
   adapters, selected by config.
 
 ### P6 — Durability, observability, operations
-- Sessions: `~/.mona-agent/sessions/<id>.jsonl` append-only +
+- Sessions: `~/.remoteagent/sessions/<id>.jsonl` append-only +
   `remoteagent sessions ls|show|resume|rm`.
 - Audit: hash-chained (`h_n = sha256(h_{n-1} || entry)`), 0600, rotated,
   `remoteagent audit verify`.

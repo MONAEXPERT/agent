@@ -6,14 +6,14 @@
 //   critical  >= 85%  — minimal profile, verification off
 //   exhausted >= 100% — no more tasks today
 //
-// State persists to ~/.mona-agent/budget.json so caps survive restarts.
+// State persists to ~/.remoteagent/budget.json so caps survive restarts.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { env } from './env.js';
 
-const DEFAULT_STORE = env('BUDGET_STORE') || join(homedir(), '.mona-agent', 'budget.json');
+const DEFAULT_STORE = env('BUDGET_STORE') || join(homedir(), '.remoteagent', 'budget.json');
 
 function dayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

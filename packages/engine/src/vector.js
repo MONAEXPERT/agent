@@ -23,7 +23,7 @@ import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { env } from './env.js';
 
-const DEFAULT_STORE = env('VECTOR_STORE') || join(homedir(), '.mona-agent', 'vector-index.json');
+const DEFAULT_STORE = env('VECTOR_STORE') || join(homedir(), '.remoteagent', 'vector-index.json');
 export const VECTOR_DIM = 256;
 const MAX_ENTRIES = 2000;
 const DEDUPE_THRESHOLD = 0.9;

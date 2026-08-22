@@ -59,6 +59,6 @@ field `monaAgent.tools`) and extra paths.
 
 ## Policy file
 
-`~/.mona-agent/policy.json` is user-editable configuration, not API —
+`~/.remoteagent/policy.json` is user-editable configuration, not API —
 but the **format is versioned** (`version: 1` tier map, `version: 2`
 rules). The v1 shape keeps working; see `docs/POLICY.md`.

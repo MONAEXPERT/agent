@@ -175,6 +175,16 @@ fi
 echo -e "  ${DIM}Installing dependencies${RESET}"
 ( cd "$TMP_DIR" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent )
 
+# ── State-dir migration (rebrand: ~/.mona-agent → ~/.remoteagent) ─
+# Non-destructive: move the legacy dir, leave a symlink behind. Never delete.
+if [ "$DRY_RUN" = 0 ] && [ -d "$HOME/.mona-agent" ] && [ ! -L "$HOME/.mona-agent" ] && [ ! -e "$HOME/.remoteagent" ]; then
+  mv "$HOME/.mona-agent" "$HOME/.remoteagent"
+  ln -s "$HOME/.remoteagent" "$HOME/.mona-agent" 2>/dev/null || true
+  echo -e "  Migrated state $HOME/.mona-agent → $HOME/.remoteagent"
+elif [ "$DRY_RUN" = 1 ] && [ -d "$HOME/.mona-agent" ] && [ ! -L "$HOME/.mona-agent" ] && [ ! -e "$HOME/.remoteagent" ]; then
+  echo -e "  ${DIM}Would migrate state $HOME/.mona-agent → $HOME/.remoteagent${RESET}"
+fi
+
 # ── Copy into place (clean replace; config lives outside agent/) ─
 rm -rf "$INSTALL_DIR/agent"
 mkdir -p "$INSTALL_DIR/agent"

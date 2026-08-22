@@ -84,7 +84,7 @@ must land as either a wired call edge in the daemon/CLI or a distinct
 
 ## Control channel lifecycle
 
-1. **Boot** — `config.js` loads `~/.mona-agent/credentials.json` and
+1. **Boot** — `config.js` loads `~/.remoteagent/credentials.json` and
    resolves the cloud endpoint (`MONA_CLOUD` or `https://api.remoteagent.online`).
 2. **Verify** — the daemon authenticates with `POST /api/v1/agent/verify`
    (Bearer token). The server returns the agent identity and capabilities.
@@ -170,7 +170,7 @@ gives the agent real retrieval over everything it has seen:
   3. **Per-task prompt context** — before each task the daemon vector-searches
      the index with the task text and injects the closest hits into the
      brain's system prompt, so it starts with the knowledge that matters.
-- Persisted to `~/.mona-agent/vector-index.json` (0600).
+- Persisted to `~/.remoteagent/vector-index.json` (0600).
 
 ### Context compaction
 
@@ -185,7 +185,7 @@ log line), never silent.
 
 Every task event — start, think, tool call, tool result, denials,
 corrections, verify, answer, error — is written to the same tamper-evident,
-hash-chained `~/.mona-agent/audit.jsonl` used for policy decisions, so the
+hash-chained `~/.remoteagent/audit.jsonl` used for policy decisions, so the
 device keeps its own verifiable copy of everything the agent did
 (`remoteagent audit tail` / `verify`).
 
@@ -203,8 +203,8 @@ upgrade**:
 ## Security model (client side)
 
 - **No AI provider keys on the device.** Only a remoteagent.online device token is
-  stored (`~/.mona-agent/credentials.json`, mode 0600).
-- **Local policy is authoritative.** `~/.mona-agent/policy.json`
+  stored (`~/.remoteagent/credentials.json`, mode 0600).
+- **Local policy is authoritative.** `~/.remoteagent/policy.json`
   (`MONA_POLICY` to override) governs every tool call — allow / deny /
   confirm tiers, shell patterns, per-tool rate limits, daily budget caps.
   It is loaded once from disk at startup; the control plane can never
@@ -221,7 +221,7 @@ upgrade**:
   symlink-escape and TOCTOU guards (`O_NOFOLLOW` + descriptor check),
   special files refused, deletes move to trash.
 - **Tamper-evident audit.** Every policy decision is appended to
-  `~/.mona-agent/audit.jsonl` (hash-chained, append-only, 0600) and
+  `~/.remoteagent/audit.jsonl` (hash-chained, append-only, 0600) and
   verified with `remoteagent audit verify`.
 - **Egress-only** — the daemon opens outbound connections only; it listens
   on localhost only (for the local dashboard).

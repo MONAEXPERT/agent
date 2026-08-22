@@ -13,7 +13,7 @@ import { join, dirname } from 'node:path';
 import { auditWrite } from './policy.js';
 import { env } from './env.js';
 
-const DEFAULT_STORE = env('DEVICES_STORE') || join(homedir(), '.mona-agent', 'devices.json');
+const DEFAULT_STORE = env('DEVICES_STORE') || join(homedir(), '.remoteagent', 'devices.json');
 const MAX_DEVICES = 10000;
 
 export const DEVICE_HEALTH = Object.freeze(['online', 'degraded', 'offline']);

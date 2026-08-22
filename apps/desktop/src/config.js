@@ -14,7 +14,7 @@ import { VERSION } from './version.js';
 import { createCredentialStore } from './credentials.js';
 import { env } from '@remoteagent/engine';
 
-const DIR = join(homedir(), '.mona-agent');
+const DIR = join(homedir(), '.remoteagent');
 const CRED_FILE = join(DIR, 'credentials.json');
 const CONFIG_FILE = join(DIR, 'config.json');
 

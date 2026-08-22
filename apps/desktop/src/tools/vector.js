@@ -15,14 +15,14 @@
 //   forget              remove by id
 //
 // The index is confined to the sandboxed workspace (same boundary rules as
-// the files tool) and persisted to ~/.mona-agent/vector-index.json (0600).
+// the files tool) and persisted to ~/.remoteagent/vector-index.json (0600).
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { env,  homedir } from 'node:os';
-import { VectorStore } from '@remoteagent/engine';
+import { homedir } from 'node:os';
+import { env, VectorStore } from '@remoteagent/engine';
 
-const WORKSPACE = env('WORKSPACE') || path.join(homedir(), '.mona-agent', 'workspace');
+const WORKSPACE = env('WORKSPACE') || path.join(homedir(), '.remoteagent', 'workspace');
 const MAX_FILE_BYTES = 250_000; // skip binaries / huge files when indexing
 const MAX_NOTE = 4000;
 const CHUNK_CHARS = 1200;       // overlapping chunks so long files stay searchable

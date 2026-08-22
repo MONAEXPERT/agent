@@ -25,6 +25,19 @@ if (-not $node) { throw 'Node.js 20+ is required (https://nodejs.org)' }
 $major = & node.exe -p "process.versions.node.split('.')[0]"
 if ([int]$major -lt 20) { throw "Node.js 20+ required (found $major)" }
 
+# State-dir migration (rebrand: ~/.mona-agent → ~/.remoteagent).
+# Non-destructive: move the legacy dir, leave a symlink behind. Never delete.
+$legacyDir = Join-Path $HOME '.mona-agent'
+if ((Test-Path $legacyDir) -and ((Get-Item $legacyDir).LinkType -ne 'SymbolicLink') -and -not (Test-Path $InstallDir)) {
+  if ($DryRun) {
+    Write-Host "Would migrate state $legacyDir -> $InstallDir"
+  } else {
+    Move-Item $legacyDir $InstallDir
+    try { New-Item -ItemType SymbolicLink -Path $legacyDir -Target $InstallDir | Out-Null } catch { }
+    Write-Host "Migrated state $legacyDir -> $InstallDir"
+  }
+}
+
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("remoteagent-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
@@ -82,8 +95,10 @@ try {
 
   $bin = Join-Path $agentDir 'apps\desktop\bin\remoteagent.js'
   $link = Join-Path $HOME '.local\bin\remoteagent.cmd'
+  $legacyLink = Join-Path $HOME '.local\bin\mona-agent.cmd'
   New-Item -ItemType Directory -Path (Split-Path $link) -Force | Out-Null
   "@echo off`r`nnode `"$bin`" %*" | Set-Content -Encoding ASCII $link
+  "@echo off`r`nnode `"$bin`" %*" | Set-Content -Encoding ASCII $legacyLink   # legacy alias
   Write-Host "Installed to $agentDir"
   Write-Host "Command: $link (add $($HOME)\.local\bin to PATH)"
 

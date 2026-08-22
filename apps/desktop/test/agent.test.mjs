@@ -108,7 +108,7 @@ describe('tools/files', () => {
     const os = await import('node:os');
     const path = await import('node:path');
     const fs = await import('node:fs/promises');
-    const ws = process.env.MONA_WORKSPACE || path.join(os.homedir(), '.mona-agent', 'workspace');
+    const ws = process.env.MONA_WORKSPACE || path.join(os.homedir(), '.remoteagent', 'workspace');
     const link = path.join(ws, '__escape_test');
     try {
       await fs.symlink(os.tmpdir(), link);

@@ -1,14 +1,14 @@
 // doctor.js — `remoteagent doctor`: diagnose the local install in one shot.
 //
-// Checks: node version, ~/.mona-agent state (credentials, policy, audit,
+// Checks: node version, ~/.remoteagent state (credentials, policy, audit,
 // workspace), control-plane reachability, BYO provider config, update
 // availability. Best-effort by design — a failed check reports, never
 // crashes the doctor.
 
-import { env,  existsSync, accessSync, constants } from 'node:fs';
+import { existsSync, accessSync, constants } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { Policy, auditVerify } from '@remoteagent/engine';
+import { env, Policy, auditVerify } from '@remoteagent/engine';
 import { loadCreds, CLOUD } from './config.js';
 import { VERSION, isUpdateAvailable } from './version.js';
 import { loadProviderConfig } from './transport/local.js';
@@ -45,8 +45,8 @@ export async function runDoctor(opts = {}) {
   add('node', checkNodeVersion(opts.nodeVersion || process.version).ok,
     checkNodeVersion(opts.nodeVersion || process.version).detail);
 
-  const home = opts.home || join(homedir(), '.mona-agent');
-  add('agent dir', checkDirState(home, '~/.mona-agent').ok, checkDirState(home, '~/.mona-agent').detail);
+  const home = opts.home || join(homedir(), '.remoteagent');
+  add('agent dir', checkDirState(home, '~/.remoteagent').ok, checkDirState(home, '~/.remoteagent').detail);
 
   const creds = existsSync(join(home, 'credentials.json'))
     ? (() => { try { return loadCreds(); } catch { return null; } })()

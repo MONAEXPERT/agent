@@ -11,20 +11,20 @@
 //               daemon auto-start on login (launchd / systemd).
 //
 // `remoteagent mode set <name>` applies the whole profile:
-//   - writes ~/.mona-agent/policy.json   (the device-side authority)
+//   - writes ~/.remoteagent/policy.json   (the device-side authority)
 //   - enables / disables bundled skills
 //   - optionally installs the auto-start daemon (full mode)
 //
 // The control plane can NEVER override a mode — policy is local-only.
 // This file is the device-side authority, exactly like policy.json.
 
-import { env,  writeFileSync, existsSync, readFileSync, readdirSync, mkdirSync } from 'node:fs';
+import { writeFileSync, existsSync, readFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfig } from './config.js';
 import { SkillsManager, SKILLS_DIR } from './skills.js';
 import { detect } from './sandbox.js';
-import { PRESETS } from '@remoteagent/engine';
+import { env, PRESETS } from '@remoteagent/engine';
 
 export const MODES = Object.freeze({
   minimal: {
@@ -53,7 +53,7 @@ export const MODES = Object.freeze({
 
 export const MODE_NAMES = Object.freeze(Object.keys(MODES));
 
-export const POLICY_PATH = env('POLICY') || join(homedir(), '.mona-agent', 'policy.json');
+export const POLICY_PATH = env('POLICY') || join(homedir(), '.remoteagent', 'policy.json');
 
 /** Installed skill names (directories containing a SKILL.md). */
 function installedSkillNames() {
@@ -95,7 +95,7 @@ export function applyMode(name, { installDaemon = null, acceptNoSandbox = false,
   // 1) Policy file — the authority for tool tiers + budgets.
   const policy = PRESETS[mode.policy];
   if (!policy) throw new Error(`Unknown policy preset "${mode.policy}"`);
-  mkdirSync(join(homedir(), '.mona-agent'), { recursive: true });
+  mkdirSync(join(homedir(), '.remoteagent'), { recursive: true });
   writeFileSync(POLICY_PATH, JSON.stringify(policy, null, 2) + '\n', { mode: 0o600 });
 
   // 2) Skills — enable exactly the mode's set (disable everything else).

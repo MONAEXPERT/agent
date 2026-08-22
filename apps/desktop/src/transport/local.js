@@ -14,7 +14,7 @@
 // keeps working; BYO cost is priced from a local table (overridable),
 // which is also the cost-governance trace for bring-your-own keys.
 //
-// Credentials: ~/.mona-agent/provider.json (0600) with env fallbacks.
+// Credentials: ~/.remoteagent/provider.json (0600) with env fallbacks.
 // The cloud can never read or change this file — it is device-local by
 // construction, exactly like policy.json.
 
@@ -22,7 +22,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, unlinkSy
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 
-const DIR = join(homedir(), '.mona-agent');
+const DIR = join(homedir(), '.remoteagent');
 const DEFAULT_FILE = join(DIR, 'provider.json');
 
 export const PROVIDERS = ['anthropic', 'openai', 'ollama'];
@@ -70,7 +70,7 @@ export function tokenCost(provider, model, input, output, override = null) {
  * Load the BYO provider config. Resolution order:
  *   1. RA_PROVIDER + env (RA_PROVIDER_KEY/URL/MODEL)
  *   2. RA_PROVIDER_FILE (explicit path, used by tests)
- *   3. ~/.mona-agent/provider.json
+ *   3. ~/.remoteagent/provider.json
  * Returns null when no provider is configured.
  */
 export function loadProviderConfig({ env = process.env } = {}) {

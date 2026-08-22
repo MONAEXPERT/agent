@@ -22,7 +22,7 @@ import { join, dirname } from 'node:path';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { env } from './env.js';
 
-const DEFAULT_STORE = env('RUNS_STORE') || join(homedir(), '.mona-agent', 'runs.json');
+const DEFAULT_STORE = env('RUNS_STORE') || join(homedir(), '.remoteagent', 'runs.json');
 const MAX_RUNS = 500;
 const MAX_TEXT = 4000;
 const MAX_ATTEMPTS = 10;

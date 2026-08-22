@@ -1,12 +1,12 @@
 // Persistent memory — the agent remembers across tasks and restarts.
-// Plain markdown files under ~/.mona-agent/memory/.
+// Plain markdown files under ~/.remoteagent/memory/.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { env } from '@remoteagent/engine';
 
-const MEM_DIR = env('MEMORY_DIR') || path.join(os.homedir(), '.mona-agent', 'memory');
+const MEM_DIR = env('MEMORY_DIR') || path.join(os.homedir(), '.remoteagent', 'memory');
 const MAX_NOTE = 4000;
 
 function ensureDir() {

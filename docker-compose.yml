@@ -18,7 +18,7 @@ services:
       MONA_CLOUD: ${MONA_CLOUD:-https://api.remoteagent.online}
       MONA_METRICS_PORT: "4301"
     volumes:
-      - remoteagent-data:/home/remoteagent/.mona-agent
+      - remoteagent-data:/home/remoteagent/.remoteagent
     ports:
       - "127.0.0.1:4301:4301"   # healthz/metrics on host loopback only
     restart: unless-stopped

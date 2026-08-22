@@ -50,7 +50,7 @@ The installer:
 
 - Downloads the agent from GitHub (`remoteagent-online/remoteagent`)
 - Installs dependencies (`ws` only)
-- Places the app in `~/.mona-agent/agent`
+- Places the app in `~/.remoteagent/agent`
 - Adds `remoteagent` to your PATH (via `~/.local/bin`, persisted in your shell rc)
 
 ## 3. Log in
@@ -60,7 +60,7 @@ remoteagent login
 ```
 
 Paste your remoteagent.online API key when prompted. The key is stored in
-`~/.mona-agent/credentials.json` (outside the agent install directory).
+`~/.remoteagent/credentials.json` (outside the agent install directory).
 
 ## 4. Connect and use
 
@@ -83,7 +83,7 @@ remoteagent mode set standard      # balanced: core skills, shell/browser need a
 remoteagent mode set full          # everything on + auto-start daemon
 ```
 
-Setting a mode writes `~/.mona-agent/policy.json` (the device-side authority),
+Setting a mode writes `~/.remoteagent/policy.json` (the device-side authority),
 enables/disables the matching skills and — in `full` — installs the background
 service so the agent starts on login and restarts on crash (launchd on macOS,
 systemd on Linux):
@@ -96,7 +96,7 @@ remoteagent skills list            # installed skills + enabled state
 ```
 
 Only one daemon can run per device: `remoteagent start` refuses to double-run
-(see `~/.mona-agent/daemon.pid`), and `start --force` is only for crash recovery.
+(see `~/.remoteagent/daemon.pid`), and `start --force` is only for crash recovery.
 
 ## 5. Security defaults (v2.8+)
 
@@ -105,11 +105,11 @@ Only one daemon can run per device: `remoteagent start` refuses to double-run
   Chains (`&&`, `;`, pipes) re-check every segment; `sudo`, redirects,
   `$(...)` and backticks are rejected. To run other commands, extend
   `MONA_ALLOW_CMDS` (comma-separated) or set `{"shell": {"unsafe": true}}`
-  in `~/.mona-agent/policy.json` (audited).
+  in `~/.remoteagent/policy.json` (audited).
 - **Network** — SSRF-safe: private ranges, loopback and cloud metadata are
   unreachable, redirects are re-validated per hop.
 - **Files** — confined to the workspace; deletes move to trash.
-- **Policy** — every tool call is checked against `~/.mona-agent/policy.json`
+- **Policy** — every tool call is checked against `~/.remoteagent/policy.json`
   (allow / deny / confirm / rate limits). The control plane can never widen
   it. Apply a preset:
 
@@ -157,7 +157,7 @@ remoteagent provider test                                   # one-shot smoke tes
 MONA_TRANSPORT=local remoteagent start                      # local brain only, fail-fast
 ```
 
-Config lives in `~/.mona-agent/provider.json` (0600, never sent to the
+Config lives in `~/.remoteagent/provider.json` (0600, never sent to the
 cloud). BYO tokens are priced locally so the budget governor and cost
 traces keep working — see `remoteagent provider status`. Templates:
 [examples/providers](../examples/providers/README.md).
@@ -170,7 +170,7 @@ client over stdio. Every call passes the local policy gate.
 ## Uninstall
 
 ```bash
-rm -rf ~/.mona-agent ~/.local/bin/remoteagent
+rm -rf ~/.remoteagent ~/.local/bin/remoteagent
 # optional: remove the PATH line added to ~/.zshrc / ~/.bashrc / ~/.profile
 ```
 

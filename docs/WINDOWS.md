@@ -45,7 +45,7 @@ The service is named `MonaAgent`, uses automatic delayed start, and configures r
 
 ### Service account and credential scope
 
-- Default identity is **LocalSystem**. The service runs with a **different user profile** (`C:\Windows\System32\config\systemprofile`), so its `~\.mona-agent` data directory — credentials, policy, audit, memory, runs — is **separate** from the interactive user's directory.
+- Default identity is **LocalSystem**. The service runs with a **different user profile** (`C:\Windows\System32\config\systemprofile`), so its `~\.remoteagent` data directory — credentials, policy, audit, memory, runs — is **separate** from the interactive user's directory.
 - Credential storage uses Windows DPAPI. Interactive runs use `DataProtectionScope.CurrentUser`; the service context (`MONA_SERVICE=windows-scm`) uses `DataProtectionScope.LocalMachine` so service-saved credentials are decryptable by the service.
 - Consequences, by design:
   - credentials saved interactively are **not** readable by the LocalSystem service and vice versa;

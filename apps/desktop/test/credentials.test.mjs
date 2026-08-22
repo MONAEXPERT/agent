@@ -36,8 +36,8 @@ describe('credential store', () => {
 
   it('migrates a legacy file only after secure read-back', () => {
     const homeDir = mkdtempSync(join(tmpdir(), 'remoteagent-'));
-    const legacy = join(homeDir, '.mona-agent', 'credentials.json');
-    mkdirSync(join(homeDir, '.mona-agent'), { recursive: true });
+    const legacy = join(homeDir, '.remoteagent', 'credentials.json');
+    mkdirSync(join(homeDir, '.remoteagent'), { recursive: true });
     writeFileSync(legacy, JSON.stringify({ apiKey: 'secret', agentId: 'a' }));
     const store = createCredentialStore({ homeDir, backend: memoryBackend() });
     assert.equal(store.migrateLegacy(), true);
@@ -47,7 +47,7 @@ describe('credential store', () => {
 
   it('DPAPI backend persists the blob and scope across store instances', () => {
     const homeDir = mkdtempSync(join(tmpdir(), 'remoteagent-dpapi-'));
-    const dir = join(homeDir, '.mona-agent');
+    const dir = join(homeDir, '.remoteagent');
     const mk = () => windowsDpapiBackend({ dir, runner: identityRunner, scope: 'CurrentUser' });
 
     const store1 = createCredentialStore({ homeDir, os: 'win32', backend: mk() });
@@ -64,14 +64,14 @@ describe('credential store', () => {
 
   it('DPAPI migration leaves the legacy file intact when read-back fails', () => {
     const homeDir = mkdtempSync(join(tmpdir(), 'remoteagent-dpapi-'));
-    const legacy = join(homeDir, '.mona-agent', 'credentials.json');
-    mkdirSync(join(homeDir, '.mona-agent'), { recursive: true });
+    const legacy = join(homeDir, '.remoteagent', 'credentials.json');
+    mkdirSync(join(homeDir, '.remoteagent'), { recursive: true });
     writeFileSync(legacy, JSON.stringify({ apiKey: 'secret', agentId: 'a' }));
 
     const store = createCredentialStore({
       homeDir,
       os: 'win32',
-      backend: windowsDpapiBackend({ dir: join(homeDir, '.mona-agent'), runner: unprotectFailingRunner, scope: 'CurrentUser' }),
+      backend: windowsDpapiBackend({ dir: join(homeDir, '.remoteagent'), runner: unprotectFailingRunner, scope: 'CurrentUser' }),
     });
 
     assert.throws(() => store.migrateLegacy(), /read-back failed/);

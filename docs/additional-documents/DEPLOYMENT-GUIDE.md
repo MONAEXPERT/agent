@@ -55,7 +55,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/remoteagent/.mona-agent
+ReadWritePaths=/home/remoteagent/.remoteagent
 MemoryMax=512M
 
 [Install]
@@ -65,7 +65,7 @@ WantedBy=multi-user.target
 Load with `systemctl daemon-reload && systemctl enable --now remoteagent`.
 
 The hardened unit runs the daemon without new privileges, keeps `/`
-read-only (only `~/.mona-agent` writable), uses a private `/tmp`, and caps
+read-only (only `~/.remoteagent` writable), uses a private `/tmp`, and caps
 memory.
 
 ## 3. Network policy
@@ -83,7 +83,7 @@ memory.
      sensitive fleets
 2. Review with `remoteagent policy status` and `remoteagent policy explain <tool>`.
 3. Verify the audit chain periodically: `remoteagent audit verify`; ship
-   `~/.mona-agent/audit.jsonl` to your SIEM/rotation policy. The policy
+   `~/.remoteagent/audit.jsonl` to your SIEM/rotation policy. The policy
    file is local and authoritative — the control plane can never widen it.
 
 ## 5. Update policy

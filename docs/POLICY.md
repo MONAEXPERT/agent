@@ -8,7 +8,7 @@ The engine also provides a local durable `PolicyRegistry` primitive for centrali
 
 
 The policy engine is the **device-side authority**. It is loaded once from
-local disk (`~/.mona-agent/policy.json` or `MONA_POLICY`) at startup. The
+local disk (`~/.remoteagent/policy.json` or `MONA_POLICY`) at startup. The
 control plane can never modify it — remote policy updates are rejected
 outright. The cloud can only ever *ask*; the device *decides*.
 
@@ -39,9 +39,9 @@ unknown tools default to `deny`.
   "rules": [
     { "tool": "sysinfo.*", "effect": "allow" },
     { "tool": "fs.read", "effect": "allow",
-      "when": { "path": { "within": ["~/.mona-agent/workspace"] } } },
+      "when": { "path": { "within": ["~/.remoteagent/workspace"] } } },
     { "tool": "fs.write", "effect": "prompt",
-      "when": { "path": { "within": ["~/.mona-agent/workspace"] },
+      "when": { "path": { "within": ["~/.remoteagent/workspace"] },
                 "size":  { "max": 10485760 } } },
     { "tool": "shell.run", "effect": "prompt",
       "when": { "argv0": { "in": ["git", "npm", "ls", "df"] } } },

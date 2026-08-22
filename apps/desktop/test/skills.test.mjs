@@ -9,7 +9,7 @@ let SkillsManager, parseSkillDoc;
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-skills-'));
 
 before(async () => {
-  // Isolate from the real ~/.mona-agent config (enabled skills would leak in).
+  // Isolate from the real ~/.remoteagent config (enabled skills would leak in).
   process.env.HOME = TMP;
   ({ SkillsManager, parseSkillDoc } = await import('../src/skills.js'));
 });

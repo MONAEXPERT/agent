@@ -13,7 +13,7 @@
 //   status       Show connection info
 //   help         Show usage
 
-import { env,  createInterface } from 'node:readline/promises';
+import {  createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
@@ -28,7 +28,7 @@ import { tools } from '../src/tools/index.js';
 import { AgentDaemon } from '../src/agent.js';
 import { Dashboard } from '../src/tui.js';
 import { log } from '../src/log.js';
-import { Policy, auditVerify, auditHead, compareAnchors } from '@remoteagent/engine';
+import { env, Policy, auditVerify, auditHead, compareAnchors } from '@remoteagent/engine';
 import { MODES, MODE_NAMES, applyMode, modeSummary, currentMode, POLICY_PATH } from '../src/modes.js';
 import { daemonStatus, daemonInstall, daemonUninstall, alreadyRunning, stopRunningDaemon, DAEMON_PATHS, writePid, clearPid } from '../src/daemon.js';
 import { SkillsManager } from '../src/skills.js';
@@ -36,6 +36,12 @@ import { loadProviderConfig, saveProviderConfig, removeProviderConfig, PROVIDERS
 import { runMcpServer, runMcpHttpServer } from '../src/transport/mcp.js';
 import { runDoctor, formatDoctor } from '../src/doctor.js';
 import { detect } from '../src/sandbox.js';
+import { migrateStateDir } from '../src/state-dir.js';
+
+// One-shot state-dir migration (~/.mona-agent → ~/.remoteagent). Must run
+// before anything below reads config or credentials: the legacy dir is
+// moved and symlinked, never deleted.
+migrateStateDir({ log: (m) => log.info(m) });
 
 const [cmd, ...args] = process.argv.slice(2);
 
@@ -273,7 +279,7 @@ async function debug() {
   console.log(`  ${DIM}RA_CLOUD_WS:${RESET}    ${env('CLOUD_WS') || '(auto)'}`);
   console.log(`  ${DIM}RA_ALLOW_CMDS:${RESET}  ${env('ALLOW_CMDS') || '(default)'}`);
   console.log(`  ${DIM}RA_SHELL_UNSAFE:${RESET} ${env('SHELL_UNSAFE') || '0'} ${env('SHELL_UNSAFE') ? YELLOW + '(deprecated — use policy shell.unsafe)' + RESET : ''}`);
-  console.log(`  ${DIM}RA_POLICY:${RESET}      ${env('POLICY') || '~/.mona-agent/policy.json'}`);
+  console.log(`  ${DIM}RA_POLICY:${RESET}      ${env('POLICY') || '~/.remoteagent/policy.json'}`);
   console.log(`  ${DIM}RA_WORKSPACE:${RESET}   ${env('WORKSPACE') || '(default)'}`);
 
   // Connection test
@@ -307,7 +313,7 @@ async function debug() {
 async function policyCmd() {
   const sub = args[0] || 'status';
   const p = Policy.load();
-  const policyPath = env('POLICY') || join(homedir(), '.mona-agent', 'policy.json');
+  const policyPath = env('POLICY') || join(homedir(), '.remoteagent', 'policy.json');
 
   if (sub === 'status') {
     console.log(`\n  ${BOLD}remoteagent policy${RESET}\n`);
@@ -355,7 +361,7 @@ async function policyCmd() {
     }
     try {
       const preset = Policy.preset(name);
-      mkdirSync(join(homedir(), '.mona-agent'), { recursive: true });
+      mkdirSync(join(homedir(), '.remoteagent'), { recursive: true });
       writeFileSync(policyPath, JSON.stringify(preset.raw, null, 2) + '\n', { mode: 0o600 });
       console.log(`\n  ${GREEN}Wrote ${name} preset${RESET} → ${policyPath}`);
       console.log(`  ${DIM}Restart the daemon for it to take effect.${RESET}\n`);
@@ -372,7 +378,7 @@ async function policyCmd() {
 // ── audit (tamper-evident decision log) ───────────────────────────
 async function auditCmd() {
   const sub = args[0] || 'tail';
-  const auditPath = env('AUDIT') || join(homedir(), '.mona-agent', 'audit.jsonl');
+  const auditPath = env('AUDIT') || join(homedir(), '.remoteagent', 'audit.jsonl');
 
   if (sub === 'tail') {
     if (!existsSync(auditPath)) {
@@ -911,8 +917,8 @@ function help() {
     RA_CLOUD        Cloud base URL     ${DIM}(default: ${CLOUD.base})${RESET}
     RA_CLOUD_WS     WebSocket URL      ${DIM}(auto-derived from RA_CLOUD)${RESET}
     RA_ALLOW_CMDS   Shell allowlist    ${DIM}(comma-separated command names)${RESET}
-    RA_POLICY       Policy file path   ${DIM}(default: ~/.mona-agent/policy.json)${RESET}
-    RA_WORKSPACE    File tool sandbox  ${DIM}(default: ~/.mona-agent/workspace)${RESET}
+    RA_POLICY       Policy file path   ${DIM}(default: ~/.remoteagent/policy.json)${RESET}
+    RA_WORKSPACE    File tool sandbox  ${DIM}(default: ~/.remoteagent/workspace)${RESET}
     RA_SHELL_UNSAFE ${YELLOW}DEPRECATED${RESET}        ${DIM}— set "shell": {"unsafe": true} in policy.json instead${RESET}
     RA_TRANSPORT    ${DIM}local | auto${RESET}   ${DIM}(local = BYO provider only, fail fast when unset)${RESET}
     RA_PROVIDER     ${DIM}anthropic | openai | ollama${RESET}

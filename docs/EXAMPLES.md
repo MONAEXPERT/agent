@@ -80,7 +80,7 @@ problems (the cloud keeps the conversation context):
 `exec` runs one tool with `key=value` arguments — the command still passes
 through the shell allowlist and policy. To let the agent run your own
 scripts, extend the allowlist or set `{"shell": {"unsafe": true}}` in
-`~/.mona-agent/policy.json` (audited, tamper-evident).
+`~/.remoteagent/policy.json` (audited, tamper-evident).
 
 ## Health check from any shell
 

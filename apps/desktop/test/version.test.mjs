@@ -50,7 +50,7 @@ describe('update state record', () => {
 
   beforeEach(() => {
     rmSync(HOME, { recursive: true, force: true });
-    mkdirSync(join(HOME, '.mona-agent'), { recursive: true });
+    mkdirSync(join(HOME, '.remoteagent'), { recursive: true });
   });
 
   test('update check writes a lifecycle record with checkedAt', async () => {

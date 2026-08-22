@@ -9,11 +9,11 @@
 //   - exports OpenAI/Anthropic-compatible tool schemas so any provider
 //     can drive the same registry (registry.toSchemas({ dialect }))
 
-import { env,  existsSync, readdirSync, readFileSync } from 'node:fs';
+import {  existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { log } from '../log.js';
-import { Policy, RunStore, verifyManifest, checkCapabilities } from '@remoteagent/engine';
+import { env, Policy, RunStore, verifyManifest, checkCapabilities } from '@remoteagent/engine';
 import { defineTool, isTool } from './define.js';
 import { sysinfo } from './sysinfo.js';
 import { shell } from './shell.js';

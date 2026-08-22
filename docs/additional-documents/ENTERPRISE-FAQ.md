@@ -45,7 +45,7 @@ with a realpath-resolved allowlist — chains and pipes re-check every
 segment, `sudo`, redirects and command substitution are rejected. File
 access is confined to a workspace (traversal, symlink and TOCTOU escapes
 rejected; deletes go to trash). Network access is SSRF-safe. On top of
-that, a **local policy file** (`~/.mona-agent/policy.json`) can deny or
+that, a **local policy file** (`~/.remoteagent/policy.json`) can deny or
 gate any tool — and the control plane can never widen it. Every decision
 is written to a hash-chained local audit log and every action is traced
 with full arguments and results. For high-stakes devices, apply

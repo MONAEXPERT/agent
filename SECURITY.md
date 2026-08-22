@@ -13,9 +13,9 @@ the client-side security model and how to report vulnerabilities.
 ## Security model
 
 - **No AI provider keys on the device.** The client stores only a
-  remoteagent.online device token (`~/.mona-agent/credentials.json`, mode 0600).
+  remoteagent.online device token (`~/.remoteagent/credentials.json`, mode 0600).
   All third-party keys live in the cloud vault, AES-256 encrypted.
-- **Local policy is authoritative.** `~/.mona-agent/policy.json` governs
+- **Local policy is authoritative.** `~/.remoteagent/policy.json` governs
   every tool call (allow / deny / confirm / rate limits). The control plane
   can never modify or widen it — it is loaded once from disk at startup.
   `remoteagent policy explain <tool>` shows which rule fired.
@@ -30,7 +30,7 @@ the client-side security model and how to report vulnerabilities.
   symlink-escape and traversal guards, `O_NOFOLLOW` + descriptor checks
   (TOCTOU), special files refused, deletes go to trash by default.
 - **Tamper-evident audit log.** Every policy decision is appended to
-  `~/.mona-agent/audit.jsonl`, hash-chained and append-only. Verify with
+  `~/.remoteagent/audit.jsonl`, hash-chained and append-only. Verify with
   `remoteagent audit verify`.
 - **Egress-only networking.** The daemon opens outbound connections only
   and listens on localhost exclusively (for the local dashboard). No

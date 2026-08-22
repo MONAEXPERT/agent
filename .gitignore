@@ -5,6 +5,7 @@ package-lock.json
 
 # Never commit credentials or data
 .mona-agent/
+.remoteagent/
 credentials.json
 config.json
 .env

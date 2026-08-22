@@ -51,7 +51,7 @@ device. Every run is audit-logged with per-step usage, tokens, cost and timing.
 7. **Rate limiting & plan separation.** Free and Pro plans enforce request
    limits per user and per device; the local policy engine adds per-tool
    rate limits that the control plane cannot override.
-8. **Local policy is authoritative.** `~/.mona-agent/policy.json`
+8. **Local policy is authoritative.** `~/.remoteagent/policy.json`
    (allow/deny/confirm, presets, rate limits) is loaded from disk at
    startup — a compromised or malicious control plane can request, but
    the device decides.

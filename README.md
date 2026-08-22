@@ -334,7 +334,7 @@ the daemon advertises loaded plugins to your control plane on connect.
 ## Build on a core that says no — the policy engine
 
 The strongest thing you can build on is a core that refuses politely. The
-policy engine (`~/.mona-agent/policy.json`) is the **device-side
+policy engine (`~/.remoteagent/policy.json`) is the **device-side
 authority**: deny-by-default, first-match-wins rules with
 `when`-conditions, per-tool rate limits, daily budget caps, and presets
 (`strict` · `standard` · `permissive`). It is loaded once from local disk
@@ -386,7 +386,8 @@ are a device-side authority — the cloud cannot change them.
   shared by the daemon and the gateway.
 - `docs/` — [architecture](docs/ARCHITECTURE.md), [policy
   grammar](docs/POLICY.md), [tools reference](docs/TOOLS.md), [compliance
-  mappings](docs/COMPLIANCE.md), [roadmap](docs/SPEC.md).
+  mappings](docs/COMPLIANCE.md), [roadmap](docs/SPEC.md), [migration guide
+  for the rename](docs/MIGRATION.md).
 
 Every loop keeps the agent honest: policy check before every tool call,
 corrective nudges on malformed replies, forced conclusion at the step
@@ -509,7 +510,7 @@ device. Anthropic and any OpenAI-compatible endpoint work the same way.
 button. The installer replaces the agent in place; credentials are
 untouched.
 
-**How do I uninstall?** `rm -rf ~/.mona-agent ~/.local/bin/remoteagent`.
+**How do I uninstall?** `rm -rf ~/.remoteagent ~/.local/bin/remoteagent`.
 
 **What does it send to the cloud?** Only to the cloud you logged into:
 device metrics, tool results, and your chat messages. Nothing to third
