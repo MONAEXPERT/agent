@@ -1,6 +1,6 @@
 # Examples
 
-Copy-paste helpers for running mona-agent in production.
+Copy-paste helpers for running remoteagent in production.
 
 | Directory | Contents |
 |---|---|

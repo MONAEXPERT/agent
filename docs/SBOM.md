@@ -1,6 +1,6 @@
 # Software Bill of Materials (SBOM)
 
-The mona-agent client ships with an SBOM in CycloneDX format:
+The remoteagent client ships with an SBOM in CycloneDX format:
 [`sbom.cyclonedx.json`](../sbom.cyclonedx.json).
 
 ## Highlights
@@ -34,7 +34,7 @@ One dependency means the attack surface stays small — that is a
 deliberate engineering constraint of this project.
 # Software Bill of Materials (SBOM)
 
-Client-side component inventory for the mona-agent device daemon.
+Client-side component inventory for the remoteagent device daemon.
 
 ## Runtime dependencies
 

@@ -5,21 +5,21 @@
 
 The EU AI Act (Regulation (EU) 2024/1689) sets obligations based on the
 **risk category** of an AI system. This document records the
-classification and the implemented transparency measures for mona-agent
-and the mona.expert engine.
+classification and the implemented transparency measures for remoteagent
+and the remoteagent.online engine.
 
 ## Classification
 
-**Limited risk (Article 50 — transparency).** mona-agent is an AI
+**Limited risk (Article 50 — transparency).** remoteagent is an AI
 assistant that helps users operate their own devices: it reasons in the
 cloud, executes local tools on request, and answers in chat. It is not
 used in any Annex III high-risk context (no critical infrastructure, no
 biometrics, no employment/credit decisions, no law enforcement) as
-provided by mona.expert.
+provided by remoteagent.online.
 
-The mona.expert engine orchestrates third-party foundation models
+The remoteagent.online engine orchestrates third-party foundation models
 (OpenAI, Anthropic, Google, DeepSeek, OpenRouter) on the user's behalf
-under their own API keys. mona.expert does not deploy or fine-tune
+under their own API keys. remoteagent.online does not deploy or fine-tune
 general-purpose models itself.
 
 ## Transparency obligations — implemented
@@ -52,7 +52,7 @@ general-purpose models itself.
   provider — the cloud engine resolves the model per user preference
   (default `auto`).
 - Provider and model of each call are recorded in the audit log.
-- Users configure their own provider keys; mona.expert stores them
+- Users configure their own provider keys; remoteagent.online stores them
   encrypted (AES-256-GCM) and never shares them.
 
 ## Residual risk & mitigations
@@ -65,4 +65,4 @@ general-purpose models itself.
 
 ## Contact
 
-AI Act / compliance questions: `compliance@mona.expert`.
+AI Act / compliance questions: `compliance@remoteagent.online`.

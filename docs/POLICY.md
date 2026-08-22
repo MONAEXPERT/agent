@@ -86,14 +86,14 @@ unknown tools default to `deny`.
 | `permissive` | Everything allowed (pre-policy behavior) + startup warning |
 
 ```bash
-mona-agent policy preset strict|standard|permissive
+remoteagent policy preset strict|standard|permissive
 ```
 
-## Debugging: `mona-agent policy explain`
+## Debugging: `remoteagent policy explain`
 
 ```bash
-mona-agent policy explain fs.read path=/tmp/x
-mona-agent policy explain net.fetch url=https://example.com ip=93.184.216.34
+remoteagent policy explain fs.read path=/tmp/x
+remoteagent policy explain net.fetch url=https://example.com ip=93.184.216.34
 ```
 
 Output shows the matched rule (or the default fallback), the effect, and

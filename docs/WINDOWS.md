@@ -1,6 +1,6 @@
 # Windows support
 
-Mona Agent supports Windows through a native Windows Service Control Manager adapter, foreground CLI execution, and a PowerShell installer. Windows support follows Microsoft's active security-support lifecycle: a release is supported only while Microsoft still provides security updates for it.
+RemoteAgent Agent supports Windows through a native Windows Service Control Manager adapter, foreground CLI execution, and a PowerShell installer. Windows support follows Microsoft's active security-support lifecycle: a release is supported only while Microsoft still provides security updates for it.
 
 ## Support matrix
 
@@ -24,8 +24,8 @@ Support claims are validated against Microsoft's published lifecycle data at rel
 ## Install
 
 ```powershell
-irm https://agent.mona.expert/install.ps1 | iex               # main branch
-irm https://agent.mona.expert/install.ps1 -OutFile install.ps1
+irm https://remoteagent.online/install.ps1 | iex               # main branch
+irm https://remoteagent.online/install.ps1 -OutFile install.ps1
 .\install.ps1 -Version v2.11.0                               # pinned release
 ```
 
@@ -34,11 +34,11 @@ Release-tag installs download the exact release asset and fail closed unless it 
 ## Native service
 
 ```powershell
-mona-agent start                 # foreground
-mona-agent daemon install        # elevated PowerShell → registers the SCM service
-mona-agent daemon status
-mona-agent daemon stop
-mona-agent daemon uninstall
+remoteagent start                 # foreground
+remoteagent daemon install        # elevated PowerShell → registers the SCM service
+remoteagent daemon status
+remoteagent daemon stop
+remoteagent daemon uninstall
 ```
 
 The service is named `MonaAgent`, uses automatic delayed start, and configures restart recovery. Uninstall removes only the service registration; user data, policy, audit, and credentials remain.
@@ -59,7 +59,7 @@ The service is named `MonaAgent`, uses automatic delayed start, and configures r
 - Shell execution is **argv-only**: commands are parsed quote-aware, executables resolve through PATH/PATHEXT and the allowlist, and the child env is scrubbed. `cmd.exe` builtins (`dir`, `ver`, …) are intentionally **not** executed through `cmd /c`; the small in-process builtins `echo`, `type`, `cd` run inside the agent under the same allowlist, and `type` is confined to the working directory.
 - No user-controlled string is ever passed to `powershell.exe -Command` or `cmd.exe /c`. Service operations pass **parameterized** arguments (`-File … -Action …`), never raw input.
 - Windows process-tree containment, ACL/reparse-point hardening, and signed MSI/MSIX packaging require validation on real Windows runners before enterprise certification; current CI runs the full suite on `windows-latest` and a CLI smoke test, which is necessary but not sufficient for certification.
-- **OS sandbox: honest degradation.** Windows has no cheap equivalent of bwrap/sandbox-exec (AppContainer requires Win32 interop) — `sandbox.js` reports `unavailable (no OS sandbox on windows)`, `mona-agent doctor` shows the line, and **mode `full` refuses activation** unless `--i-accept-no-sandbox` is passed. On Windows the path deny-list (`apps/desktop/src/tools/shell.js`) is the active guard at every spawn; it is defence-in-depth, not kernel containment.
+- **OS sandbox: honest degradation.** Windows has no cheap equivalent of bwrap/sandbox-exec (AppContainer requires Win32 interop) — `sandbox.js` reports `unavailable (no OS sandbox on windows)`, `remoteagent doctor` shows the line, and **mode `full` refuses activation** unless `--i-accept-no-sandbox` is passed. On Windows the path deny-list (`apps/desktop/src/tools/shell.js`) is the active guard at every spawn; it is defence-in-depth, not kernel containment.
 
 ## CI and release gates
 

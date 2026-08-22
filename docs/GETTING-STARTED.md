@@ -1,6 +1,6 @@
-# Getting Started with mona-agent
+# Getting Started with remoteagent
 
-Install the mona-agent app on your device, log in with your mona.expert key, and
+Install the remoteagent app on your device, log in with your remoteagent.online key, and
 have your machine connected to the cloud in under a minute.
 
 ## Recommended for unknown environments: Docker
@@ -12,16 +12,16 @@ privileges even if compromised. Prefer it whenever Docker is available and
 you do not need the agent to manage the host machine itself.
 
 ```bash
-git clone https://github.com/MONAEXPERT/agent.git
+git clone https://github.com/remoteagent-online/remoteagent.git
 cd agent
 docker compose up -d --build
-docker compose logs -f mona-agent
+docker compose logs -f remoteagent
 ```
 
 Then log in inside the container:
 
 ```bash
-docker compose exec mona-agent mona-agent login
+docker compose exec remoteagent remoteagent login
 ```
 
 ## 1. Native install — prerequisites
@@ -30,11 +30,11 @@ docker compose exec mona-agent mona-agent login
   - macOS: `brew install node`
   - Ubuntu/Debian: `curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install nodejs`
   - Windows: use [WSL2](https://learn.microsoft.com/windows/wsl/install) (native Windows Git Bash works too)
-- An account + **API key** at [agent.mona.expert](https://agent.mona.expert/dashboard)  Settings.
+- An account + **API key** at [api.remoteagent.online](https://app.remoteagent.online/dashboard)  Settings.
 - **OS sandbox (recommended; required for mode `full`):**
   - Linux: `bwrap` (`apt install bubblewrap` / `dnf install bubblewrap` /
     `pacman -S bubblewrap`). Without it the agent runs with the path
-    deny-list only and `mona-agent doctor` reports the degraded state.
+    deny-list only and `remoteagent doctor` reports the degraded state.
   - macOS: `sandbox-exec` ships with the OS (deprecated by Apple, still
     functional).
   - Windows: no OS sandbox equivalent — the path deny-list stays active;
@@ -43,32 +43,32 @@ docker compose exec mona-agent mona-agent login
 ## 2. Install (native)
 
 ```bash
-curl -fsSL https://agent.mona.expert/install.sh | bash
+curl -fsSL https://remoteagent.online/install.sh | bash
 ```
 
 The installer:
 
-- Downloads the agent from GitHub (`MONAEXPERT/agent`)
+- Downloads the agent from GitHub (`remoteagent-online/remoteagent`)
 - Installs dependencies (`ws` only)
 - Places the app in `~/.mona-agent/agent`
-- Adds `mona-agent` to your PATH (via `~/.local/bin`, persisted in your shell rc)
+- Adds `remoteagent` to your PATH (via `~/.local/bin`, persisted in your shell rc)
 
 ## 3. Log in
 
 ```bash
-mona-agent login
+remoteagent login
 ```
 
-Paste your mona.expert API key when prompted. The key is stored in
+Paste your remoteagent.online API key when prompted. The key is stored in
 `~/.mona-agent/credentials.json` (outside the agent install directory).
 
 ## 4. Connect and use
 
 ```bash
-mona-agent gui                    # terminal dashboard with live log
-mona-agent chat "free disk space" # one-shot conversation
-mona-agent exec shell cmd=uptime  # run a single allowed command
-mona-agent start                  # headless background service (auto-reconnect)
+remoteagent gui                    # terminal dashboard with live log
+remoteagent chat "free disk space" # one-shot conversation
+remoteagent exec shell cmd=uptime  # run a single allowed command
+remoteagent start                  # headless background service (auto-reconnect)
 ```
 
 ### Capability dial: from zero skills to full daemon
@@ -76,11 +76,11 @@ mona-agent start                  # headless background service (auto-reconnect)
 Pick how much power the agent gets on this device:
 
 ```bash
-mona-agent mode list              # minimal · standard · full
-mona-agent mode show              # current mode + effective policy
-mona-agent mode set minimal       # read-only: no skills, no shell, no network writes
-mona-agent mode set standard      # balanced: core skills, shell/browser need approval
-mona-agent mode set full          # everything on + auto-start daemon
+remoteagent mode list              # minimal · standard · full
+remoteagent mode show              # current mode + effective policy
+remoteagent mode set minimal       # read-only: no skills, no shell, no network writes
+remoteagent mode set standard      # balanced: core skills, shell/browser need approval
+remoteagent mode set full          # everything on + auto-start daemon
 ```
 
 Setting a mode writes `~/.mona-agent/policy.json` (the device-side authority),
@@ -89,13 +89,13 @@ service so the agent starts on login and restarts on crash (launchd on macOS,
 systemd on Linux):
 
 ```bash
-mona-agent daemon status          # service + pid state
-mona-agent daemon install         # enable auto-start on login
-mona-agent daemon uninstall       # stop + remove the service
-mona-agent skills list            # installed skills + enabled state
+remoteagent daemon status          # service + pid state
+remoteagent daemon install         # enable auto-start on login
+remoteagent daemon uninstall       # stop + remove the service
+remoteagent skills list            # installed skills + enabled state
 ```
 
-Only one daemon can run per device: `mona-agent start` refuses to double-run
+Only one daemon can run per device: `remoteagent start` refuses to double-run
 (see `~/.mona-agent/daemon.pid`), and `start --force` is only for crash recovery.
 
 ## 5. Security defaults (v2.8+)
@@ -114,34 +114,34 @@ Only one daemon can run per device: `mona-agent start` refuses to double-run
   it. Apply a preset:
 
 ```bash
-mona-agent policy preset strict      # read-only agent
-mona-agent policy preset standard    # shell/browser need approval
-mona-agent policy status             # what's currently allowed
-mona-agent policy explain shell cmd=df  # why a call is allowed/denied
+remoteagent policy preset strict      # read-only agent
+remoteagent policy preset standard    # shell/browser need approval
+remoteagent policy status             # what's currently allowed
+remoteagent policy explain shell cmd=df  # why a call is allowed/denied
 ```
 
 - **Audit** — every decision is written to a tamper-evident, hash-chained
   log. Verify it anytime:
 
 ```bash
-mona-agent audit tail                # recent decisions
-mona-agent audit verify              # detect tampering
+remoteagent audit tail                # recent decisions
+remoteagent audit verify              # detect tampering
 ```
 
 ## 6. See it in the browser
 
-Open <https://agent.mona.expert/dashboard>. Your device appears with live
+Open <https://app.remoteagent.online/dashboard>. Your device appears with live
 CPU, memory, disk and load — and a chat window connected to the cloud brain.
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `mona-agent: command not found` | Re-open your terminal, or run `export PATH="$HOME/.local/bin:$PATH"` |
+| `remoteagent: command not found` | Re-open your terminal, or run `export PATH="$HOME/.local/bin:$PATH"` |
 | `Node.js 20+ required` | Upgrade Node (`brew upgrade node` / nodesource) |
-| Agent connects but dashboard shows no device | Confirm you ran `mona-agent login` with the key from your account |
+| Agent connects but dashboard shows no device | Confirm you ran `remoteagent login` with the key from your account |
 | Metrics stream, chat replies "No API key configured" | Add an AI provider key in the dashboard  Settings (the cloud brain needs one) |
-| Firewall / corporate proxy | Set `MONA_CLOUD=https://agent.mona.expert` and check HTTPS egress |
+| Firewall / corporate proxy | Set `MONA_CLOUD=https://api.remoteagent.online` and check HTTPS egress |
 
 ## Bring your own LLM (BYO keys)
 
@@ -149,28 +149,28 @@ Since v2.10.1 the brain can run on-device with **your** keys instead of
 the cloud vault — prompts never leave the machine.
 
 ```bash
-mona-agent provider set anthropic                          # asks for the key
-mona-agent provider set openai --model gpt-4o-mini
-mona-agent provider set openai --url http://localhost:1234/v1 --model llama-3   # LM Studio / vLLM
-mona-agent provider set ollama --model llama3.2            # fully offline, $0
-mona-agent provider test                                   # one-shot smoke test
-MONA_TRANSPORT=local mona-agent start                      # local brain only, fail-fast
+remoteagent provider set anthropic                          # asks for the key
+remoteagent provider set openai --model gpt-4o-mini
+remoteagent provider set openai --url http://localhost:1234/v1 --model llama-3   # LM Studio / vLLM
+remoteagent provider set ollama --model llama3.2            # fully offline, $0
+remoteagent provider test                                   # one-shot smoke test
+MONA_TRANSPORT=local remoteagent start                      # local brain only, fail-fast
 ```
 
 Config lives in `~/.mona-agent/provider.json` (0600, never sent to the
 cloud). BYO tokens are priced locally so the budget governor and cost
-traces keep working — see `mona-agent provider status`. Templates:
+traces keep working — see `remoteagent provider status`. Templates:
 [examples/providers](../examples/providers/README.md).
 
 ## MCP — expose the tools to other agents
 
-`mona-agent mcp` serves the tool registry to any Model Context Protocol
+`remoteagent mcp` serves the tool registry to any Model Context Protocol
 client over stdio. Every call passes the local policy gate.
 
 ## Uninstall
 
 ```bash
-rm -rf ~/.mona-agent ~/.local/bin/mona-agent
+rm -rf ~/.mona-agent ~/.local/bin/remoteagent
 # optional: remove the PATH line added to ~/.zshrc / ~/.bashrc / ~/.profile
 ```
 

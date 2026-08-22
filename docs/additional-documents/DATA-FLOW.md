@@ -1,6 +1,6 @@
 # Data Flow & Data Minimization
 
-This document describes where data lives and moves in a mona-agent
+This document describes where data lives and moves in a remoteagent
 deployment, for GDPR/DPIA reviews and security assessments.
 
 ## Data inventory

@@ -11,10 +11,10 @@ and documented in `types/index.d.ts`. Anything else in the package is
 ## Current public surface (v2.9)
 
 ```js
-import { defineTool, isTool } from 'mona-agent';
-import { ToolRegistry, discoverExternalTools } from 'mona-agent';
-import { tools } from 'mona-agent';
-import { VERSION, compareVersions, isUpdateAvailable } from 'mona-agent';
+import { defineTool, isTool } from 'remoteagent';
+import { ToolRegistry, discoverExternalTools } from 'remoteagent';
+import { tools } from 'remoteagent';
+import { VERSION, compareVersions, isUpdateAvailable } from 'remoteagent';
 ```
 
 ### `defineTool(options)` → `Tool`
@@ -42,7 +42,7 @@ The declarative tool SDK. Validates and deep-freezes a descriptor:
 `run(name, args)`, `toSchemas({ dialect })` → OpenAI/Anthropic.
 
 ### `discoverExternalTools(paths?)`
-Discovers `mona-agent-tool-*` packages from `node_modules` (manifest
+Discovers `remoteagent-agent-tool-*` packages from `node_modules` (manifest
 field `monaAgent.tools`) and extra paths.
 
 ### Version helpers

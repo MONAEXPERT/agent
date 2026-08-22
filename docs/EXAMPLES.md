@@ -1,6 +1,6 @@
 # Examples & Recipes
 
-Real things people do with mona-agent. Copy, adapt, enjoy.
+Real things people do with remoteagent. Copy, adapt, enjoy.
 
 ## One prompt, one shot
 
@@ -10,21 +10,21 @@ run traces.
 
 ### Google Maps clone
 
-<p align="center"><img src="assets/demos/remoteagent-example-maps.gif" width="720" alt="mona-ai builds a Google Maps clone from a single prompt — pan, zoom, search, places"></p>
+<p align="center"><img src="assets/demos/remoteagent-example-maps.gif" width="720" alt="remoteagent-ai builds a Google Maps clone from a single prompt — pan, zoom, search, places"></p>
 
 `deepseek-chat · 24 steps · 76.5k tokens · ≈ $0.04` — a working Maps clone
 with pan, zoom, search and place markers.
 
 ### App Store
 
-<p align="center"><img src="assets/demos/remoteagent-example-appstore.gif" width="720" alt="mona-ai builds an App Store from a single prompt"></p>
+<p align="center"><img src="assets/demos/remoteagent-example-appstore.gif" width="720" alt="remoteagent-ai builds an App Store from a single prompt"></p>
 
 `deepseek-chat · 30 steps · 48.2k tokens · ≈ $0.02` — an App Store built from
 one prompt.
 
 ### Chess game
 
-<p align="center"><img src="assets/demos/remoteagent-example-chess.gif" width="720" alt="mona-ai builds a playable chess game from a single prompt"></p>
+<p align="center"><img src="assets/demos/remoteagent-example-chess.gif" width="720" alt="remoteagent-ai builds a playable chess game from a single prompt"></p>
 
 `deepseek-chat · 9 steps · 24.2k tokens · ≈ $0.0079` — a playable chess game:
 board, pieces and rules in one shot.
@@ -35,9 +35,9 @@ Index a folder of notes/configs in the workspace once, then ask questions in
 plain language — the agent retrieves the closest chunks by meaning:
 
 ```bash
-mona-agent exec vector action=index path="."
-mona-agent exec vector action=remember text="deploy server ssh is on port REDACTED_PORT"
-mona-agent exec vector action=search query="how do I restart the web server"
+remoteagent exec vector action=index path="."
+remoteagent exec vector action=remember text="deploy server ssh is on port REDACTED_PORT"
+remoteagent exec vector action=search query="how do I restart the web server"
 ```
 
 Every new task automatically receives the closest vector hits as context, so
@@ -45,9 +45,9 @@ Every new task automatically receives the closest vector hits as context, so
 
 ## Check on your machine from your phone
 
-1. `mona-agent start` on the machine (or install the launchd/systemd unit
+1. `remoteagent start` on the machine (or install the launchd/systemd unit
    from [examples/](../examples)).
-2. Open <https://agent.mona.expert/dashboard> on your phone.
+2. Open <https://app.remoteagent.online/dashboard> on your phone.
 3. Chat: *"How's the disk looking?"* — the agent reads `df -h`, and the
    dashboard shows live CPU/memory sparklines.
 
@@ -56,8 +56,8 @@ Every new task automatically receives the closest vector hits as context, so
 Get a daily summary of your home server in your dashboard before coffee:
 
 ```cron
-# ~/.config/cron.d/mona (or: crontab -e)
-30 7 * * *  $HOME/.local/bin/mona-agent chat "Summarize disk usage, uptime and any failed systemd units."
+# ~/.config/cron.d/remoteagent (or: crontab -e)
+30 7 * * *  $HOME/.local/bin/remoteagent chat "Summarize disk usage, uptime and any failed systemd units."
 ```
 
 The reply lands in the dashboard chat history, timestamped.
@@ -68,13 +68,13 @@ Ask the agent every 10 minutes; it pings the service and only reports
 problems (the cloud keeps the conversation context):
 
 ```cron
-*/10 * * * *  $HOME/.local/bin/mona-agent chat "Check nginx is answering on :80. Only reply if something is wrong."
+*/10 * * * *  $HOME/.local/bin/remoteagent chat "Check nginx is answering on :80. Only reply if something is wrong."
 ```
 
 ## Nightly log cleanup
 
 ```cron
-10 3 * * *  $HOME/.local/bin/mona-agent exec shell cmd="ls -la ~/logs | tail -20"
+10 3 * * *  $HOME/.local/bin/remoteagent exec shell cmd="ls -la ~/logs | tail -20"
 ```
 
 `exec` runs one tool with `key=value` arguments — the command still passes
@@ -85,7 +85,7 @@ scripts, extend the allowlist or set `{"shell": {"unsafe": true}}` in
 ## Health check from any shell
 
 ```bash
-mona-agent connect          # force a connection test: health, auth, agents
+remoteagent connect          # force a connection test: health, auth, agents
 ```
 
 `connect` reports cloud reachability, key validity and the agent list —
@@ -111,10 +111,10 @@ streams the result back to your browser. Every run lands in the audit log.
 ## Lock it down (security recipes)
 
 ```bash
-mona-agent policy preset strict      # read-only agent: no shell, no network
-mona-agent policy explain shell      # see exactly which rule governs shell
-mona-agent audit tail                # last 20 policy decisions
-mona-agent audit verify              # prove the audit chain is untampered
+remoteagent policy preset strict      # read-only agent: no shell, no network
+remoteagent policy explain shell      # see exactly which rule governs shell
+remoteagent audit tail                # last 20 policy decisions
+remoteagent audit verify              # prove the audit chain is untampered
 ```
 
 Ideal for unattended machines and compliance reviews: the policy file is
@@ -125,9 +125,9 @@ local and authoritative — the control plane can never widen it.
 The agent runs on any Node.js 20+ box:
 
 ```bash
-curl -fsSL https://agent.mona.expert/install.sh | bash
-mona-agent login
-mona-agent start          # survives reboots via the systemd unit in examples/
+curl -fsSL https://remoteagent.online/install.sh | bash
+remoteagent login
+remoteagent start          # survives reboots via the systemd unit in examples/
 ```
 
 Then manage the Pi from the dashboard: temperature, storage, running

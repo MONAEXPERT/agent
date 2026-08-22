@@ -7,11 +7,11 @@
     "timestamp": "2026-08-13T00:00:00Z",
     "component": {
       "type": "application",
-      "bom-ref": "pkg:npm/mona-expert@2.1.0",
-      "name": "mona-agent",
-      "version": "2.1.0",
-      "purl": "pkg:npm/mona-expert@2.1.0",
-      "supplier": { "name": "mona.expert" },
+      "bom-ref": "pkg:npm/remoteagent@2.11.0",
+      "name": "remoteagent",
+      "version": "2.11.0",
+      "purl": "pkg:npm/remoteagent@2.11.0",
+      "supplier": { "name": "Remote Agent Online Ltd." },
       "licenses": [{ "license": { "id": "MIT" } }]
     }
   },

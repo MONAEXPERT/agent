@@ -283,7 +283,7 @@ under `kind: workflow`.
 ## plugin
 
 Dynamic tool plugins, managed at runtime. Third parties ship extra tools as
-packages named `mona-agent-tool-*` (or any directory on `MONA_TOOL_PATH`)
+packages named `remoteagent-agent-tool-*` (or any directory on `MONA_TOOL_PATH`)
 that export `defineTool()` descriptors — the agent SDK. They are hot-loaded
 without forking the core.
 
@@ -309,7 +309,7 @@ advertises loaded plugins to the cloud when it connects.
 Example — load and check a plugin directory:
 
 ```json
-{"tool":"plugin","args":{"action":"load","path":"/opt/mona-tools"}}
+{"tool":"plugin","args":{"action":"load","path":"/opt/remoteagent-tools"}}
 {"tool":"plugin","args":{"action":"list"}}
 ```
 
@@ -367,7 +367,7 @@ Web research — pure Node, no external dependencies, multi-OS.
   `[{title, url, snippet}]` with real targets extracted from redirect links.
 - `fetch` page → `htmlToText()` — strips scripts/styles/tags, decodes HTML
   entities, caps output at 10 KB.
-- 15 s timeout per request, honest `mona-agent/2.x` user agent.
+- 15 s timeout per request, honest `remoteagent/2.x` user agent.
 
 ## notify
 
@@ -398,10 +398,10 @@ plus optional `tools/*.mjs` helper tools) installed into
 `~/.mona-agent/skills/`. The bundled ones ship with the agent:
 
 ```bash
-mona-agent skills list          # installed skills + enabled state
-mona-agent skills install       # install the bundled skills (idempotent)
-mona-agent skills enable <name> # inject its instructions into the brain
-mona-agent skills disable <name>
+remoteagent skills list          # installed skills + enabled state
+remoteagent skills install       # install the bundled skills (idempotent)
+remoteagent skills enable <name> # inject its instructions into the brain
+remoteagent skills disable <name>
 ```
 
 ### Capability dial (mode)
@@ -409,10 +409,10 @@ mona-agent skills disable <name>
 Instead of tuning skills and policy by hand, set a profile:
 
 ```bash
-mona-agent mode list
-mona-agent mode set minimal   # no skills, strict policy (read-only)
-mona-agent mode set standard  # core skills, shell/browser need approval
-mona-agent mode set full      # all skills, permissive policy + auto-start daemon
+remoteagent mode list
+remoteagent mode set minimal   # no skills, strict policy (read-only)
+remoteagent mode set standard  # core skills, shell/browser need approval
+remoteagent mode set full      # all skills, permissive policy + auto-start daemon
 ```
 
 `mode set` writes `~/.mona-agent/policy.json`, enables exactly the mode's
@@ -421,10 +421,10 @@ skills and — for `full` — marks the daemon for auto-start.
 ### Daemon (background service)
 
 ```bash
-mona-agent daemon status      # service + pid state
-mona-agent daemon install     # launchd (macOS) / systemd (Linux) auto-start
-mona-agent daemon uninstall   # stop + remove
-mona-agent daemon stop        # signal the running daemon to exit
+remoteagent daemon status      # service + pid state
+remoteagent daemon install     # launchd (macOS) / systemd (Linux) auto-start
+remoteagent daemon uninstall   # stop + remove
+remoteagent daemon stop        # signal the running daemon to exit
 ```
 
 Single-instance: `~/.mona-agent/daemon.pid` guards against double-run; stale
@@ -437,7 +437,7 @@ tools become callable through the same registry as the built-ins.
 
 The engine checks every tool call against a policy before executing it —
 and the tool registry enforces the same policy for direct commands
-(`mona-agent exec`, dashboard tool calls). Defaults are safe (all built-in
+(`remoteagent exec`, dashboard tool calls). Defaults are safe (all built-in
 tools allowed, destructive shell patterns blocked); an optional
 `~/.mona-agent/policy.json` (or `MONA_POLICY`) tunes it:
 
@@ -467,11 +467,11 @@ tools allowed, destructive shell patterns blocked); an optional
 Presets (write one to `~/.mona-agent/policy.json`):
 
 ```bash
-mona-agent policy preset strict      # read-only: shell/net/browser/apps denied
-mona-agent policy preset standard    # shell & browser need approval, rate limits
-mona-agent policy preset permissive  # everything allowed (default behaviour)
-mona-agent policy status             # show the active policy + tool tiers
-mona-agent policy explain <tool>     # show which rule decides a call
+remoteagent policy preset strict      # read-only: shell/net/browser/apps denied
+remoteagent policy preset standard    # shell & browser need approval, rate limits
+remoteagent policy preset permissive  # everything allowed (default behaviour)
+remoteagent policy status             # show the active policy + tool tiers
+remoteagent policy explain <tool>     # show which rule decides a call
 ```
 
 The policy file is **local and authoritative** — it loads from disk at
@@ -485,8 +485,8 @@ append-only JSONL stream — `h_n = sha256(h_{n-1} || entry)`. Tampering
 breaks the chain:
 
 ```bash
-mona-agent audit tail      # last 20 decisions
-mona-agent audit verify    # verify the whole chain (exit 1 on tampering)
+remoteagent audit tail      # last 20 decisions
+remoteagent audit verify    # verify the whole chain (exit 1 on tampering)
 ```
 
 ## Budget (engine)

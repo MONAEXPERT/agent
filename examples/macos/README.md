@@ -1,6 +1,6 @@
-# Run mona-agent automatically on macOS
+# Run remoteagent automatically on macOS
 
-Install this LaunchAgent to start mona-agent when you log in and keep it
+Install this LaunchAgent to start remoteagent when you log in and keep it
 running (auto-restart on crash).
 
 ## Install
@@ -14,8 +14,8 @@ launchctl load ~/Library/LaunchAgents/online.remoteagent.agent.plist
 ## Verify
 
 ```bash
-launchctl list | grep monaexpert
-mona-agent connect    # should report cloud reachable, key valid
+launchctl list | grep remoteagent
+remoteagent connect    # should report cloud reachable, key valid
 ```
 
 ## Uninstall
@@ -25,4 +25,4 @@ launchctl unload ~/Library/LaunchAgents/online.remoteagent.agent.plist
 rm ~/Library/LaunchAgents/online.remoteagent.agent.plist
 ```
 
-Requires `mona-agent` on your PATH (`~/.local/bin`, set by the installer).
+Requires `remoteagent` on your PATH (`~/.local/bin`, set by the installer).

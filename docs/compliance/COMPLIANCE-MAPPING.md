@@ -3,7 +3,7 @@
 > Mapping of repository controls to frameworks. No certification proof, no external audit.
 
 
-mona-agent is the open-source client for the mona.expert cloud. This document
+remoteagent is the open-source client for the remoteagent.online cloud. This document
 summarizes how the architecture maps to common compliance frameworks. Detailed
 mappings live in the sibling documents of this folder.
 
@@ -16,7 +16,7 @@ device. Every run is audit-logged with per-step usage, tokens, cost and timing.
 
 ## Framework alignment at a glance
 
-| Framework | Scope | How mona-agent aligns |
+| Framework | Scope | How remoteagent aligns |
 |---|---|---|
 | **EU CRA** (Cyber Resilience Act) | Products with digital elements | SBOM-ready, signed releases, documented vulnerability handling, secure-by-default device, free security updates for the support window — see `CRA-READINESS.md` |
 | **ISO/IEC 27001** | Information security management | Documented controls mapping (Annex A), crypto, access control, logging, incident handling — see `ISO-27001-MAPPING.md` |
@@ -44,7 +44,7 @@ device. Every run is audit-logged with per-step usage, tokens, cost and timing.
    tool result, token count, cost and latency is stored and exportable
    (JSONL) — including per-step reasoning for incident reconstruction. On
    the device, every policy decision is additionally appended to a
-   hash-chained, tamper-evident local audit log (`mona-agent audit verify`).
+   hash-chained, tamper-evident local audit log (`remoteagent audit verify`).
 6. **Self-healing operation.** Transient failures retry with backoff, malformed
    brain replies trigger corrective nudges, stranded tasks expire with a
    closing message instead of replaying days later.

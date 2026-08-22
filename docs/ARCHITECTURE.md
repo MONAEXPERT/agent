@@ -1,11 +1,11 @@
-# mona-agent Architecture
+# remoteagent Architecture
 
 How the open-source device daemon is built, and how it talks to the
-mona.expert cloud.
+remoteagent.online cloud.
 
 ## Overview
 
-mona-agent is a **headless Node.js daemon** with two jobs:
+remoteagent is a **headless Node.js daemon** with two jobs:
 
 1. **Execute** — run local tools (files, shell, network, system info) on
    behalf of the cloud agent.
@@ -14,9 +14,9 @@ mona-agent is a **headless Node.js daemon** with two jobs:
 
 ```
 ┌─────────────────────────────────────┐      ┌──────────────────────────────┐
-│  Device (your machine)              │      │  mona.expert cloud (SaaS)    │
+│  Device (your machine)              │      │  remoteagent.online cloud (SaaS)    │
 │                                     │      │                              │
-│  mona-agent                         │      │  Control plane API           │
+│  remoteagent                         │      │  Control plane API           │
 │  ┌──────────────┐   ┌────────────┐  │      │  /api/v1/agent/verify        │
 │  │ ControlChannel│◄─►│ tools/     │  │      │  /api/v1/agent/stats        │
 │  │ (HTTPS + WS) │   │  files     │  │      │  /api/v1/agent/chat …        │
@@ -26,8 +26,8 @@ mona-agent is a **headless Node.js daemon** with two jobs:
 │  └──────────────┘   └────────────┘  │      │  Key vault (AES-256)         │
 │         │                           │      │  Audit log                   │
 │         ▼                           │      └──────────────────────────────┘
-│  TUI (mona-agent gui)               │
-│  headless daemon (mona-agent start) │
+│  TUI (remoteagent gui)               │
+│  headless daemon (remoteagent start) │
 └─────────────────────────────────────┘
 ```
 
@@ -35,7 +35,7 @@ mona-agent is a **headless Node.js daemon** with two jobs:
 
 | Module | Responsibility |
 |---|---|
-| `bin/mona-agent.js` | CLI entrypoint — `gui`, `start`, `login`, `connect`, `chat`, `exec`, `policy`, `audit` |
+| `bin/remoteagent.js` | CLI entrypoint — `gui`, `start`, `login`, `connect`, `chat`, `exec`, `policy`, `audit` |
 | `src/config.js` | Credentials, cloud endpoint resolution, platform detection |
 | `src/cloud.js` | REST client for the control plane API (Bearer-auth) |
 | `src/control.js` | Control channel: versioned envelopes, command dispatch, metrics streaming |
@@ -52,9 +52,9 @@ The repo is an npm monorepo with three packages:
 
 | Package | Purpose |
 |---|---|
-| `packages/engine` (`@mona/engine`) | The agent core — policy-as-code, budget governor, structured memory, the bounded TaskLoop. Zero runtime dependencies; fully testable offline. |
-| `packages/protocol` (`@mona/protocol`) | The wire contract — versioned envelopes, message types, close codes. The daemon and the gateway both implement it, so they can never drift apart. |
-| `apps/desktop` (`mona-agent`) | The device daemon — consumes both packages; the only credential it holds is the mona.expert key. |
+| `packages/engine` (`@remoteagent/engine`) | The agent core — policy-as-code, budget governor, structured memory, the bounded TaskLoop. Zero runtime dependencies; fully testable offline. |
+| `packages/protocol` (`@remoteagent/protocol`) | The wire contract — versioned envelopes, message types, close codes. The daemon and the gateway both implement it, so they can never drift apart. |
+| `apps/desktop` (`remoteagent`) | The device daemon — consumes both packages; the only credential it holds is the remoteagent.online key. |
 
 The daemon is intentionally thin: it supplies the brain (cloud `think`), the
 tools and the trace plumbing — all loop behavior (policy checks, budget
@@ -64,7 +64,7 @@ tested once and shared with every future client.
 ### Engine public surface
 
 `packages/engine/src/index.mjs` is the single public entry point for
-`@mona/engine`. It exports the pieces the daemon actually consumes — `Policy`,
+`@remoteagent/engine`. It exports the pieces the daemon actually consumes — `Policy`,
 `Budget`, `MemoryStore`, `TaskLoop`, the delegation/goal/workflow runners,
 `RunStore`, `VectorStore`, and (since capability grants) `verifyCapabilityGrant`
 / `resolveCapabilityGrant` / `intersectCapabilities`. `apps/desktop/src/agent.js`
@@ -77,15 +77,15 @@ Its contract with the control plane is documented in
 [DEVICE-LIFECYCLE.md](DEVICE-LIFECYCLE.md).
 
 There is no separate, unwired "control-plane library" in this checkout: every
-`@mona/engine` export is either consumed by the daemon or is a documented public
+`@remoteagent/engine` export is either consumed by the daemon or is a documented public
 API. Any future control-plane modules (device registry, fleet controller, etc.)
 must land as either a wired call edge in the daemon/CLI or a distinct
-`@mona/control-plane` package — not a set of unexported, untested modules.
+`@remoteagent/control-plane` package — not a set of unexported, untested modules.
 
 ## Control channel lifecycle
 
 1. **Boot** — `config.js` loads `~/.mona-agent/credentials.json` and
-   resolves the cloud endpoint (`MONA_CLOUD` or `https://agent.mona.expert`).
+   resolves the cloud endpoint (`MONA_CLOUD` or `https://api.remoteagent.online`).
 2. **Verify** — the daemon authenticates with `POST /api/v1/agent/verify`
    (Bearer token). The server returns the agent identity and capabilities.
 3. **Metrics** — every 10 seconds the daemon POSTs a snapshot to
@@ -108,12 +108,12 @@ CLI, or the cloud queue):
 
 ```
         ┌───────────────────────────────────────────────────┐
-        │                 mona.expert brain                │
+        │                 remoteagent.online brain                │
         │  reason  answer in text OR emit one tool call   │
         └───────────────┬───────────────────────▲──────────┘
            task (HTTPS) │                       │ tool result
         ┌───────────────▼───────────────────────┴──────────┐
-        │                   mona-agent                     │
+        │                   remoteagent                     │
         │  execute tool locally (sysinfo|shell|files|net)  │
         └───────────────────────────────────────────────────┘
 ```
@@ -187,7 +187,7 @@ Every task event — start, think, tool call, tool result, denials,
 corrections, verify, answer, error — is written to the same tamper-evident,
 hash-chained `~/.mona-agent/audit.jsonl` used for policy decisions, so the
 device keeps its own verifiable copy of everything the agent did
-(`mona-agent audit tail` / `verify`).
+(`remoteagent audit tail` / `verify`).
 
 ## Metrics pipeline (HTTP-first)
 
@@ -202,13 +202,13 @@ upgrade**:
 
 ## Security model (client side)
 
-- **No AI provider keys on the device.** Only a mona.expert device token is
+- **No AI provider keys on the device.** Only a remoteagent.online device token is
   stored (`~/.mona-agent/credentials.json`, mode 0600).
 - **Local policy is authoritative.** `~/.mona-agent/policy.json`
   (`MONA_POLICY` to override) governs every tool call — allow / deny /
   confirm tiers, shell patterns, per-tool rate limits, daily budget caps.
   It is loaded once from disk at startup; the control plane can never
-  modify or widen it. Presets: `mona-agent policy preset strict|standard|permissive`.
+  modify or widen it. Presets: `remoteagent policy preset strict|standard|permissive`.
 - **Shell executes argv arrays, never shell strings.** Commands are parsed
   quote-aware; every executable is realpath-resolved and allowlisted
   (chains and pipes re-check each segment); the child environment is
@@ -222,7 +222,7 @@ upgrade**:
   special files refused, deletes move to trash.
 - **Tamper-evident audit.** Every policy decision is appended to
   `~/.mona-agent/audit.jsonl` (hash-chained, append-only, 0600) and
-  verified with `mona-agent audit verify`.
+  verified with `remoteagent audit verify`.
 - **Egress-only** — the daemon opens outbound connections only; it listens
   on localhost only (for the local dashboard).
 

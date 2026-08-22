@@ -1,6 +1,6 @@
 # PRICING — SaaS sustainability plan (control-plane side)
 
-> This document specs the **private control plane** (agent.mona.expert).
+> This document specs the **private control plane** (api.remoteagent.online).
 > The open-source client stays MIT and free; the plane is the product.
 > BYO keys do not threaten this model — see [Why BYO doesn't hurt](#why-byo-doesnt-hurt).
 

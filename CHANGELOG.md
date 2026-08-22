@@ -4,6 +4,22 @@ All notable changes to mona-agent are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased — rebrand to RemoteAgent
+
+- Project, CLI and repo renamed: **mona-agent** → **RemoteAgent**. The CLI
+  binary is `remoteagent`; `mona-agent` remains as a permanent alias.
+- Domains: marketing `remoteagent.online`, dashboard `app.remoteagent.online`,
+  control plane `api.remoteagent.online`. `agent.mona.expert` keeps answering
+  and proxying for existing installations.
+- State directory migrates `~/.mona-agent` → `~/.remoteagent`
+  (non-destructive: moved, old path symlinked — see `docs/MIGRATION.md`).
+- Environment variables: `RA_*` replaces `MONA_*`. `MONA_*` still works via a
+  compat shim and is deprecated (removal planned for v4.0.0). Full old→new
+  table in `docs/MIGRATION.md`.
+- Release archives are published under both `remoteagent-<tag>.tar.gz` and
+  `mona-agent-<tag>.tar.gz` (identical bytes) so existing clients keep
+  updating; both are listed in `SHA256SUMS`.
+
 ## Unreleased — security hardening
 
 ### Added

@@ -1,26 +1,26 @@
 # Enterprise Deployment Guide
 
-Production rollout for the mona-agent client on macOS, Linux and Windows.
+Production rollout for the remoteagent client on macOS, Linux and Windows.
 
 ## 1. Provisioning flow
 
 1. Create the user's account and agent in the dashboard.
-2. Generate a device token (Settings → Mona key).
+2. Generate a device token (Settings → RemoteAgent key).
 3. On the device: install Node.js ≥ 20, then
-   `curl -fsSL https://agent.mona.expert/install.sh | bash`
-   followed by `mona-agent login` with the token.
+   `curl -fsSL https://remoteagent.online/install.sh | bash`
+   followed by `remoteagent login` with the token.
 4. Start the daemon. Verify the dashboard shows the device online.
 
 ## 2. Persistent service (recommended)
 
-**macOS (launchd)** — `~/Library/LaunchAgents/com.mona.agent.plist`:
+**macOS (launchd)** — `~/Library/LaunchAgents/com.remoteagent.agent.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>com.mona.agent</string>
+  <key>Label</key><string>com.remoteagent.agent</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/node</string>
@@ -29,40 +29,40 @@ Production rollout for the mona-agent client on macOS, Linux and Windows.
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>/tmp/mona-agent.log</string>
-  <key>StandardErrorPath</key><string>/tmp/mona-agent.log</string>
+  <key>StandardOutPath</key><string>/tmp/remoteagent.log</string>
+  <key>StandardErrorPath</key><string>/tmp/remoteagent.log</string>
 </dict>
 </plist>
 ```
 
-Load with `launchctl load ~/Library/LaunchAgents/com.mona.agent.plist`.
+Load with `launchctl load ~/Library/LaunchAgents/com.remoteagent.agent.plist`.
 
-**Linux (systemd)** — `/etc/systemd/system/mona-agent.service`:
+**Linux (systemd)** — `/etc/systemd/system/remoteagent.service`:
 
 ```ini
 [Unit]
-Description=mona-agent device daemon
+Description=remoteagent device daemon
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=mona
-ExecStart=/usr/bin/node /opt/mona-agent/apps/desktop/bin/remoteagent.js start
+User=remoteagent
+ExecStart=/usr/bin/node /opt/remoteagent/apps/desktop/bin/remoteagent.js start
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/mona/.mona-agent
+ReadWritePaths=/home/remoteagent/.mona-agent
 MemoryMax=512M
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Load with `systemctl daemon-reload && systemctl enable --now mona-agent`.
+Load with `systemctl daemon-reload && systemctl enable --now remoteagent`.
 
 The hardened unit runs the daemon without new privileges, keeps `/`
 read-only (only `~/.mona-agent` writable), uses a private `/tmp`, and caps
@@ -77,12 +77,12 @@ memory.
 ## 4. Policy & audit rollout
 
 1. Decide the device posture per machine class:
-   - unattended/headless: `mona-agent policy preset strict`
-   - human-supervised: `mona-agent policy preset standard`
+   - unattended/headless: `remoteagent policy preset strict`
+   - human-supervised: `remoteagent policy preset standard`
    - least-restricted: `permissive` (default) — not recommended for
      sensitive fleets
-2. Review with `mona-agent policy status` and `mona-agent policy explain <tool>`.
-3. Verify the audit chain periodically: `mona-agent audit verify`; ship
+2. Review with `remoteagent policy status` and `remoteagent policy explain <tool>`.
+3. Verify the audit chain periodically: `remoteagent audit verify`; ship
    `~/.mona-agent/audit.jsonl` to your SIEM/rotation policy. The policy
    file is local and authoritative — the control plane can never widen it.
 

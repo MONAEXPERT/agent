@@ -121,10 +121,10 @@ environment-variable fallback and no default `true`.
 
 The signature is Ed25519 over the canonical, deterministic serialization of the
 payload (all fields except `sig`), prefixed with the context string
-`mona-capability-grant-v1`:
+`remoteagent-capability-grant-v1`:
 
 ```
-signing_input = "mona-capability-grant-v1\n" + canonical(payload)
+signing_input = "remoteagent-capability-grant-v1\n" + canonical(payload)
 sig           = ed25519_sign(privateKey, signing_input)  // base64url
 ```
 
@@ -140,7 +140,7 @@ exists, the fingerprint is derived deterministically from the agent's
 registration id:
 
 ```
-deviceFingerprint = sha256("mona-device:" + agentId)
+deviceFingerprint = sha256("remoteagent-device:" + agentId)
 ```
 
 The control plane computes the same value from the agent id it already holds.
@@ -186,8 +186,8 @@ a `grantHash` (sha256 of the canonical grant), the MFA method, and the
 effective capabilities that survived the ceiling intersection.
 
 Every entry is additionally **Ed25519-signed** with the device audit key
-(domain `mona-audit-v1`, key file `audit-key.json` next to the log, 0600,
-generated on first use). `mona-agent audit verify` checks the hash chain
+(domain `remoteagent-audit-v1`, key file `audit-key.json` next to the log, 0600,
+generated on first use). `remoteagent audit verify` checks the hash chain
 **and** every signature; a chain recomputed under a foreign key fails at its
 first entry.
 
@@ -198,14 +198,14 @@ The device anchors its chain head at the control plane every **50 entries or
 history without diverging from the stored anchors.
 
 `POST /api/v1/agent/audit-anchor` (device bearer token; Sngine router
-`mona-plugin/api/agent.php`) — request body:
+`remoteagent-plugin/api/agent.php`) — request body:
 
 ```json
 {
   "seq": 412,
   "hash": "sha256 of the signed entry",
   "signedAt": "2026-08-18T12:00:00.000Z",
-  "sig": "base64url Ed25519 over mona-audit-v1.<hash>",
+  "sig": "base64url Ed25519 over remoteagent-audit-v1.<hash>",
   "pub": "device audit public key (SPKI PEM)"
 }
 ```
@@ -218,7 +218,7 @@ Server requirements (append-only, tenant-scoped):
   path, no overwrite of an existing seq.
 - Response: `200 {"ok": true}`.
 - `GET` the same path returns `{"anchors": [...]}` (newest last) for the
-  device's own tenant; `mona-agent audit verify --against-cloud` compares the
+  device's own tenant; `remoteagent audit verify --against-cloud` compares the
   local chain entry at each anchored seq and reports the first divergence
   with its seq.
 
