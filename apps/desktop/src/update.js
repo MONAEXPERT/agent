@@ -24,7 +24,7 @@ import { createHash } from 'node:crypto';
 import { VERSION, isUpdateAvailable, compareVersions } from './version.js';
 import { PATHS } from './config.js';
 
-export const REPO = 'MONAEXPERT/agent';
+export const REPO = 'remoteagent-online/remoteagent';
 const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const TAGS_URL = `https://api.github.com/repos/${REPO}/tags?per_page=20`;
 const TARBALL = (tag) => `https://github.com/${REPO}/releases/download/${tag}/mona-agent-${tag}.tar.gz`;

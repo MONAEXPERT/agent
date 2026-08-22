@@ -19,7 +19,7 @@
 # hard. The extracted version is checked against the requested tag.
 set -euo pipefail
 
-REPO="${MONA_REPO:-MONAEXPERT/agent}"
+REPO="${MONA_REPO:-remoteagent-online/remoteagent}"
 INSTALL_DIR="${MONA_INSTALL_DIR:-$HOME/.mona-agent}"
 VERSION_REQ=""
 BRANCH_REQ=""

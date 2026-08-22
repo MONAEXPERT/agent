@@ -118,7 +118,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           test -x apps/desktop/install.sh
-          MONA_REPO=MONAEXPERT/agent apps/desktop/install.sh --dry-run --allow-root
+          MONA_REPO=remoteagent-online/remoteagent apps/desktop/install.sh --dry-run --allow-root
 
       - name: Windows installer dry-run acceptance
         if: runner.os == 'Windows'
