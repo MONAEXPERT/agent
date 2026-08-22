@@ -1,5 +1,5 @@
 /**
- * mona-agent — public API types.
+ * remoteagent — public API types.
  *
  * This is the API contract. Anything not declared here is internal and
  * may change between releases (see docs/STABILITY.md). The runtime stays

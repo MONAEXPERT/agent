@@ -26,6 +26,6 @@
     }
   ],
   "dependencies": [
-    { "ref": "pkg:npm/mona-expert@2.1.0", "dependsOn": ["pkg:npm/ws@8.18.0"] }
+    { "ref": "pkg:npm/remoteagent@2.11.0", "dependsOn": ["pkg:npm/ws@8.18.0"] }
   ]
 }

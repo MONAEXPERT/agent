@@ -1,7 +1,7 @@
 {
   "name": "mona-agent-tool-hello",
   "version": "1.0.0",
-  "description": "Example mona-agent tool package — install via `npm i ./examples/tools/hello` once mona-agent is published to npm.",
+  "description": "Example remoteagent tool package — install via `npm i ./examples/tools/hello` once remoteagent is published to npm.",
   "type": "module",
   "main": "index.js",
   "monaAgent": {

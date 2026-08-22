@@ -1,6 +1,6 @@
 # Security Policy
 
-mona-agent is a client for the mona.expert cloud. This document describes
+RemoteAgent is a client for the remoteagent.online control plane. This document describes
 the client-side security model and how to report vulnerabilities.
 
 ## Supported versions
@@ -13,12 +13,12 @@ the client-side security model and how to report vulnerabilities.
 ## Security model
 
 - **No AI provider keys on the device.** The client stores only a
-  mona.expert device token (`~/.mona-agent/credentials.json`, mode 0600).
+  remoteagent.online device token (`~/.mona-agent/credentials.json`, mode 0600).
   All third-party keys live in the cloud vault, AES-256 encrypted.
 - **Local policy is authoritative.** `~/.mona-agent/policy.json` governs
   every tool call (allow / deny / confirm / rate limits). The control plane
   can never modify or widen it — it is loaded once from disk at startup.
-  `mona-agent policy explain <tool>` shows which rule fired.
+  `remoteagent policy explain <tool>` shows which rule fired.
 - **Shell: argv execution, never a shell string.** Commands are parsed into
   argv arrays; every executable is realpath-resolved and allowlisted;
   chains and pipes re-check each segment; redirects and command
@@ -31,7 +31,7 @@ the client-side security model and how to report vulnerabilities.
   (TOCTOU), special files refused, deletes go to trash by default.
 - **Tamper-evident audit log.** Every policy decision is appended to
   `~/.mona-agent/audit.jsonl`, hash-chained and append-only. Verify with
-  `mona-agent audit verify`.
+  `remoteagent audit verify`.
 - **Egress-only networking.** The daemon opens outbound connections only
   and listens on localhost exclusively (for the local dashboard). No
   inbound ports, no public exposure.
@@ -51,7 +51,7 @@ audit-chain tampering, rate limits. Run with `npm test`.
 ## Deprecations
 
 - `MONA_SHELL_UNSAFE=1` — deprecated in v2.8.0. Use
-  `{"shell": {"unsafe": true}}` in `~/.mona-agent/policy.json` instead
+  `{"shell": {"unsafe": true}}` in `~/.remoteagent/policy.json` instead
   (audited). Removed in v3.0.
 
 ## Reporting a vulnerability
@@ -80,7 +80,7 @@ For review planning, hardening suggestions, and non-sensitive documentation gaps
 - Dependency surface is tracked via the [SBOM](docs/SBOM.md)
   (`sbom.cyclonedx.json`)
 - Security updates install with one command
-  (`curl -fsSL https://agent.mona.expert/install.sh | bash`)
+  (`curl -fsSL https://remoteagent.online/install.sh | bash`)
 
 ## Compliance
 

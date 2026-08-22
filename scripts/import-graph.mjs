@@ -1,4 +1,4 @@
-// import-graph.mjs — generate the real import graph of the mona packages.
+// import-graph.mjs — generate the real import graph of the RemoteAgent packages.
 //
 // Reads every import edge from source (apps/desktop, packages/engine,
 // packages/control-plane), collapses them to package-level edges, and
@@ -32,11 +32,11 @@ function walk(dir, out = []) {
 const ownerOf = (file) => PACKAGES.find((p) => file.startsWith(p.dir + '/'))?.id || null;
 
 function packageOf(importee, spec) {
-  if (spec.startsWith('@mona/')) {
+  if (spec.startsWith('@remoteagent/')) {
     const name = spec.split('/').slice(0, 2).join('/');
-    if (name === '@mona/engine') return 'packages/engine';
-    if (name === '@mona/control-plane') return 'packages/control-plane';
-    if (name === '@mona/protocol') return 'packages/protocol';
+    if (name === '@remoteagent/engine') return 'packages/engine';
+    if (name === '@remoteagent/control-plane') return 'packages/control-plane';
+    if (name === '@remoteagent/protocol') return 'packages/protocol';
     return null; // external dependency
   }
   if (!spec.startsWith('.')) return null; // node: builtin or external
