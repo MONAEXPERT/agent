@@ -5,7 +5,7 @@
 // availability. Best-effort by design — a failed check reports, never
 // crashes the doctor.
 
-import { existsSync, accessSync, constants } from 'node:fs';
+import { env,  existsSync, accessSync, constants } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Policy, auditVerify } from '@remoteagent/engine';
@@ -69,7 +69,7 @@ export async function runDoctor(opts = {}) {
   }
   add('audit', audit.ok, audit.ok ? 'audit chain verified' : `audit verify failed: ${audit.error || 'no chain yet'}`);
 
-  const ws = opts.workspace || process.env.MONA_WORKSPACE || join(home, 'workspace');
+  const ws = opts.workspace || env('WORKSPACE') || join(home, 'workspace');
   add('workspace', checkDirState(ws, 'workspace').ok, checkDirState(ws, 'workspace').detail);
 
   // OS sandbox: always reported; failing only when the active mode
@@ -86,8 +86,8 @@ export async function runDoctor(opts = {}) {
     const provider = loadProviderConfig();
     if (provider) {
       add('provider', true, `BYO brain: ${provider.provider}/${provider.model} (prompts stay on-device)`);
-    } else if (String(opts.transport || process.env.MONA_TRANSPORT || '') === 'local') {
-      add('provider', false, 'MONA_TRANSPORT=local but no provider — run remoteagent provider set <anthropic|openai|ollama>');
+    } else if (String(opts.transport || env('TRANSPORT') || '') === 'local') {
+      add('provider', false, 'RA_TRANSPORT=local but no provider — run remoteagent provider set <anthropic|openai|ollama>');
     } else {
       add('provider', true, 'cloud brain (api.remoteagent.online vault)');
     }

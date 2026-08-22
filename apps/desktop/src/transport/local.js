@@ -68,14 +68,14 @@ export function tokenCost(provider, model, input, output, override = null) {
 // ── Config load/save ──────────────────────────────────────────────
 /**
  * Load the BYO provider config. Resolution order:
- *   1. MONA_PROVIDER + env (MONA_PROVIDER_KEY/URL/MODEL)
- *   2. MONA_PROVIDER_FILE (explicit path, used by tests)
+ *   1. RA_PROVIDER + env (RA_PROVIDER_KEY/URL/MODEL)
+ *   2. RA_PROVIDER_FILE (explicit path, used by tests)
  *   3. ~/.mona-agent/provider.json
  * Returns null when no provider is configured.
  */
 export function loadProviderConfig({ env = process.env } = {}) {
   let fileCfg = null;
-  const path = env.MONA_PROVIDER_FILE || DEFAULT_FILE;
+  const path = env.RA_PROVIDER_FILE || DEFAULT_FILE;
   if (existsSync(path)) {
     try {
       fileCfg = JSON.parse(readFileSync(path, 'utf8'));
@@ -84,7 +84,7 @@ export function loadProviderConfig({ env = process.env } = {}) {
     }
   }
 
-  const envProvider = env.MONA_PROVIDER || null;
+  const envProvider = env.RA_PROVIDER || null;
   if (!envProvider && !fileCfg) return null;
 
   const provider = (envProvider || fileCfg?.provider || '').toLowerCase();
@@ -94,15 +94,15 @@ export function loadProviderConfig({ env = process.env } = {}) {
   const defaults = PROVIDER_DEFAULTS[provider];
   const cfg = {
     provider,
-    apiKey:      env.MONA_PROVIDER_KEY ?? fileCfg?.apiKey ?? null,
-    baseUrl:     (env.MONA_PROVIDER_URL || fileCfg?.baseUrl || defaults.baseUrl).replace(/\/+$/, ''),
-    model:       env.MONA_PROVIDER_MODEL || fileCfg?.model || defaults.model,
+    apiKey:      env.RA_PROVIDER_KEY ?? fileCfg?.apiKey ?? null,
+    baseUrl:     (env.RA_PROVIDER_URL || fileCfg?.baseUrl || defaults.baseUrl).replace(/\/+$/, ''),
+    model:       env.RA_PROVIDER_MODEL || fileCfg?.model || defaults.model,
     prices:      fileCfg?.prices && typeof fileCfg.prices === 'object' ? fileCfg.prices : null,
     enabled:     fileCfg?.enabled !== false,
     file:        path,
   };
   if (provider !== 'ollama' && !cfg.apiKey) {
-    throw new Error(`provider "${provider}" needs an API key — set MONA_PROVIDER_KEY or run: remoteagent provider set ${provider}`);
+    throw new Error(`provider "${provider}" needs an API key — set RA_PROVIDER_KEY or run: remoteagent provider set ${provider}`);
   }
   return cfg;
 }
@@ -111,7 +111,7 @@ export function loadProviderConfig({ env = process.env } = {}) {
 export function saveProviderConfig({ provider, apiKey = null, baseUrl = null, model = null, prices = null, enabled = true, env = process.env }) {
   const p = (provider || '').toLowerCase();
   if (!PROVIDERS.includes(p)) throw new Error(`Unknown provider "${provider}" — expected one of: ${PROVIDERS.join(', ')}`);
-  const path = env.MONA_PROVIDER_FILE || DEFAULT_FILE;
+  const path = env.RA_PROVIDER_FILE || DEFAULT_FILE;
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const existing = existsSync(path) ? safeParse(readFileSync(path, 'utf8')) : {};
   const next = {
@@ -131,7 +131,7 @@ export function saveProviderConfig({ provider, apiKey = null, baseUrl = null, mo
 function safeParse(s) { try { return JSON.parse(s); } catch { return {}; } }
 
 export function removeProviderConfig({ env = process.env } = {}) {
-  const path = env.MONA_PROVIDER_FILE || DEFAULT_FILE;
+  const path = env.RA_PROVIDER_FILE || DEFAULT_FILE;
   if (existsSync(path)) {
     try { unlinkSync(path); return true; } catch { return false; }
   }
@@ -394,16 +394,16 @@ export async function localThink({ config, messages, temperature = null, onChunk
   return out;
 }
 
-/** Is the local transport explicitly requested via MONA_TRANSPORT? */
+/** Is the local transport explicitly requested via RA_TRANSPORT? */
 export function transportMode(env = process.env) {
-  return String(env.MONA_TRANSPORT || 'auto').toLowerCase();
+  return String(env.RA_TRANSPORT || 'auto').toLowerCase();
 }
 
-/** Fail-fast check for `remoteagent start` when MONA_TRANSPORT=local. */
+/** Fail-fast check for `remoteagent start` when RA_TRANSPORT=local. */
 export function requireLocalProvider() {
   const cfg = loadProviderConfig();
   if (!cfg) {
-    throw new Error('MONA_TRANSPORT=local but no provider is configured — run: remoteagent provider set <anthropic|openai|ollama>');
+    throw new Error('RA_TRANSPORT=local but no provider is configured — run: remoteagent provider set <anthropic|openai|ollama>');
   }
   return cfg;
 }

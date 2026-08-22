@@ -9,7 +9,7 @@
 // brain (think) and the local tool registry, and reports every step to the
 // dashboard (never silent).
 
-import { EventEmitter } from 'node:events';
+import { env,  EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -51,7 +51,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * brain sees at task start — facts, preferences and lessons accumulate
  * across tasks and restarts. Capped to keep the prompt lean.
  */
-export function loadMemoryContext(dir = process.env.MONA_MEMORY_DIR || join(homedir(), '.mona-agent', 'memory'), maxChars = 3000) {
+export function loadMemoryContext(dir = env('MEMORY_DIR') || join(homedir(), '.mona-agent', 'memory'), maxChars = 3000) {
   try {
     if (!existsSync(dir)) return '';
     const files = readdirSync(dir).filter((f) => f.endsWith('.md')).sort();
@@ -170,11 +170,11 @@ export class AgentDaemon extends EventEmitter {
   // Durable local run ledger: lifecycle, checkpoints, approvals, and
   // side-effect attempt contracts survive daemon restarts.
   #runs = new RunStore({});
-  // BYO brain: when a provider.json exists (or MONA_TRANSPORT=local forces
+  // BYO brain: when a provider.json exists (or RA_TRANSPORT=local forces
   // it), reasoning runs on-device against the user's own keys — the cloud
   // keeps coordinating (queue, cron, audit) but never sees a prompt.
   #localConfig = null;
-  // Localhost health/metrics (MONA_METRICS_PORT) — bound to 127.0.0.1 only.
+  // Localhost health/metrics (RA_METRICS_PORT) — bound to 127.0.0.1 only.
   #metricsPort = null;
   #stopMetrics = null;
   #startedAt = 0;
@@ -189,13 +189,13 @@ export class AgentDaemon extends EventEmitter {
       .update(`mona-device:${this.#creds?.agentId || ''}`)
       .digest('hex');
 
-    // BYO-key local brain: MONA_TRANSPORT=local fails fast when nothing is
+    // BYO-key local brain: RA_TRANSPORT=local fails fast when nothing is
     // configured; otherwise a provider.json enables it automatically.
     const mode = transportMode();
     if (mode === 'local') this.#localConfig = requireLocalProvider();
     else this.#localConfig = loadProviderConfig();
 
-    // Policy file (MONA_POLICY or ~/.mona-agent/policy.json) governs tool
+    // Policy file (RA_POLICY or ~/.mona-agent/policy.json) governs tool
     // authorization and budget caps; safe defaults apply when absent.
     this.#policy = Policy.load();
     this.#budget = new Budget({
@@ -269,11 +269,11 @@ export class AgentDaemon extends EventEmitter {
     // Optional OTel: spans when @opentelemetry/api is installed, no-op
     // otherwise. Best-effort — never blocks startup.
     initOtel().then((ok) => { if (ok) log.info('OTel: spans enabled (@opentelemetry/api detected)'); });
-    // Optional localhost /healthz + /metrics (MONA_METRICS_PORT). 127.0.0.1
+    // Optional localhost /healthz + /metrics (RA_METRICS_PORT). 127.0.0.1
     // only — for systemd/Docker health checks and local Prometheus.
-    if (process.env.MONA_METRICS_PORT && Number(process.env.MONA_METRICS_PORT) > 0) {
+    if (env('METRICS_PORT') && Number(env('METRICS_PORT')) > 0) {
       this.#startedAt = Date.now();
-      this.#metricsPort = Number(process.env.MONA_METRICS_PORT);
+      this.#metricsPort = Number(env('METRICS_PORT'));
       this.#stopMetrics = startMetricsServer({
         port: this.#metricsPort,
         getState: () => ({
@@ -286,7 +286,7 @@ export class AgentDaemon extends EventEmitter {
       });
       log.info(`Health: http://127.0.0.1:${this.#metricsPort}/healthz · metrics: /metrics`);
     }
-    // Dynamic plugins: hot-load mona-agent-tool-* packages + MONA_TOOL_PATH
+    // Dynamic plugins: hot-load mona-agent-tool-* packages + RA_TOOL_PATH
     // so the tool list advertised to the cloud includes them. Best-effort —
     // a broken plugin never blocks startup.
     tools.loadExternalTools()
@@ -435,7 +435,7 @@ export class AgentDaemon extends EventEmitter {
     if (this.#anchor.inFlight) return;
     let head;
     try {
-      head = auditHead(process.env.MONA_AUDIT || join(homedir(), '.mona-agent', 'audit.jsonl'));
+      head = auditHead(env('AUDIT') || join(homedir(), '.mona-agent', 'audit.jsonl'));
     } catch { return; }
     if (!head) return;
     if (!anchorDue(this.#anchor, { head })) return;

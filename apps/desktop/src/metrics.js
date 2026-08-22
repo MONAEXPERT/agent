@@ -1,6 +1,6 @@
 // metrics.js — localhost-only /healthz + /metrics (Prometheus text format).
 //
-// Enabled with MONA_METRICS_PORT (default: off). The listener binds to
+// Enabled with RA_METRICS_PORT (default: off). The listener binds to
 // 127.0.0.1 only — it is health/observability for local tooling
 // (systemd, Docker HEALTHCHECK, scrapers on the same host), never a
 // public surface. The daemon stays egress-only.

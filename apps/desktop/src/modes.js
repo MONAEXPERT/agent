@@ -18,7 +18,7 @@
 // The control plane can NEVER override a mode — policy is local-only.
 // This file is the device-side authority, exactly like policy.json.
 
-import { writeFileSync, existsSync, readFileSync, readdirSync, mkdirSync } from 'node:fs';
+import { env,  writeFileSync, existsSync, readFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfig } from './config.js';
@@ -53,7 +53,7 @@ export const MODES = Object.freeze({
 
 export const MODE_NAMES = Object.freeze(Object.keys(MODES));
 
-export const POLICY_PATH = process.env.MONA_POLICY || join(homedir(), '.mona-agent', 'policy.json');
+export const POLICY_PATH = env('POLICY') || join(homedir(), '.mona-agent', 'policy.json');
 
 /** Installed skill names (directories containing a SKILL.md). */
 function installedSkillNames() {

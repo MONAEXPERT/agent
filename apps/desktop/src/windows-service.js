@@ -45,7 +45,7 @@ export function parseServiceOutput(stdout, status) {
 function invoke(action, { runner = spawnSync, ...options } = {}) {
   if (process.platform !== 'win32') return { ok: false, supported: false, action, error: 'Windows Service Control Manager is available only on Windows' };
   const args = buildServiceArgs(action, options);
-  const result = runner('powershell.exe', args, { encoding: 'utf8', windowsHide: true, timeout: 30000, env: { ...process.env, MONA_SERVICE: 'windows-scm' } });
+  const result = runner('powershell.exe', args, { encoding: 'utf8', windowsHide: true, timeout: 30000, env: { ...process.env, RA_SERVICE: 'windows-scm' } });
   const parsed = parseServiceOutput(result.stdout, result.status);
   return { ok: parsed.ok, supported: true, action, code: parsed.code, state: parsed.data?.state, installed: parsed.data?.installed, running: parsed.data?.running, serviceAccount: parsed.data?.serviceAccount || options.serviceAccount || 'LocalSystem', output: parsed.data, error: parsed.error };
 }

@@ -13,7 +13,7 @@
 //   status       Show connection info
 //   help         Show usage
 
-import { createInterface } from 'node:readline/promises';
+import { env,  createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
@@ -269,12 +269,12 @@ async function debug() {
 
   // Config
   console.log(`\n  ${BOLD}Config${RESET}`);
-  console.log(`  ${DIM}MONA_CLOUD:${RESET}       ${process.env.MONA_CLOUD || '(default)'}`);
-  console.log(`  ${DIM}MONA_CLOUD_WS:${RESET}    ${process.env.MONA_CLOUD_WS || '(auto)'}`);
-  console.log(`  ${DIM}MONA_ALLOW_CMDS:${RESET}  ${process.env.MONA_ALLOW_CMDS || '(default)'}`);
-  console.log(`  ${DIM}MONA_SHELL_UNSAFE:${RESET} ${process.env.MONA_SHELL_UNSAFE || '0'} ${process.env.MONA_SHELL_UNSAFE ? YELLOW + '(deprecated — use policy shell.unsafe)' + RESET : ''}`);
-  console.log(`  ${DIM}MONA_POLICY:${RESET}      ${process.env.MONA_POLICY || '~/.mona-agent/policy.json'}`);
-  console.log(`  ${DIM}MONA_WORKSPACE:${RESET}   ${process.env.MONA_WORKSPACE || '(default)'}`);
+  console.log(`  ${DIM}RA_CLOUD:${RESET}       ${env('CLOUD') || '(default)'}`);
+  console.log(`  ${DIM}RA_CLOUD_WS:${RESET}    ${env('CLOUD_WS') || '(auto)'}`);
+  console.log(`  ${DIM}RA_ALLOW_CMDS:${RESET}  ${env('ALLOW_CMDS') || '(default)'}`);
+  console.log(`  ${DIM}RA_SHELL_UNSAFE:${RESET} ${env('SHELL_UNSAFE') || '0'} ${env('SHELL_UNSAFE') ? YELLOW + '(deprecated — use policy shell.unsafe)' + RESET : ''}`);
+  console.log(`  ${DIM}RA_POLICY:${RESET}      ${env('POLICY') || '~/.mona-agent/policy.json'}`);
+  console.log(`  ${DIM}RA_WORKSPACE:${RESET}   ${env('WORKSPACE') || '(default)'}`);
 
   // Connection test
   if (creds?.apiKey) {
@@ -307,12 +307,12 @@ async function debug() {
 async function policyCmd() {
   const sub = args[0] || 'status';
   const p = Policy.load();
-  const policyPath = process.env.MONA_POLICY || join(homedir(), '.mona-agent', 'policy.json');
+  const policyPath = env('POLICY') || join(homedir(), '.mona-agent', 'policy.json');
 
   if (sub === 'status') {
     console.log(`\n  ${BOLD}remoteagent policy${RESET}\n`);
     console.log(`  ${DIM}File:${RESET}    ${policyPath}${existsSync(policyPath) ? '' : ` ${YELLOW}(not created — defaults in use)${RESET}`}`);
-    console.log(`  ${DIM}Unsafe:${RESET}  ${p.shellUnsafe ? YELLOW + 'true' + RESET + (p.unsafeSource === 'env' ? ` ${DIM}(deprecated MONA_SHELL_UNSAFE env — move to policy)${RESET}` : '') : GREEN + 'false' + RESET}`);
+    console.log(`  ${DIM}Unsafe:${RESET}  ${p.shellUnsafe ? YELLOW + 'true' + RESET + (p.unsafeSource === 'env' ? ` ${DIM}(deprecated legacy MONA_SHELL_UNSAFE env — move to policy)${RESET}` : '') : GREEN + 'false' + RESET}`);
     console.log(`  ${DIM}Budget:${RESET}  ${p.dailyTokens || '∞'} tokens/day, ${p.dailyCostUsd ? '$' + p.dailyCostUsd : '∞'} USD/day`);
     console.log(`  ${DIM}Max steps:${RESET} ${p.maxSteps}`);
     console.log(`  ${DIM}Audit:${RESET}   ${p.auditEnabled ? GREEN + 'on' + RESET : 'off'} (${p.auditPath})`);
@@ -372,7 +372,7 @@ async function policyCmd() {
 // ── audit (tamper-evident decision log) ───────────────────────────
 async function auditCmd() {
   const sub = args[0] || 'tail';
-  const auditPath = process.env.MONA_AUDIT || join(homedir(), '.mona-agent', 'audit.jsonl');
+  const auditPath = env('AUDIT') || join(homedir(), '.mona-agent', 'audit.jsonl');
 
   if (sub === 'tail') {
     if (!existsSync(auditPath)) {
@@ -901,24 +901,26 @@ function help() {
     remoteagent provider set anthropic ${DIM}# or: openai / ollama${RESET}
     remoteagent provider set openai --url http://localhost:1234/v1 --model llama-3
     remoteagent provider test
-    MONA_TRANSPORT=local remoteagent start
+    RA_TRANSPORT=local remoteagent start
 
     ${DIM}# Model Context Protocol — expose the tools to other agents${RESET}
     remoteagent mcp
 
   ${BOLD}ENVIRONMENT${RESET}
 
-    MONA_CLOUD        Cloud base URL     ${DIM}(default: ${CLOUD.base})${RESET}
-    MONA_CLOUD_WS     WebSocket URL      ${DIM}(auto-derived from MONA_CLOUD)${RESET}
-    MONA_ALLOW_CMDS   Shell allowlist    ${DIM}(comma-separated command names)${RESET}
-    MONA_POLICY       Policy file path   ${DIM}(default: ~/.mona-agent/policy.json)${RESET}
-    MONA_WORKSPACE    File tool sandbox  ${DIM}(default: ~/.mona-agent/workspace)${RESET}
-    MONA_SHELL_UNSAFE ${YELLOW}DEPRECATED${RESET}        ${DIM}— set "shell": {"unsafe": true} in policy.json instead${RESET}
-    MONA_TRANSPORT    ${DIM}local | auto${RESET}   ${DIM}(local = BYO provider only, fail fast when unset)${RESET}
-    MONA_PROVIDER     ${DIM}anthropic | openai | ollama${RESET}
-    MONA_PROVIDER_KEY ${DIM}provider API key${RESET}        ${DIM}(never leaves the device)${RESET}
-    MONA_PROVIDER_URL ${DIM}provider base URL${RESET}       ${DIM}(OpenAI-compatible endpoints, Ollama, …)${RESET}
-    MONA_PROVIDER_MODEL ${DIM}model name override${RESET}
+    RA_CLOUD        Cloud base URL     ${DIM}(default: ${CLOUD.base})${RESET}
+    RA_CLOUD_WS     WebSocket URL      ${DIM}(auto-derived from RA_CLOUD)${RESET}
+    RA_ALLOW_CMDS   Shell allowlist    ${DIM}(comma-separated command names)${RESET}
+    RA_POLICY       Policy file path   ${DIM}(default: ~/.mona-agent/policy.json)${RESET}
+    RA_WORKSPACE    File tool sandbox  ${DIM}(default: ~/.mona-agent/workspace)${RESET}
+    RA_SHELL_UNSAFE ${YELLOW}DEPRECATED${RESET}        ${DIM}— set "shell": {"unsafe": true} in policy.json instead${RESET}
+    RA_TRANSPORT    ${DIM}local | auto${RESET}   ${DIM}(local = BYO provider only, fail fast when unset)${RESET}
+    RA_PROVIDER     ${DIM}anthropic | openai | ollama${RESET}
+    RA_PROVIDER_KEY ${DIM}provider API key${RESET}        ${DIM}(never leaves the device)${RESET}
+    RA_PROVIDER_URL ${DIM}provider base URL${RESET}       ${DIM}(OpenAI-compatible endpoints, Ollama, …)${RESET}
+    RA_PROVIDER_MODEL ${DIM}model name override${RESET}
+
+    Legacy MONA_* names are still accepted (deprecated — removed in v4.0.0).
 
   ${BOLD}QUICK START${RESET}
 
@@ -993,14 +995,14 @@ async function providerCmd() {
       console.log(`    ${CYAN}anthropic${RESET}  Claude (api.anthropic.com)`);
       console.log(`    ${CYAN}openai${RESET}     OpenAI or any compatible endpoint (OpenRouter, Groq, LM Studio, vLLM…)`);
       console.log(`    ${CYAN}ollama${RESET}     local models at http://127.0.0.1:11434 — fully offline, $0\n`);
-      console.log(`  ${DIM}Key comes from --key or MONA_PROVIDER_KEY. Prompts stay on this device.${RESET}\n`);
+      console.log(`  ${DIM}Key comes from --key or RA_PROVIDER_KEY. Prompts stay on this device.${RESET}\n`);
       return;
     }
     const opt = (name) => {
       const i = args.indexOf(name);
       return i >= 0 && args[i + 1] ? args[i + 1] : null;
     };
-    let apiKey = opt('--key') || process.env.MONA_PROVIDER_KEY || null;
+    let apiKey = opt('--key') || env('PROVIDER_KEY') || null;
     if (provider !== 'ollama' && !apiKey) {
       const rl = createInterface({ input: stdin, output: stdout });
       apiKey = (await rl.question(`  API key for ${provider}: `)).trim();
@@ -1023,7 +1025,7 @@ async function providerCmd() {
     console.log(`  ${DIM}Saved:${RESET}    ${cfg.file} ${DIM}(0600)${RESET}`);
     console.log(`\n  ${DIM}Test it:${RESET}   ${CYAN}remoteagent provider test${RESET}`);
     console.log(`  ${DIM}Apply:${RESET}    stop/start the daemon — the provider is read at start`);
-    console.log(`  ${DIM}Force local:${RESET} ${CYAN}MONA_TRANSPORT=local remoteagent start${RESET}\n`);
+    console.log(`  ${DIM}Force local:${RESET} ${CYAN}RA_TRANSPORT=local remoteagent start${RESET}\n`);
     return;
   }
 

@@ -18,15 +18,16 @@ import { createHash, createPrivateKey, createPublicKey, sign, verify } from 'nod
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { generateDeviceIdentity } from './device-registry.js';
+import { env } from './env.js';
 
 /** Domain-separation context — never reuse enrollment/grant strings. */
 export const AUDIT_DOMAIN = 'mona-audit-v1';
 
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 
-const KEY_DIR_ENV = process.env.MONA_AUDIT_KEY_DIR;
+const KEY_DIR_ENV = env('AUDIT_KEY_DIR');
 
-/** The audit key lives next to its log (or in MONA_AUDIT_KEY_DIR). */
+/** The audit key lives next to its log (or in RA_AUDIT_KEY_DIR). */
 export function keyPathFor(auditPath) {
   if (KEY_DIR_ENV) return join(KEY_DIR_ENV, 'audit-key.json');
   return join(dirname(auditPath), 'audit-key.json');

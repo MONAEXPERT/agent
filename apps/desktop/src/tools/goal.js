@@ -30,7 +30,7 @@ export function configureGoalRunner(runner) {
     : null;
 }
 
-// One store per process; tests override the path via MONA_GOALS_STORE.
+// One store per process; tests override the path via RA_GOALS_STORE.
 const store = new GoalStore({});
 
 function validateObjective(objective) {

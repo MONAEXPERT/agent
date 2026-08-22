@@ -6,7 +6,7 @@
 // (Linux and Windows installers share the same state machine) and persists
 // atomically, writing each transition to the shared audit log.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
+import { env,  readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -24,7 +24,7 @@ export function verifyPackageArtifact(bytes, expectedDigest) {
   return actual === expected ? { ok: true, digest: `sha256:${actual}` } : { ok: false, reason: 'artifact digest mismatch', expected: `sha256:${expected}`, actual: `sha256:${actual}` };
 }
 
-const DEFAULT_STORE = process.env.MONA_PKGS_STORE || join(homedir(), '.mona-agent', 'packages.json');
+const DEFAULT_STORE = env('PKGS_STORE') || join(homedir(), '.mona-agent', 'packages.json');
 const MAX_PACKAGES = 1000;
 
 export const PKG_STATES = Object.freeze(['absent', 'installing', 'installed', 'upgrading', 'rollback_required', 'rolling_back', 'rolled_back', 'failed']);

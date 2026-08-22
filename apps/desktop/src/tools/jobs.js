@@ -22,7 +22,7 @@
 // Jobs are in-memory and live for the daemon process lifetime; restarting the
 // daemon clears them (documented in the tool description).
 
-import { spawn } from 'node:child_process';
+import { env,  spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Policy } from '@remoteagent/engine';
@@ -53,9 +53,9 @@ function spawnProc(job, bin, argv) {
   try {
     let cmd = bin;
     let args = argv;
-    // OS containment (mode full / MONA_SANDBOX=1), same as the shell tool:
+    // OS containment (mode full / RA_SANDBOX=1), same as the shell tool:
     // a missing backend is an error, never a silent unsandboxed run.
-    if (currentMode() === 'full' || process.env.MONA_SANDBOX === '1') {
+    if (currentMode() === 'full' || env('SANDBOX') === '1') {
       ({ cmd, args } = spawnTuple(bin, argv, { required: true, writeRoots: [job.cwd || process.cwd()] }));
     }
     child = spawn(cmd, args, {
@@ -286,7 +286,7 @@ export const jobs = {
 
         let cwd = process.cwd();
         if (args.cwd) cwd = path.resolve(expandTilde(String(args.cwd)));
-        else if (process.env.MONA_WORKSPACE && fs.existsSync(process.env.MONA_WORKSPACE)) cwd = path.resolve(process.env.MONA_WORKSPACE);
+        else if (env('WORKSPACE') && fs.existsSync(env('WORKSPACE'))) cwd = path.resolve(env('WORKSPACE'));
         if (!fs.existsSync(cwd)) cwd = process.cwd(); // never spawn into a missing dir
 
         // Sensitive-path deny-list, same as the shell tool: the cwd itself

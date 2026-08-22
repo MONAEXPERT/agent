@@ -13,11 +13,11 @@
 //
 // Unrestricted execution is a policy decision (`shell.unsafe: true` in
 // ~/.mona-agent/policy.json), never a one-word env flag. The deprecated
-// MONA_SHELL_UNSAFE=1 still works for one minor version but logs a warning.
+// RA_SHELL_UNSAFE=1 still works for one minor version but logs a warning.
 //
-// Set MONA_ALLOW_CMDS to extend the allowlist.
+// Set RA_ALLOW_CMDS to extend the allowlist.
 
-import { spawn } from 'node:child_process';
+import { env,  spawn } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -77,7 +77,7 @@ const DEFAULTS = {
 };
 
 const ALLOW = new Set(
-  (process.env.MONA_ALLOW_CMDS || DEFAULTS[PLATFORM] || DEFAULTS.linux)
+  (env('ALLOW_CMDS') || DEFAULTS[PLATFORM] || DEFAULTS.linux)
     .split(',').map(s => s.trim()).filter(Boolean)
 );
 
@@ -99,7 +99,7 @@ export function effectiveAllowlist() {
 }
 
 // Unrestricted mode comes from policy (shell.unsafe) — never from a silent
-// parent-process env flag. MONA_SHELL_UNSAFE=1 is a deprecated fallback.
+// parent-process env flag. RA_SHELL_UNSAFE=1 is a deprecated fallback.
 const POLICY = Policy.load();
 const UNSAFE = POLICY.shellUnsafe;
 const UNSAFE_SOURCE = POLICY.unsafeSource;
@@ -370,10 +370,10 @@ function resolveBinary(name) {
 
 // ── Spawn one stage, collect capped output, kill group on timeout ─
 /** True when the OS sandbox must wrap every spawn (mode `full` or the
- *  MONA_SANDBOX=1 test opt-in). A missing backend is then an error, never a
+ *  RA_SANDBOX=1 test opt-in). A missing backend is then an error, never a
  *  silent unsandboxed run. */
 function sandboxRequired() {
-  return currentMode() === 'full' || process.env.MONA_SANDBOX === '1';
+  return currentMode() === 'full' || env('SANDBOX') === '1';
 }
 
 function runStage(stage, { stdin = null, cwd, timeoutMs }) {

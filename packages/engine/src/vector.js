@@ -21,8 +21,9 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { env } from './env.js';
 
-const DEFAULT_STORE = process.env.MONA_VECTOR_STORE || join(homedir(), '.mona-agent', 'vector-index.json');
+const DEFAULT_STORE = env('VECTOR_STORE') || join(homedir(), '.mona-agent', 'vector-index.json');
 export const VECTOR_DIM = 256;
 const MAX_ENTRIES = 2000;
 const DEDUPE_THRESHOLD = 0.9;

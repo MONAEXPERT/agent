@@ -11,8 +11,9 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { env } from './env.js';
 
-const DEFAULT_STORE = process.env.MONA_BUDGET_STORE || join(homedir(), '.mona-agent', 'budget.json');
+const DEFAULT_STORE = env('BUDGET_STORE') || join(homedir(), '.mona-agent', 'budget.json');
 
 function dayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

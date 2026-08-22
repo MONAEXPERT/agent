@@ -2,7 +2,7 @@
 // Supports:
 //   - api.remoteagent.online (sngine-based cloud) — default
 //   - Self-hosted Docker platform (port 4300)
-//   - Custom control planes via MONA_CLOUD / MONA_CLOUD_WS
+//   - Custom control planes via RA_CLOUD / RA_CLOUD_WS
 //
 // IMPORTANT: only the remoteagent.online API key lives locally.
 // No LLM provider keys (OpenAI, Anthropic, etc.) are ever stored on this device.
@@ -12,13 +12,14 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { VERSION } from './version.js';
 import { createCredentialStore } from './credentials.js';
+import { env } from '@remoteagent/engine';
 
 const DIR = join(homedir(), '.mona-agent');
 const CRED_FILE = join(DIR, 'credentials.json');
 const CONFIG_FILE = join(DIR, 'config.json');
 
 // ── Cloud endpoints ───────────────────────────────────────────────
-const baseUrl = process.env.MONA_CLOUD || 'https://api.remoteagent.online';
+const baseUrl = env('CLOUD') || 'https://api.remoteagent.online';
 
 // Auto-detect platform type from URL
 function detectPlatform(url) {
@@ -36,7 +37,7 @@ const PLATFORM = detectPlatform(baseUrl);
 
 export const CLOUD = {
   base:    baseUrl,
-  ws:      process.env.MONA_CLOUD_WS || null,
+  ws:      env('CLOUD_WS') || null,
   platform: PLATFORM,
 
   get wsUrl() {

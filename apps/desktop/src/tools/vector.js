@@ -19,15 +19,15 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { homedir } from 'node:os';
+import { env,  homedir } from 'node:os';
 import { VectorStore } from '@remoteagent/engine';
 
-const WORKSPACE = process.env.MONA_WORKSPACE || path.join(homedir(), '.mona-agent', 'workspace');
+const WORKSPACE = env('WORKSPACE') || path.join(homedir(), '.mona-agent', 'workspace');
 const MAX_FILE_BYTES = 250_000; // skip binaries / huge files when indexing
 const MAX_NOTE = 4000;
 const CHUNK_CHARS = 1200;       // overlapping chunks so long files stay searchable
 
-const store = () => new VectorStore({}); // env MONA_VECTOR_STORE overrides path
+const store = () => new VectorStore({}); // env RA_VECTOR_STORE overrides path
 
 /** Resolve a path inside the workspace (same boundary rule as tools/files). */
 function safePath(p) {

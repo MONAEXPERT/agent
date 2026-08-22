@@ -10,6 +10,7 @@
 // import the server library back (CI enforces it).
 
 export { Policy, PRESETS, auditWrite, auditVerify } from './policy.js';
+export { env } from './env.js';
 export { AUDIT_DOMAIN, signAuditHash, verifyAuditHash, loadOrCreateAuditKey, keyPathFor, auditHead, anchorDue, compareAnchors } from './audit-sign.js';
 export { verifyCapabilityGrant, resolveCapabilityGrant, intersectCapabilities, grantSigningInput, GRANT_DOMAIN } from './capability-grant.js';
 export { Budget } from './budget.js';

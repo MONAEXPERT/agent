@@ -1,5 +1,5 @@
 // File system tools — sandboxed to a workspace directory.
-// Default workspace: $MONA_WORKSPACE or ~/.mona-agent/workspace
+// Default workspace: $RA_WORKSPACE or ~/.mona-agent/workspace
 //
 // Sandbox guarantees:
 //   - Paths are resolved and containment-checked with a trailing-separator
@@ -15,9 +15,10 @@ import fs from 'node:fs/promises';
 import { constants as FSC } from 'node:fs';
 import path from 'node:path';
 import { homedir } from 'node:os';
+import { env } from '@remoteagent/engine';
 
-const WORKSPACE = process.env.MONA_WORKSPACE || path.join(homedir(), '.mona-agent', 'workspace');
-const TRASH = process.env.MONA_TRASH || path.join(homedir(), '.mona-agent', 'trash');
+const WORKSPACE = env('WORKSPACE') || path.join(homedir(), '.mona-agent', 'workspace');
+const TRASH = env('TRASH') || path.join(homedir(), '.mona-agent', 'trash');
 const MAX_READ_BYTES  = 50_000;
 const MAX_WRITE_BYTES = 1_000_000; // 1 MB
 

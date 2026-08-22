@@ -14,8 +14,9 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { embed, cosine } from './vector.js';
+import { env } from './env.js';
 
-const DEFAULT_STORE = process.env.MONA_MEMORY_STORE || join(homedir(), '.mona-agent', 'memory-store.json');
+const DEFAULT_STORE = env('MEMORY_STORE') || join(homedir(), '.mona-agent', 'memory-store.json');
 const MAX_ENTRIES = 500;
 const DEFAULT_TTL_DAYS = 30;
 const DEDUPE_THRESHOLD = 0.9;

@@ -1,6 +1,6 @@
 // Policy-as-code: user-editable rules that govern what the agent may do.
 //
-// Loaded from MONA_POLICY (path to a JSON file) or ~/.mona-agent/policy.json.
+// Loaded from RA_POLICY (path to a JSON file) or ~/.mona-agent/policy.json.
 // If neither exists, a safe default policy applies (allow known tools,
 // block destructive shell patterns, require confirmation on dangerous ones).
 //
@@ -21,7 +21,7 @@
 //   "audit":   true                                          // write decisions to audit log
 // }
 //
-// Audit log: ~/.mona-agent/audit.jsonl (MONA_AUDIT to override). Hash-chained
+// Audit log: ~/.mona-agent/audit.jsonl (RA_AUDIT to override). Hash-chained
 // (h_n = sha256(h_{n-1} || entry)), append-only, and ED25519-SIGNED with the
 // device audit key (domain `mona-audit-v1`, see audit-sign.js) — a chain
 // recomputed under a foreign key fails verification. Verify with
@@ -34,8 +34,8 @@ import { homedir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { signAuditHash, verifyAuditHash, loadOrCreateAuditKey, keyPathFor } from './audit-sign.js';
 
-const DEFAULT_POLICY_PATH = process.env.MONA_POLICY || join(homedir(), '.mona-agent', 'policy.json');
-const DEFAULT_AUDIT_PATH  = process.env.MONA_AUDIT  || join(homedir(), '.mona-agent', 'audit.jsonl');
+const DEFAULT_POLICY_PATH = env('POLICY') || join(homedir(), '.mona-agent', 'policy.json');
+const DEFAULT_AUDIT_PATH  = env('AUDIT')  || join(homedir(), '.mona-agent', 'audit.jsonl');
 
 // Destructive shell patterns that are always denied, regardless of policy.
 const BASE_DENY = [
@@ -186,6 +186,7 @@ function requireRealpath() {
 }
 
 import { realpathSync as realpathSyncImpl } from 'node:fs';
+import { env } from './env.js';
 
 /** Evaluate one `when` condition object against the call args. */
 function matchWhen(when, args) {
@@ -454,9 +455,9 @@ export class Policy {
     this.pluginCapabilities = (Array.isArray(plugins.capabilities) ? plugins.capabilities : [])
       .map(String).filter(Boolean);
 
-    // Deprecated env fallback: MONA_SHELL_UNSAFE=1 still works for one minor
+    // Deprecated env fallback: RA_SHELL_UNSAFE=1 still works for one minor
     // version but is superseded by policy `shell.unsafe`. Prefer the policy file.
-    if (!this.shellUnsafe && process.env.MONA_SHELL_UNSAFE === '1') {
+    if (!this.shellUnsafe && env('SHELL_UNSAFE') === '1') {
       this.shellUnsafe = true;
       this._unsafeSource = 'env';
     } else {

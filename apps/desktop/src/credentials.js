@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkS
 import { homedir, platform } from 'node:os';
 import { spawnFileSync } from './platform-process.js';
 import { join } from 'node:path';
+import { env } from '@remoteagent/engine';
 
 const SERVICE = 'remoteagent';
 
@@ -25,7 +26,7 @@ export function memoryBackend() {
 
 /**
  * DPAPI scope selection. Interactive CLI runs use CurrentUser. The Windows
- * service context (MONA_SERVICE=windows-scm, LocalSystem/LocalService/
+ * service context (RA_SERVICE=windows-scm, LocalSystem/LocalService/
  * NetworkService) must use LocalMachine, otherwise credentials saved by the
  * interactive user can never be decrypted by the service and vice versa.
  */
@@ -65,7 +66,7 @@ export function windowsDpapiBackend({ account = 'default', command = 'powershell
   const blobFile = join(dir, 'credentials.dpapi');
   const scopeFile = join(dir, 'credentials.dpapi.scope');
   const tmpFile = join(dir, 'credentials.dpapi.tmp');
-  const resolveScope = () => dpapiScope({ scope, service: Boolean(process.env.MONA_SERVICE) });
+  const resolveScope = () => dpapiScope({ scope, service: Boolean(env('SERVICE')) });
   const protect = (s) => dpapiProtectScript(s);
   const unprotect = (s) => dpapiUnprotectScript(s);
   const run = (code, input) => {

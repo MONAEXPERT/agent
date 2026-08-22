@@ -18,6 +18,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { PATHS } from './config.js';
 import { runtimeSupport } from './platform.js';
 import { windowsServiceInstall, windowsServiceUninstall, windowsServiceStatus, windowsServiceStop } from './windows-service.js';
+import { env } from '@remoteagent/engine';
 
 export const PID_FILE = join(PATHS.dir, 'daemon.pid');
 
@@ -27,7 +28,7 @@ const SYSTEMD_PATH  = join(homedir(), '.config', 'systemd', 'user', 'mona-agent.
 
 function agentBin() {
   // The `mona-agent` shim on PATH; fall back to the repo bin.
-  return process.env.MONA_AGENT_BIN || 'mona-agent';
+  return env('AGENT_BIN') || 'mona-agent';
 }
 
 // ── launchd (macOS) ──────────────────────────────────────────────

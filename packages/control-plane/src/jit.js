@@ -6,12 +6,12 @@
 // what, to whom, when, and why. A grant never widens a tool beyond its role;
 // it only scopes an existing principal to a bounded window.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
+import { env,  readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { auditWrite } from '@remoteagent/engine';
 
-const DEFAULT_STORE = process.env.MONA_JIT_STORE || join(homedir(), '.mona-agent', 'jit.json');
+const DEFAULT_STORE = env('JIT_STORE') || join(homedir(), '.mona-agent', 'jit.json');
 const MAX_GRANTS = 1000;
 
 // Role → allowed tools. `*` means any tool. Roles are the only way a grant

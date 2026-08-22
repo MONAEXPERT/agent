@@ -4,8 +4,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { env } from '@remoteagent/engine';
 
-const MEM_DIR = process.env.MONA_MEMORY_DIR || path.join(os.homedir(), '.mona-agent', 'memory');
+const MEM_DIR = env('MEMORY_DIR') || path.join(os.homedir(), '.mona-agent', 'memory');
 const MAX_NOTE = 4000;
 
 function ensureDir() {

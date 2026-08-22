@@ -9,7 +9,7 @@
 //   - exports OpenAI/Anthropic-compatible tool schemas so any provider
 //     can drive the same registry (registry.toSchemas({ dialect }))
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { env,  existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { log } from '../log.js';
@@ -155,7 +155,7 @@ export class ToolRegistry {
       const ctx = {
         signal: controller.signal,
         logger: log,
-        workspace: process.env.MONA_WORKSPACE || process.cwd(),
+        workspace: env('WORKSPACE') || process.cwd(),
         emit: () => {},
         invoke: (n, i) => this.run(n, i, overrides),
         secrets: { get: async () => undefined },
@@ -233,7 +233,7 @@ function supplyChainGate(pkg) {
 /**
  * Discover external tool packages:
  *  - <install-dir>/node_modules/mona-agent-tool-* with a valid manifest
- *  - explicit paths from MONA_TOOL_PATH (comma separated)
+ *  - explicit paths from RA_TOOL_PATH (comma separated)
  * Never from process.cwd() — importing a package runs its top-level code, so
  * discovery is confined to the installation directory and explicitly
  * configured paths, and every import is preceded by the supply-chain gate.

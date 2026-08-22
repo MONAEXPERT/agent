@@ -17,15 +17,16 @@
 //          Honest degradation: the caller's deny-list stays active and
 //          doctor reports `sandbox: unavailable (windows)`.
 //
-// Activation is a caller policy decision (mode `full` or MONA_SANDBOX=1):
+// Activation is a caller policy decision (mode `full` or RA_SANDBOX=1):
 // spawnTuple() throws SandboxUnavailableError when a sandbox is REQUIRED
-// but no backend exists — degraded runs are never silent. MONA_NO_SANDBOX=1
+// but no backend exists — degraded runs are never silent. RA_NO_SANDBOX=1
 // is the explicit escape hatch (passthrough, reported as such).
 
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { env } from '@remoteagent/engine';
 
 export const PLATFORM = os.platform();
 
@@ -154,8 +155,8 @@ export function wrapSandboxExec(argv, { readRoots = [], writeRoots = [] } = {}) 
  * node helpers under the same containment.
  */
 export function wrap(argv, { readRoots = [], writeRoots = [] } = {}) {
-  if (process.env.MONA_NO_SANDBOX === '1') {
-    return { cmd: argv[0], args: argv.slice(1), backend: null, degraded: false, passthrough: true, reason: 'disabled by MONA_NO_SANDBOX' };
+  if (env('NO_SANDBOX') === '1') {
+    return { cmd: argv[0], args: argv.slice(1), backend: null, degraded: false, passthrough: true, reason: 'disabled by RA_NO_SANDBOX' };
   }
   const d = detect();
   if (!d.available) {
@@ -172,11 +173,11 @@ export function wrap(argv, { readRoots = [], writeRoots = [] } = {}) {
 
 /**
  * Spawn tuple for a resolved binary. When `required` is true (mode `full`
- * or MONA_SANDBOX=1) a missing backend throws instead of degrading
- * silently. MONA_NO_SANDBOX=1 downgrades to an explicit passthrough.
+ * or RA_SANDBOX=1) a missing backend throws instead of degrading
+ * silently. RA_NO_SANDBOX=1 downgrades to an explicit passthrough.
  */
 export function spawnTuple(bin, args, { required = false, readRoots = [], writeRoots = [] } = {}) {
-  if (!required && process.env.MONA_SANDBOX !== '1') {
+  if (!required && env('SANDBOX') !== '1') {
     return { cmd: bin, args, backend: null };
   }
   const w = wrap([bin, ...args], { readRoots, writeRoots });
