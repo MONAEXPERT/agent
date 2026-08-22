@@ -196,28 +196,33 @@ export class ToolRegistry {
 
 /**
  * Validate a tool package manifest before its module is ever imported. A
- * package without a "monaAgent.tools" declaration is not a tool package, so
- * its top-level code must never run.
+ * package without a "remoteAgent.tools" (or legacy "monaAgent.tools")
+ * declaration is not a tool package, so its top-level code must never run.
  */
+function toolDecl(pkg) {
+  return pkg?.remoteAgent?.tools ?? pkg?.monaAgent?.tools ?? null;
+}
+
 function verifyManifestShape(pkg) {
-  return Boolean(pkg && typeof pkg === 'object' && pkg.monaAgent && pkg.monaAgent.tools);
+  return Boolean(pkg && typeof pkg === 'object' && toolDecl(pkg));
 }
 
 /**
  * Supply-chain gate: when the owner pinned plugin signing keys in
  * policy.json (`plugins.publicKeys`), a package loads ONLY when its signed
- * manifest (`monaAgent.manifest`) verifies under a pinned key AND every
- * declared capability is granted (`plugins.capabilities`). No manifest, no
- * signature, no import — the module is never evaluated. Without pinned keys
- * the legacy shape check applies (the tool policy still gates execution;
- * pinning keys is what makes loading itself verifiable).
+ * manifest (`remoteAgent.manifest`, legacy `monaAgent.manifest`) verifies
+ * under a pinned key AND every declared capability is granted
+ * (`plugins.capabilities`). No manifest, no signature, no import — the
+ * module is never evaluated. Without pinned keys the legacy shape check
+ * applies (the tool policy still gates execution; pinning keys is what
+ * makes loading itself verifiable).
  */
 function supplyChainGate(pkg) {
   const policy = Policy.load();
   const keys = policy.pluginPublicKeys || [];
   const granted = policy.pluginCapabilities || [];
   if (keys.length === 0) return { pass: verifyManifestShape(pkg), reason: 'no pinned plugin keys (legacy shape check)' };
-  const manifest = pkg?.monaAgent?.manifest;
+  const manifest = pkg?.remoteAgent?.manifest ?? pkg?.monaAgent?.manifest;
   if (!manifest) return { pass: false, reason: 'no signed manifest' };
   let verified = false;
   for (const key of keys) {
@@ -232,7 +237,8 @@ function supplyChainGate(pkg) {
 
 /**
  * Discover external tool packages:
- *  - <install-dir>/node_modules/mona-agent-tool-* with a valid manifest
+ *  - <install-dir>/node_modules/remoteagent-tool-* (or legacy
+ *    mona-agent-tool-*) with a valid manifest
  *  - explicit paths from RA_TOOL_PATH (comma separated)
  * Never from process.cwd() — importing a package runs its top-level code, so
  * discovery is confined to the installation directory and explicitly
@@ -246,7 +252,7 @@ export async function discoverExternalTools(extraPaths = []) {
   const loadDir = async (dir) => {
     if (!existsSync(dir)) return;
     for (const entry of readdirSync(dir)) {
-      if (!entry.startsWith('mona-agent-tool-')) continue;
+      if (!entry.startsWith('remoteagent-tool-') && !entry.startsWith('mona-agent-tool-')) continue;
       if (seen.has(entry)) continue;
       seen.add(entry);
       const pkgPath = join(dir, entry, 'package.json');

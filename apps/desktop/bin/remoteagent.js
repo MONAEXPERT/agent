@@ -43,6 +43,20 @@ import { migrateStateDir } from '../src/state-dir.js';
 // moved and symlinked, never deleted.
 migrateStateDir({ log: (m) => log.info(m) });
 
+// Legacy alias notice: `mona-agent` keeps working forever, but point at the
+// new command once. Marker file makes the notice one-shot.
+const invokedAs = String(process.argv[1] || '').split(/[\\/]/).pop();
+if (['mona-agent', 'mona-agent.js', 'mona-agent.cmd'].includes(invokedAs)) {
+  try {
+    const marker = join(homedir(), '.remoteagent', '.alias-notice');
+    if (!existsSync(marker)) {
+      console.error('note: `mona-agent` is the legacy name — the new command is `remoteagent`. The alias keeps working.');
+      mkdirSync(join(homedir(), '.remoteagent'), { recursive: true });
+      writeFileSync(marker, 'shown\n');
+    }
+  } catch { /* best effort */ }
+}
+
 const [cmd, ...args] = process.argv.slice(2);
 
 // ── ANSI constants ────────────────────────────────────────────────

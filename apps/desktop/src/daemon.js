@@ -1,11 +1,15 @@
 // Daemon — run the agent as a background service, OpenClaw-style.
 //
-//   macOS:  LaunchAgent  ~/Library/LaunchAgents/com.monaexpert.agent.plist
-//   Linux:  systemd user unit  ~/.config/systemd/user/mona-agent.service
+//   macOS:  LaunchAgent  ~/Library/LaunchAgents/online.remoteagent.agent.plist
+//   Linux:  systemd user unit  ~/.config/systemd/user/remoteagent.service
 //
-// `mona-agent daemon install` writes the unit, (re)loads it, and starts it.
-// `mona-agent daemon uninstall` stops + removes it.
-// `mona-agent daemon status` reports service + single-instance state.
+// `remoteagent daemon install` writes the unit, (re)loads it, and starts it.
+// `remoteagent daemon uninstall` stops + removes it.
+// `remoteagent daemon status` reports service + single-instance state.
+//
+// Rebrand migration: the pre-rebrand labels (`com.monaexpert.agent`,
+// `mona-agent.service`) are booted out / disabled on install so the old
+// agent never keeps running under the old name.
 //
 // Single-instance guard: a PID file (~/.remoteagent/daemon.pid) prevents two
 // daemons racing for the same control-plane connection. `start` refuses to
@@ -22,13 +26,18 @@ import { env } from '@remoteagent/engine';
 
 export const PID_FILE = join(PATHS.dir, 'daemon.pid');
 
-const LAUNCHD_LABEL = 'com.monaexpert.agent';
+const LAUNCHD_LABEL = 'online.remoteagent.agent';
+const LEGACY_LAUNCHD_LABEL = 'com.monaexpert.agent';
 const LAUNCHD_PATH  = join(homedir(), 'Library', 'LaunchAgents', `${LAUNCHD_LABEL}.plist`);
-const SYSTEMD_PATH  = join(homedir(), '.config', 'systemd', 'user', 'mona-agent.service');
+const LEGACY_LAUNCHD_PATH = join(homedir(), 'Library', 'LaunchAgents', `${LEGACY_LAUNCHD_LABEL}.plist`);
+const SYSTEMD_PATH  = join(homedir(), '.config', 'systemd', 'user', 'remoteagent.service');
+const LEGACY_SYSTEMD_PATH = join(homedir(), '.config', 'systemd', 'user', 'mona-agent.service');
+const SYSTEMD_UNIT  = 'remoteagent.service';
+const LEGACY_SYSTEMD_UNIT = 'mona-agent.service';
 
 function agentBin() {
-  // The `mona-agent` shim on PATH; fall back to the repo bin.
-  return env('AGENT_BIN') || 'mona-agent';
+  // The `remoteagent` command on PATH; fall back to the repo bin.
+  return env('AGENT_BIN') || 'remoteagent';
 }
 
 // ── launchd (macOS) ──────────────────────────────────────────────
@@ -65,6 +74,10 @@ function launchdInstalled() {
 }
 
 function launchdInstall() {
+  // Rebrand migration: boot out + remove the pre-rebrand agent first.
+  const uid = process.getuid?.() ?? 0;
+  spawnSync('launchctl', ['bootout', `gui/${uid}/${LEGACY_LAUNCHD_LABEL}`], { stdio: 'ignore' });
+  try { if (existsSync(LEGACY_LAUNCHD_PATH)) unlinkSync(LEGACY_LAUNCHD_PATH); } catch { /* best effort */ }
   mkdirSync(join(homedir(), 'Library', 'LaunchAgents'), { recursive: true });
   writeFileSync(LAUNCHD_PATH, launchdPlist(), { mode: 0o644 });
   spawnSync('launchctl', ['unload', LAUNCHD_PATH], { stdio: 'ignore' });
@@ -75,6 +88,10 @@ function launchdInstall() {
 function launchdUninstall() {
   spawnSync('launchctl', ['unload', LAUNCHD_PATH], { stdio: 'ignore' });
   try { if (existsSync(LAUNCHD_PATH)) unlinkSync(LAUNCHD_PATH); } catch { /* best effort */ }
+  // Also clean up the pre-rebrand label if it is still around.
+  const uid = process.getuid?.() ?? 0;
+  spawnSync('launchctl', ['bootout', `gui/${uid}/${LEGACY_LAUNCHD_LABEL}`], { stdio: 'ignore' });
+  try { if (existsSync(LEGACY_LAUNCHD_PATH)) unlinkSync(LEGACY_LAUNCHD_PATH); } catch { /* best effort */ }
 }
 
 function launchdStatus() {
@@ -90,7 +107,7 @@ function launchdStatus() {
 // ── systemd (Linux) ──────────────────────────────────────────────
 function systemdUnit() {
   return `[Unit]
-Description=mona-agent — cloud-brained AI agent for this device
+Description=RemoteAgent — AI agent runtime for this device (local policy enforcement)
 After=network-online.target
 Wants=network-online.target
 
@@ -116,21 +133,26 @@ function systemdInstalled() {
 }
 
 function systemdInstall() {
+  // Rebrand migration: disable + remove the pre-rebrand unit first.
+  spawnSync('systemctl', ['--user', 'disable', '--now', LEGACY_SYSTEMD_UNIT], { stdio: 'ignore' });
+  try { if (existsSync(LEGACY_SYSTEMD_PATH)) unlinkSync(LEGACY_SYSTEMD_PATH); } catch { /* best effort */ }
   mkdirSync(join(homedir(), '.config', 'systemd', 'user'), { recursive: true });
   writeFileSync(SYSTEMD_PATH, systemdUnit(), { mode: 0o644 });
   spawnSync('systemctl', ['--user', 'daemon-reload'], { stdio: 'ignore' });
-  const r = spawnSync('systemctl', ['--user', 'enable', '--now', 'mona-agent.service'], { encoding: 'utf8' });
+  const r = spawnSync('systemctl', ['--user', 'enable', '--now', SYSTEMD_UNIT], { encoding: 'utf8' });
   return { ok: r.status === 0, output: (r.stdout || '') + (r.stderr || '') };
 }
 
 function systemdUninstall() {
-  spawnSync('systemctl', ['--user', 'disable', '--now', 'mona-agent.service'], { stdio: 'ignore' });
+  spawnSync('systemctl', ['--user', 'disable', '--now', SYSTEMD_UNIT], { stdio: 'ignore' });
+  spawnSync('systemctl', ['--user', 'disable', '--now', LEGACY_SYSTEMD_UNIT], { stdio: 'ignore' });
   try { if (existsSync(SYSTEMD_PATH)) unlinkSync(SYSTEMD_PATH); } catch { /* best effort */ }
+  try { if (existsSync(LEGACY_SYSTEMD_PATH)) unlinkSync(LEGACY_SYSTEMD_PATH); } catch { /* best effort */ }
   spawnSync('systemctl', ['--user', 'daemon-reload'], { stdio: 'ignore' });
 }
 
 function systemdStatus() {
-  const r = spawnSync('systemctl', ['--user', 'is-active', 'mona-agent.service'], { encoding: 'utf8' });
+  const r = spawnSync('systemctl', ['--user', 'is-active', SYSTEMD_UNIT], { encoding: 'utf8' });
   return {
     installed: systemdInstalled(),
     loaded: r.status === 0 || (r.stdout || '').trim() !== 'inactive',

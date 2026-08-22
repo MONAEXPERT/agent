@@ -56,7 +56,16 @@ try {
   if ($DryRun) { return }
 
   $Archive = Join-Path $tmp $Tarball
-  Invoke-WebRequest -Uri $Url -OutFile $Archive
+  try {
+    Invoke-WebRequest -Uri $Url -OutFile $Archive
+  } catch {
+    if ($Version) {
+      # Pre-rebrand release tags only carry the legacy archive name.
+      $Tarball = "mona-agent-$Version.tar.gz"
+      $Url = "https://github.com/$Repo/releases/download/$Version/$Tarball"
+      Invoke-WebRequest -Uri $Url -OutFile $Archive
+    } else { throw }
+  }
 
   if ($Version) {
     if ($env:MONA_REQUIRE_CHECKSUM -and $env:MONA_REQUIRE_CHECKSUM -ne '1') { throw 'Refusing insecure release install: MONA_REQUIRE_CHECKSUM must remain 1' }

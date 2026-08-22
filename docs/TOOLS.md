@@ -283,7 +283,7 @@ under `kind: workflow`.
 ## plugin
 
 Dynamic tool plugins, managed at runtime. Third parties ship extra tools as
-packages named `remoteagent-agent-tool-*` (or any directory on `MONA_TOOL_PATH`)
+packages named `remoteagent-tool-*` (or any directory on `MONA_TOOL_PATH`)
 that export `defineTool()` descriptors — the agent SDK. They are hot-loaded
 without forking the core.
 

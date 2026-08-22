@@ -87,8 +87,10 @@ break existing deployments, so they keep their historical names:
 - **Signed-record domains** — `mona-audit-v1`, `mona-capability-grant-v1`,
   `mona-device-identity-v1`, `mona-enrollment-v1` (hash chains, grants and
   device identities verify across the rename).
-- **Plugin package convention** — `mona-agent-tool-*` npm package prefix.
-- **Plugin manifest key** — the `monaAgent` field in tool-package manifests.
+- **Plugin package convention** — `remoteagent-tool-*`; the legacy
+  `mona-agent-tool-*` prefix is still discovered.
+- **Plugin manifest key** — the `remoteAgent` field in tool-package
+  manifests; the legacy `monaAgent` field is still accepted.
 - **Release archive** — `mona-agent-<tag>.tar.gz` keeps being published so
   already-installed clients pass checksum verification during self-update.
 

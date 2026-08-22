@@ -42,7 +42,7 @@ The declarative tool SDK. Validates and deep-freezes a descriptor:
 `run(name, args)`, `toSchemas({ dialect })` → OpenAI/Anthropic.
 
 ### `discoverExternalTools(paths?)`
-Discovers `remoteagent-agent-tool-*` packages from `node_modules` (manifest
+Discovers `remoteagent-tool-*` packages from `node_modules` (manifest
 field `monaAgent.tools`) and extra paths.
 
 ### Version helpers

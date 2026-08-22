@@ -28,6 +28,7 @@ export const REPO = 'remoteagent-online/remoteagent';
 const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const TAGS_URL = `https://api.github.com/repos/${REPO}/tags?per_page=20`;
 const TARBALL = (tag) => `https://github.com/${REPO}/releases/download/${tag}/remoteagent-${tag}.tar.gz`;
+const LEGACY_TARBALL = (tag) => `https://github.com/${REPO}/releases/download/${tag}/mona-agent-${tag}.tar.gz`;
 const CHECKSUMS = (tag) => `https://github.com/${REPO}/releases/download/${tag}/SHA256SUMS`;
 
 export function verifyChecksum(bytes, manifest, filename) {
@@ -140,13 +141,20 @@ export async function applyUpdate() {
 
   try {
     mkdirSync(tmpDir, { recursive: true });
-    // 1) Download the release tarball
-    const dl = await fetch(TARBALL(info.tag));
+    // 1) Download the release tarball. New releases publish both the new
+    // archive name and the legacy one (identical bytes); pre-rebrand tags
+    // only have the legacy name, so fall back on 404.
+    let archiveName = `remoteagent-${info.tag}.tar.gz`;
+    let dl = await fetch(TARBALL(info.tag));
+    if (!dl.ok && dl.status === 404) {
+      archiveName = `mona-agent-${info.tag}.tar.gz`;
+      dl = await fetch(LEGACY_TARBALL(info.tag));
+    }
     if (!dl.ok) return { ok: false, error: `Download failed (HTTP ${dl.status}).` };
     const buf = Buffer.from(await dl.arrayBuffer());
     const sums = await fetch(CHECKSUMS(info.tag));
     if (!sums.ok) return { ok: false, error: `Release checksum manifest unavailable (HTTP ${sums.status}); refusing update.` };
-    const integrity = verifyChecksum(buf, await sums.text(), `remoteagent-${info.tag}.tar.gz`);
+    const integrity = verifyChecksum(buf, await sums.text(), archiveName);
     if (!integrity.ok) return { ok: false, error: integrity.error };
     writeFileSync(tarball, buf);
 

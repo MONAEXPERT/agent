@@ -1,10 +1,12 @@
 // Plugin tool + dynamic plugin registry — hot-loading, policy gating,
 // management actions.
 //
-// Two fake mona-agent-tool-* packages are built in a temp dir: hello.tool
-// (explicitly allowed in the test policy) and secret.tool (not allowed —
-// must be denied by default). The daemon registry singleton (tools/index.js)
-// is exercised exactly the way the runtime uses it.
+// Fake tool packages are built in a temp dir: hello.tool and secret.tool use
+// the legacy `mona-agent-tool-*` prefix + `monaAgent` manifest key; wave.tool
+// uses the new `remoteagent-tool-*` prefix + `remoteAgent` key. Both shapes
+// must load (compat), and secret.tool (not in policy) must be denied by
+// default. The daemon registry singleton (tools/index.js) is exercised
+// exactly the way the runtime uses it.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -39,7 +41,7 @@ function signManifestFixture(manifest) {
 // Plugin keys pinned + capabilities granted for both fixtures.
 fs.writeFileSync(POLICY_PATH, JSON.stringify({
   version: 1,
-  tools: { 'hello.tool': 'allow' },
+  tools: { 'hello.tool': 'allow', 'wave.tool': 'allow' },
   plugins: { publicKeys: [PUB_PEM], capabilities: ['tools.load'] },
 }));
 process.env.MONA_POLICY = POLICY_PATH;
@@ -49,22 +51,23 @@ const DEFINE_IMPORT = JSON.stringify(path.join(process.cwd(), 'apps/desktop/src/
 
 before(() => {
   const fixtures = [
-    ['mona-agent-tool-hello', 'hello.tool', `({ name = 'world' }) => ({ greeting: 'Hello, ' + name + '!' })`, true],
-    ['mona-agent-tool-secret', 'secret.tool', `() => ({ leaked: true })`, true],
-    ['mona-agent-tool-unsigned', 'unsigned.tool', `() => ({ loaded: 'should never run' })`, false],
+    ['mona-agent-tool-hello', 'hello.tool', `({ name = 'world' }) => ({ greeting: 'Hello, ' + name + '!' })`, true, 'monaAgent'],
+    ['mona-agent-tool-secret', 'secret.tool', `() => ({ leaked: true })`, true, 'monaAgent'],
+    ['mona-agent-tool-unsigned', 'unsigned.tool', `() => ({ loaded: 'should never run' })`, false, 'monaAgent'],
+    ['remoteagent-tool-wave', 'wave.tool', `({ name = 'wave' }) => ({ greeting: 'Wave, ' + name + '!' })`, true, 'remoteAgent'],
   ];
-  for (const [pkg, tool, handler, signed] of fixtures) {
+  for (const [pkg, tool, handler, signed, manifestKey] of fixtures) {
     const dir = path.join(FAKE, pkg);
     fs.mkdirSync(dir, { recursive: true });
-    const monaAgent = { tools: true };
+    const toolManifest = { tools: true };
     if (signed) {
-      monaAgent.manifest = signManifestFixture({
+      toolManifest.manifest = signManifestFixture({
         id: pkg, version: '1.0.0', capabilities: ['tools.load'],
         compatibility: '>=2.10', contentHash: 'deadbeef', provenance: 'test', signer: 'test',
       });
     }
     fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
-      name: pkg, version: '1.0.0', type: 'module', main: 'index.js', monaAgent,
+      name: pkg, version: '1.0.0', type: 'module', main: 'index.js', [manifestKey]: toolManifest,
     }));
     const markerBomb = signed ? '' : `
 import fs from 'node:fs';
@@ -89,6 +92,7 @@ const plugin = { run: (args) => tools.run('plugin', args) };
 after(() => {
   tools.unregister('hello.tool');
   tools.unregister('secret.tool');
+  tools.unregister('wave.tool');
   fs.rmSync(TMP, { recursive: true, force: true });
 });
 
@@ -98,6 +102,7 @@ describe('plugin — discovery + policy gating', () => {
     assert.ok(loaded >= 2, `expected both plugin tools loaded, got ${loaded}`);
     assert.equal(tools.sources()['hello.tool'], 'plugin');
     assert.equal(tools.sources()['secret.tool'], 'plugin');
+    assert.equal(tools.sources()['wave.tool'], 'plugin', 'new remoteagent-tool-* prefix + remoteAgent key must load');
   });
 
   it('runs an allowed plugin tool through the registry', async () => {

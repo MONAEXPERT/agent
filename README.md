@@ -305,7 +305,7 @@ lines and the registry discovers, schema-checks, sandboxes and exposes it
 to any LLM provider dialect:
 
 ```js
-// your-tool/package.json → name: "remoteagent-agent-tool-example"
+// your-tool/package.json → name: "remoteagent-tool-example"
 import { defineTool } from 'remoteagent';
 
 export default defineTool({
@@ -324,7 +324,7 @@ never override a builtin or another plugin.
 
 ## Plugins — extend without forking
 
-Third-party tools ship as packages (`remoteagent-agent-tool-*` or any directory
+Third-party tools ship as packages (`remoteagent-tool-*` or any directory
 on `MONA_TOOL_PATH`) and are **hot-loaded at runtime** — at daemon start
 and on demand, no restart. Plugins are inert until your local policy
 allows them with an explicit `"tools": {"my.tool": "allow"}` rule, and

@@ -171,7 +171,7 @@ export function defineTool({
 `ToolContext` (ctx) provides exactly:
 `{ signal, logger, workspace, emit(event), invoke(name, input), secrets.get(key), limits: { memoryMb, wallMs, outputBytes } }`
 
-Registry: discovery from builtin + `node_modules/remoteagent-agent-tool-*`
+Registry: discovery from builtin + `node_modules/remoteagent-tool-*`
 (package.json `monaAgent.tools` field) + configured paths. Namespace
 collision = hard startup error. `remoteagent tools list|inspect|validate`.
 `registry.toSchemas({dialect})` → OpenAI/Anthropic-compatible schema.

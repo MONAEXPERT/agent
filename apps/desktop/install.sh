@@ -127,7 +127,17 @@ fi
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-curl -fsSL "$URL" -o "$TMP_DIR/archive.tar.gz"
+if ! curl -fsSL "$URL" -o "$TMP_DIR/archive.tar.gz"; then
+  # Pre-rebrand release tags only carry the legacy archive name — fall back.
+  if [ -n "$VERSION_REQ" ]; then
+    TARBALL_NAME="mona-agent-$VERSION_REQ.tar.gz"
+    URL="https://github.com/$REPO/releases/download/$VERSION_REQ/$TARBALL_NAME"
+    curl -fsSL "$URL" -o "$TMP_DIR/archive.tar.gz"
+  else
+    echo -e "  ${RED}Download failed for ${URL}${RESET}" >&2
+    exit 1
+  fi
+fi
 TARBALL_ACTUAL="$TMP_DIR/archive.tar.gz"
 
 # ── Checksum verification (release installs) ────────────────────
