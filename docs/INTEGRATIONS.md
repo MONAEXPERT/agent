@@ -24,9 +24,9 @@ The client picks the right base URL and paths automatically
 
 Keep the daemon alive across reboots:
 
-- **macOS** — install [examples/macos/com.monaexpert.agent.plist](../examples/macos/com.monaexpert.agent.plist)
+- **macOS** — install [examples/macos/online.remoteagent.agent.plist](../examples/macos/online.remoteagent.agent.plist)
   into `~/Library/LaunchAgents/` and `launchctl load` it.
-- **Linux (systemd)** — drop [examples/linux/mona-agent.service](../examples/linux/mona-agent.service)
+- **Linux (systemd)** — drop [examples/linux/remoteagent.service](../examples/linux/remoteagent.service)
   into `~/.config/systemd/user/` and `systemctl --user enable --now mona-agent`.
 - **cron fallback** — `@reboot $HOME/.local/bin/mona-agent start`
 

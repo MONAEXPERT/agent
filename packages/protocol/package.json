@@ -1,7 +1,7 @@
 {
-  "name": "@mona/protocol",
+  "name": "@remoteagent/protocol",
   "version": "1.0.0",
-  "description": "mona.expert wire contract — WS envelopes, message types, close codes. The daemon and the gateway implement this.",
+  "description": "RemoteAgent wire contract — WS envelopes, message types, close codes. The daemon and the gateway implement this.",
   "type": "module",
   "private": true,
   "main": "src/index.mjs",

@@ -4,7 +4,7 @@
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cp mona-agent.service ~/.config/systemd/user/
+cp remoteagent.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now mona-agent
 ```
@@ -21,7 +21,7 @@ systemctl --user restart mona-agent  # restart after updates
 
 ```bash
 systemctl --user disable --now mona-agent
-rm ~/.config/systemd/user/mona-agent.service
+rm ~/.config/systemd/user/remoteagent.service
 ```
 
 Requires `mona-agent` on your PATH (`~/.local/bin`, set by the installer)

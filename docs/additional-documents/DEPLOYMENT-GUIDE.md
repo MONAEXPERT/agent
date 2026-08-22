@@ -24,7 +24,7 @@ Production rollout for the mona-agent client on macOS, Linux and Windows.
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/node</string>
-    <string>/path/to/agent/apps/desktop/bin/mona-agent.js</string>
+    <string>/path/to/agent/apps/desktop/bin/remoteagent.js</string>
     <string>start</string>
   </array>
   <key>RunAtLoad</key><true/>
@@ -48,7 +48,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=mona
-ExecStart=/usr/bin/node /opt/mona-agent/apps/desktop/bin/mona-agent.js start
+ExecStart=/usr/bin/node /opt/mona-agent/apps/desktop/bin/remoteagent.js start
 Restart=always
 RestartSec=5
 NoNewPrivileges=true

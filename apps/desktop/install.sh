@@ -179,7 +179,7 @@ echo -e "  ${DIM}Installing dependencies${RESET}"
 rm -rf "$INSTALL_DIR/agent"
 mkdir -p "$INSTALL_DIR/agent"
 cp -R "$TMP_DIR"/. "$INSTALL_DIR/agent/"
-chmod +x "$INSTALL_DIR/agent/apps/desktop/bin/mona-agent.js"
+chmod +x "$INSTALL_DIR/agent/apps/desktop/bin/remoteagent.js"
 
 # ── Symlink + PATH for the current shell ────────────────────────
 BIN_DIR="$HOME/.local/bin"
@@ -187,7 +187,7 @@ if ! mkdir -p "$BIN_DIR" 2>/dev/null; then
   BIN_DIR="$HOME/bin"
   mkdir -p "$BIN_DIR"
 fi
-ln -sf "$INSTALL_DIR/agent/apps/desktop/bin/mona-agent.js" "$BIN_DIR/mona-agent"
+ln -sf "$INSTALL_DIR/agent/apps/desktop/bin/remoteagent.js" "$BIN_DIR/mona-agent"
 echo -e "  Symlink:   ${BOLD}$BIN_DIR/mona-agent${RESET}"
 
 case ":$PATH:" in

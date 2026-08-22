@@ -13,7 +13,7 @@ Current state as documented:
 
 - `mona-agent` v2.8.x, ESM, Node ≥20, one runtime dep (`ws@^8.18`), MIT
 - Monorepo: `packages/{engine,protocol}`, `apps/desktop` (12+ source files,
-  bin at `apps/desktop/bin/mona-agent.js`)
+  bin at `apps/desktop/bin/remoteagent.js`)
 - Test suites: `apps/desktop/test/*.test.mjs` + `packages/*/test/*.test.mjs`
   (167 cases incl. security red-team suite), no CI visible, tags v2.0.0–v2.8.3
 - Model: "cloud-brained" — control plane holds LLM keys, device is a tool

@@ -7,8 +7,8 @@ running (auto-restart on crash).
 
 ```bash
 mkdir -p ~/Library/LaunchAgents
-cp com.monaexpert.agent.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.monaexpert.agent.plist
+cp online.remoteagent.agent.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/online.remoteagent.agent.plist
 ```
 
 ## Verify
@@ -21,8 +21,8 @@ mona-agent connect    # should report cloud reachable, key valid
 ## Uninstall
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.monaexpert.agent.plist
-rm ~/Library/LaunchAgents/com.monaexpert.agent.plist
+launchctl unload ~/Library/LaunchAgents/online.remoteagent.agent.plist
+rm ~/Library/LaunchAgents/online.remoteagent.agent.plist
 ```
 
 Requires `mona-agent` on your PATH (`~/.local/bin`, set by the installer).
