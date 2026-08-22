@@ -65,9 +65,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Node >=21 required: `npm test` glob discovery ('apps/**/test/*.test.mjs')
-        # is a v21+ test-runner feature.
-        node-version: [22, 24]
+        # Test discovery uses scripts/run-tests.mjs (a plain walker), so the
+        # full Node >=20 support window is exercised, not just 21+.
+        node-version: [20, 22, 24]
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - name: Checkout
