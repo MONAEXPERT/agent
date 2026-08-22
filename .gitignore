@@ -27,6 +27,7 @@ Thumbs.db
 dist/
 build/
 *.tgz
+coverage/
 
 # control plane
 platform/node_modules/

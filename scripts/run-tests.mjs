@@ -51,11 +51,24 @@ if (process.env.RA_NETWORK_TESTS !== '1') {
 
 console.log(`run-tests: ${targets.length} test file(s) (of ${files.length} discovered, floor ${MIN_TEST_FILES})`);
 
+// RA_COVERAGE=1: emit an LCOV report (Node's built-in coverage, no deps)
+// for the coverage floor check in scripts/coverage-check.mjs.
+const testArgs = ['--test', '--test-concurrency=1'];
+if (process.env.RA_COVERAGE === '1') {
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(join(ROOT, 'coverage'), { recursive: true });
+  testArgs.push(
+    '--experimental-test-coverage',
+    '--test-reporter=lcov',
+    `--test-reporter-destination=${join(ROOT, 'coverage', 'coverage.lcov')}`
+  );
+}
+
 // Concurrency 1: several suites share fixture directories (audit-chain
 // tests); serial execution keeps them deterministic.
 const r = spawnSync(
   process.execPath,
-  ['--test', '--test-concurrency=1', ...targets],
+  [...testArgs, ...targets],
   { stdio: 'inherit', cwd: ROOT }
 );
 if (r.error) {
