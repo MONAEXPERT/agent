@@ -1,10 +1,10 @@
 // Configuration & credential management.
 // Supports:
-//   - agent.mona.expert (sngine-based cloud) — default
+//   - api.remoteagent.online (sngine-based cloud) — default
 //   - Self-hosted Docker platform (port 4300)
 //   - Custom control planes via MONA_CLOUD / MONA_CLOUD_WS
 //
-// IMPORTANT: only the agent.mona.expert API key lives locally.
+// IMPORTANT: only the remoteagent.online API key lives locally.
 // No LLM provider keys (OpenAI, Anthropic, etc.) are ever stored on this device.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -18,7 +18,7 @@ const CRED_FILE = join(DIR, 'credentials.json');
 const CONFIG_FILE = join(DIR, 'config.json');
 
 // ── Cloud endpoints ───────────────────────────────────────────────
-const baseUrl = process.env.MONA_CLOUD || 'https://agent.mona.expert';
+const baseUrl = process.env.MONA_CLOUD || 'https://api.remoteagent.online';
 
 // Auto-detect platform type from URL
 function detectPlatform(url) {
@@ -27,7 +27,7 @@ function detectPlatform(url) {
     const host = new URL(url).hostname;
     // Local control planes (Docker platform, local dev): localhost / 127.0.0.1 / :4300
     if (host === 'localhost' || host === '127.0.0.1' || url.includes(':4300')) return 'docker';
-    // Sngine-based: agent.mona.expert (and subdomains)
+    // Sngine-based: api.remoteagent.online (and subdomains)
     return 'sngine'; // default
   } catch { return 'sngine'; }
 }
@@ -65,7 +65,7 @@ export const CLOUD = {
         auditAnchor: '/api/agents/audit-anchor',
       };
     }
-    // Sngine/mona.expert
+    // Sngine/remoteagent.online
     return {
       verifyKey:  '/api/v1/agent/verify',
       think:      '/api/v1/agent/think',
@@ -108,7 +108,7 @@ export function credentialStatus() {
 export function requireCreds() {
   const c = loadCreds();
   if (!c?.apiKey) {
-    process.stderr.write('No agent.mona.expert API key. Run: mona-agent login\n');
+    process.stderr.write('No remoteagent.online API key. Run: remoteagent login\n');
     process.exit(1);
   }
   return c;

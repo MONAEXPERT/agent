@@ -102,7 +102,7 @@ export function loadProviderConfig({ env = process.env } = {}) {
     file:        path,
   };
   if (provider !== 'ollama' && !cfg.apiKey) {
-    throw new Error(`provider "${provider}" needs an API key — set MONA_PROVIDER_KEY or run: mona-agent provider set ${provider}`);
+    throw new Error(`provider "${provider}" needs an API key — set MONA_PROVIDER_KEY or run: remoteagent provider set ${provider}`);
   }
   return cfg;
 }
@@ -399,16 +399,16 @@ export function transportMode(env = process.env) {
   return String(env.MONA_TRANSPORT || 'auto').toLowerCase();
 }
 
-/** Fail-fast check for `mona-agent start` when MONA_TRANSPORT=local. */
+/** Fail-fast check for `remoteagent start` when MONA_TRANSPORT=local. */
 export function requireLocalProvider() {
   const cfg = loadProviderConfig();
   if (!cfg) {
-    throw new Error('MONA_TRANSPORT=local but no provider is configured — run: mona-agent provider set <anthropic|openai|ollama>');
+    throw new Error('MONA_TRANSPORT=local but no provider is configured — run: remoteagent provider set <anthropic|openai|ollama>');
   }
   return cfg;
 }
 
-/** One-shot smoke test used by `mona-agent provider test`. */
+/** One-shot smoke test used by `remoteagent provider test`. */
 export async function providerTest(config, prompt = 'Reply with exactly: OK') {
   const started = Date.now();
   const res = await localThink({

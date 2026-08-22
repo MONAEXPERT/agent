@@ -6,12 +6,12 @@
 // alerts, and the audit-chain integrity result. It owns no new logic; it is the
 // wiring that makes the individual modules usable together.
 
-import { DeviceRegistry } from '@mona/engine';
+import { DeviceRegistry } from '@remoteagent/engine';
 import { JitAccess } from './jit.js';
-import { RunStore } from '@mona/engine';
+import { RunStore } from '@remoteagent/engine';
 import { UpgradeOrchestrator } from './upgrade.js';
 import { computeRunMetrics, evaluateAlerts } from './metrics.js';
-import { auditVerify } from '@mona/engine';
+import { auditVerify } from '@remoteagent/engine';
 import { PolicyRegistry } from './policy-registry.js';
 
 export class FleetController {

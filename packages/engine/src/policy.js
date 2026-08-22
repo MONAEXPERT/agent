@@ -25,7 +25,7 @@
 // (h_n = sha256(h_{n-1} || entry)), append-only, and ED25519-SIGNED with the
 // device audit key (domain `mona-audit-v1`, see audit-sign.js) — a chain
 // recomputed under a foreign key fails verification. Verify with
-// `mona-agent audit verify`; `mona-agent audit verify --against-cloud`
+// `remoteagent audit verify`; `remoteagent audit verify --against-cloud`
 // compares against the control plane's stored anchors.
 
 import { createHash } from 'node:crypto';
@@ -578,7 +578,7 @@ export class Policy {
     return { allowed: true, tier: 'allow', reason: '' };
   }
 
-  /** Explain why a call would be allowed/denied (for `mona-agent policy explain`).
+  /** Explain why a call would be allowed/denied (for `remoteagent policy explain`).
    *  Rules array wins; legacy tier map fallback preserved. */
   explain(name, args = {}) {
     if (this.rules) {

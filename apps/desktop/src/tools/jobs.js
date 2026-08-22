@@ -25,7 +25,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { Policy } from '@mona/engine';
+import { Policy } from '@remoteagent/engine';
 import { log } from '../log.js';
 import { spawnTuple } from '../sandbox.js';
 import { currentMode } from '../modes.js';

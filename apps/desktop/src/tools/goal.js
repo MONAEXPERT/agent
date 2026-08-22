@@ -17,7 +17,7 @@
 // configureGoalRunner()); status/list/abort are pure store operations and
 // work anywhere.
 
-import { GoalStore } from '@mona/engine';
+import { GoalStore } from '@remoteagent/engine';
 
 const MAX_ROUNDS = 16;
 const MAX_OBJECTIVE_LEN = 1000;

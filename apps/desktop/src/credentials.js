@@ -3,7 +3,7 @@ import { homedir, platform } from 'node:os';
 import { spawnFileSync } from './platform-process.js';
 import { join } from 'node:path';
 
-const SERVICE = 'mona-agent';
+const SERVICE = 'remoteagent';
 
 function validate(value) {
   if (!value || typeof value !== 'object' || typeof value.apiKey !== 'string' || !value.apiKey.trim()) {

@@ -7,7 +7,7 @@
 // without forking the core.
 //
 // Example:
-//   import { defineTool } from 'mona-agent';
+//   import { defineTool } from 'remoteagent';
 //   export default defineTool({
 //     name: 'fs.read', version: '1.0.0',
 //     description: 'Read a file inside the workspace.',

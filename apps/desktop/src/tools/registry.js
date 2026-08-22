@@ -13,7 +13,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { log } from '../log.js';
-import { Policy, RunStore, verifyManifest, checkCapabilities } from '@mona/engine';
+import { Policy, RunStore, verifyManifest, checkCapabilities } from '@remoteagent/engine';
 import { defineTool, isTool } from './define.js';
 import { sysinfo } from './sysinfo.js';
 import { shell } from './shell.js';
@@ -287,6 +287,6 @@ async function awaitImport(path) {
 // Legacy builtins — registered via the lifting path.
 const BUILTINS = [sysinfo, shell, files, net, apps, browser, web, memory, notify];
 
-/** The registry instance exposed by the SDK and used by the `mona-agent tools`
+/** The registry instance exposed by the SDK and used by the `remoteagent tools`
  *  CLI — not the daemon's runtime registry (that lives in tools/index.js). */
 export const tools = new ToolRegistry();

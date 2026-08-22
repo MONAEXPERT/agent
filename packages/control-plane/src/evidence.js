@@ -7,7 +7,7 @@
 // SIEM/dashboard export. Everything returns owned JSON — no live service state.
 
 import { readFileSync, existsSync } from 'node:fs';
-import { auditVerify } from '@mona/engine';
+import { auditVerify } from '@remoteagent/engine';
 
 /** Reconstruct a complete, plain-JSON evidence bundle for one run. */
 export function buildRunEvidence(runStore, runId) {

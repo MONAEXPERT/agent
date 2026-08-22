@@ -20,7 +20,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { homedir } from 'node:os';
-import { VectorStore } from '@mona/engine';
+import { VectorStore } from '@remoteagent/engine';
 
 const WORKSPACE = process.env.MONA_WORKSPACE || path.join(homedir(), '.mona-agent', 'workspace');
 const MAX_FILE_BYTES = 250_000; // skip binaries / huge files when indexing

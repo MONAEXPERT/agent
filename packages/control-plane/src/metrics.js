@@ -6,7 +6,7 @@
 // alerts. Both are pure functions, so they are trivially unit-testable offline
 // and reusable by a dashboard or SIEM exporter.
 
-import { ACTIVE_RUN_STATUSES } from '@mona/engine';
+import { ACTIVE_RUN_STATUSES } from '@remoteagent/engine';
 
 /** True when an attempt is an interrupted side effect without a safe retry contract. */
 function isUnsafeIncomplete(attempt) {

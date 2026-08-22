@@ -1,6 +1,6 @@
 // transport/mcp.js — Model Context Protocol server (stdio, zero-dep).
 //
-// Exposes the mona-agent tool registry to any MCP client — Claude,
+// Exposes the remoteagent tool registry to any MCP client — Claude,
 // Cursor, other agents, other harnesses — over JSON-RPC 2.0, one
 // newline-delimited message per line on stdin/stdout.
 //
@@ -87,7 +87,7 @@ export function createMcpServer({ registry }) {
               result: {
                 protocolVersion: MCP_PROTOCOL_VERSION,
                 capabilities: { tools: {} },
-                serverInfo: { name: 'mona-agent', version: SERVER_VERSION },
+                serverInfo: { name: 'remoteagent', version: SERVER_VERSION },
               },
             };
 
@@ -210,7 +210,7 @@ export async function runMcpHttpServer({ registry, port = 4301, host = '127.0.0.
 
     if (req.method === 'GET' && req.url === '/') {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ name: 'mona-agent', protocolVersion: MCP_PROTOCOL_VERSION, version: SERVER_VERSION, transport: 'http' }));
+      res.end(JSON.stringify({ name: 'remoteagent', protocolVersion: MCP_PROTOCOL_VERSION, version: SERVER_VERSION, transport: 'http' }));
       return;
     }
     if (req.method === 'POST' && req.url === '/mcp') {

@@ -1,6 +1,6 @@
 // Plugin tool — dynamic tool plugins, managed at runtime.
 //
-// mona-agent ships with builtin tools; third parties can add more as
+// remoteagent ships with builtin tools; third parties can add more as
 // "plugins" — packages named mona-agent-tool-* (or any dir on
 // MONA_TOOL_PATH) exporting defineTool() descriptors. Plugins are hot-
 // loadable while the daemon runs:

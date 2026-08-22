@@ -8,7 +8,7 @@
 // agent knows the skill exists and how to use it; skill tools become
 // callable through the tool registry.
 //
-// CLI: mona-agent skills list | enable <name> | disable <name> | install
+// CLI: remoteagent skills list | enable <name> | disable <name> | install
 // Dir: ~/.mona-agent/skills/  (override with MONA_SKILLS_DIR)
 
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, cpSync } from 'node:fs';

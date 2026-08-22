@@ -16,7 +16,7 @@ function isWindowsAbsolute(p) {
 export const WINDOWS_SERVICE_ACCOUNTS = Object.freeze(['LocalSystem', 'NT AUTHORITY\\LocalService', 'NT AUTHORITY\\NetworkService']);
 
 export function serviceScriptPath() { return join(ROOT, 'windows-service.ps1'); }
-export function serviceBinaryPath({ nodePath = process.execPath, entrypoint = join(ROOT, '..', 'bin', 'mona-agent.js') } = {}) {
+export function serviceBinaryPath({ nodePath = process.execPath, entrypoint = join(ROOT, '..', 'bin', 'remoteagent.js') } = {}) {
   const valid = (p) => isAbsolute(p) || isWindowsAbsolute(p);
   if (!valid(nodePath) || !valid(entrypoint)) throw new Error('Windows service paths must be absolute');
   return `\"${nodePath}\" \"${entrypoint}\" start --force`;

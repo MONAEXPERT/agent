@@ -21,7 +21,7 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
-import { Policy } from '@mona/engine';
+import { Policy } from '@remoteagent/engine';
 import { spawnTuple } from '../sandbox.js';
 import { currentMode } from '../modes.js';
 
@@ -107,7 +107,7 @@ const UNSAFE_SOURCE = POLICY.unsafeSource;
 if (UNSAFE && UNSAFE_SOURCE === 'env') {
   // Deprecation warning, printed once.
   process.stderr.write(
-    'mona-agent: MONA_SHELL_UNSAFE=1 is deprecated — set "shell": {"unsafe": true} in ~/.mona-agent/policy.json instead\n'
+    'remoteagent: MONA_SHELL_UNSAFE=1 is deprecated — set "shell": {"unsafe": true} in ~/.mona-agent/policy.json instead\n'
   );
 }
 

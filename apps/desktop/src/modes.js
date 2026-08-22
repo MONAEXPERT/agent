@@ -10,7 +10,7 @@
 //   full      — everything on. All bundled skills, permissive policy,
 //               daemon auto-start on login (launchd / systemd).
 //
-// `mona-agent mode set <name>` applies the whole profile:
+// `remoteagent mode set <name>` applies the whole profile:
 //   - writes ~/.mona-agent/policy.json   (the device-side authority)
 //   - enables / disables bundled skills
 //   - optionally installs the auto-start daemon (full mode)
@@ -24,7 +24,7 @@ import { join } from 'node:path';
 import { loadConfig, saveConfig } from './config.js';
 import { SkillsManager, SKILLS_DIR } from './skills.js';
 import { detect } from './sandbox.js';
-import { PRESETS } from '@mona/engine';
+import { PRESETS } from '@remoteagent/engine';
 
 export const MODES = Object.freeze({
   minimal: {
@@ -39,7 +39,7 @@ export const MODES = Object.freeze({
     description: 'Core skills + safe tools. Shell and browser require per-command approval.',
     policy: 'standard',
     skills: ['briefing', 'disk-health'],  // safe, read-only skills
-    daemon: false,                    // run manually: mona-agent start
+    daemon: false,                    // run manually: remoteagent start
   },
   full: {
     label: 'Full — OpenClaw-style daemon',
@@ -123,7 +123,7 @@ export function applyMode(name, { installDaemon = null, acceptNoSandbox = false,
   };
 }
 
-/** Summary of the current mode (for `mona-agent mode show` / status). */
+/** Summary of the current mode (for `remoteagent mode show` / status). */
 export function modeSummary() {
   const name = currentMode();
   const mode = MODES[name];

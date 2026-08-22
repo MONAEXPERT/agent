@@ -4,7 +4,7 @@
 // package (CI enforces that with a grep guard). These modules serve the
 // control plane / fleet side: policy registries, JIT access, fleet
 // management, upgrades, package lifecycle, plugin signing, evidence and
-// SIEM export, marketplace index, metrics. They depend on @mona/engine
+// SIEM export, marketplace index, metrics. They depend on @remoteagent/engine
 // for the shared primitives (Policy, audit, RunStore, DeviceRegistry).
 
 export { PolicyRegistry, normalisePolicyRevision } from './policy-registry.js';

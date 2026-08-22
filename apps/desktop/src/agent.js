@@ -24,7 +24,7 @@ import { setAgentRoots } from './tools/files.js';
 import { security as shellSecurity } from './tools/shell.js';
 import { CLOUD } from './config.js';
 import { log } from './log.js';
-import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, auditHead, anchorDue, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, runWorkflow, RunStore, resolveCapabilityGrant } from '@mona/engine';
+import { TaskLoop, Policy, Budget, MemoryStore, parseBrainReply, VectorStore, auditWrite, auditHead, anchorDue, runSubtasks, MAX_SUB_STEPS, GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, runWorkflow, RunStore, resolveCapabilityGrant } from '@remoteagent/engine';
 import { TaskQueue } from './taskqueue.js';
 import { configureDelegateRunner } from './tools/delegate.js';
 import { configureGoalRunner } from './tools/goal.js';
@@ -254,7 +254,7 @@ export class AgentDaemon extends EventEmitter {
   /** Start the daemon — connect to cloud and begin accepting commands. */
   start({ force = false } = {}) {
     if (!force && alreadyRunning()) {
-      const err = new Error('mona-agent is already running (see ~/.mona-agent/daemon.pid). Use `mona-agent daemon status`, or start with --force after a crash.');
+      const err = new Error('remoteagent is already running (see ~/.mona-agent/daemon.pid). Use `remoteagent daemon status`, or start with --force after a crash.');
       err.code = 'EALREADYRUNNING';
       throw err;
     }
@@ -263,7 +263,7 @@ export class AgentDaemon extends EventEmitter {
     if (this.#localConfig) {
       log.info(`Brain: BYO local (${this.#localConfig.provider}/${this.#localConfig.model}) — prompts never leave this device`);
     } else {
-      log.info(`Brain: cloud (agent.mona.expert)`);
+      log.info(`Brain: cloud (api.remoteagent.online)`);
     }
     writePid();
     // Optional OTel: spans when @opentelemetry/api is installed, no-op
@@ -778,7 +778,7 @@ export class AgentDaemon extends EventEmitter {
         const systemPrompt = this.#toolsPrompt(cloudTask, brain, memoryCtx, recalled, vectorCtx, goalCtx);
 
         // Loop events → dashboard + audit trace (never silent). Every event is
-        // also written to the local hash-chained audit log (mona-agent audit),
+        // also written to the local hash-chained audit log (remoteagent audit),
         // so the device keeps its own tamper-evident copy of what was done.
         const wireLoop = (loop) => {
           loop.on('step', (i, m) => {
@@ -1245,7 +1245,7 @@ export class AgentDaemon extends EventEmitter {
           (Array.isArray(caps.shell?.allow) && caps.shell.allow.length ? `- Extra shell commands you may run: ${caps.shell.allow.join(', ')} (plus the standard allowlist).\n` : '') +
           (Array.isArray(caps.paths?.allow) && caps.paths.allow.length ? `- You may also read/write files under: ${caps.paths.allow.join(', ')} (paths outside the workspace need these to be listed).\n` : '')
         : '');
-    let p = `You are mona-agent — the AI agent controlling this device (${process.platform}). You reason deeply and act precisely: plan, act, observe, reflect, then answer.
+    let p = `You are remoteagent — the AI agent controlling this device (${process.platform}). You reason deeply and act precisely: plan, act, observe, reflect, then answer.
 
 ## Reasoning protocol
 Think before you act: what does the user actually want, what do you already know, what do you still need, and what is the safest way to get it.

@@ -12,7 +12,7 @@
 // ("tools": {"my.tool": "allow"}).
 
 import { log } from '../log.js';
-import { Policy } from '@mona/engine';
+import { Policy } from '@remoteagent/engine';
 import { isTool } from './define.js';
 import { discoverExternalTools } from './registry.js';
 import { sysinfo } from './sysinfo.js';
