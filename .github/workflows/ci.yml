@@ -38,6 +38,26 @@ jobs:
       - name: Run 1M-case parser fuzz
         run: RA_FUZZ_CASES=1000000 node --test apps/desktop/test/parse-fuzz.test.mjs
 
+  network-integration:
+    name: Network integration (opt-in)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Live end-to-end fetch (excluded from the default hermetic suite)
+        run: RA_NETWORK_TESTS=1 npm test -- network-integration
+
   test:
     name: Test (Node ${{ matrix.node-version }} / ${{ matrix.os }})
     runs-on: ${{ matrix.os }}

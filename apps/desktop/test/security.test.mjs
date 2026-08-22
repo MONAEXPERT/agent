@@ -424,22 +424,6 @@ describe('security/net — SSRF guard', () => {
       server.close();
     }
   });
-
-  it('fetches a public site end-to-end (network)', async () => {
-    try {
-      const r = await net.run({ action: 'fetch', url: 'https://example.com' });
-      if (r.error) {
-        // Offline / blocked network: tolerate connectivity failures only.
-        if (/timed out|ENOTFOUND|getaddrinfo|network/i.test(r.error)) return;
-        assert.fail(`unexpected error: ${r.error}`);
-      }
-      assert.equal(r.status, 200);
-      assert.ok(r.body.length > 0);
-    } catch (err) {
-      if (/timed out|ENOTFOUND|getaddrinfo/i.test(err.message)) return;
-      throw err;
-    }
-  });
 });
 
 // ── Policy: audit chain, rate limits, presets, explain ────────────

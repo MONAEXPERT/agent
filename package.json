@@ -18,12 +18,12 @@
     "start": "node apps/desktop/bin/remoteagent.js start",
     "gui": "node apps/desktop/bin/remoteagent.js gui",
     "login": "node apps/desktop/bin/remoteagent.js login",
-    "lint": "node scripts/lint.mjs",
+    "lint": "node scripts/lint.mjs && eslint apps packages scripts",
     "typecheck": "tsd",
-    "test": "node --test --test-concurrency=1 'apps/**/test/*.test.mjs' 'packages/**/test/*.test.mjs'"
+    "test": "node scripts/run-tests.mjs"
   },
   "engines": {
-    "node": ">=21",
+    "node": ">=20",
     "npm": ">=9"
   },
   "dependencies": {
