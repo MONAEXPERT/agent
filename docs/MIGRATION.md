@@ -75,6 +75,23 @@ be removed in v4.0.0 (announced in the changelog).
 The installer still reads `MONA_INSTALL_DIR`, `MONA_REPO` and
 `MONA_REQUIRE_CHECKSUM` as legacy names for compatibility.
 
+## Endpoint guard (new hardening)
+
+Since the rename, the daemon validates its control-plane endpoint before
+connecting (packages/engine/src/endpoints.js, wired into config.js):
+
+- **TLS mandatory** — https/wss on every non-loopback host. Plaintext
+  http/ws works only on loopback (self-hosted Docker platform).
+- **Host allowlist** — by default only `remoteagent.online` and
+  `*.remoteagent.online`. Self-hosted or corporate planes must be named
+  explicitly in the new `RA_CLOUD_ALLOWLIST` variable (comma-separated,
+  supports `*.domain` wildcards).
+- **No credentials in URLs**, and **no raw IP literals** off-loopback.
+
+A daemon whose endpoint fails validation refuses to start (fail-closed).
+Loopback hosts (localhost/127.0.0.1/::1) are always allowed for the local
+Docker platform.
+
 ## Intentionally unchanged (wire & format compatibility)
 
 These strings are part of on-disk or on-wire formats. Changing them would
