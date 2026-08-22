@@ -16,8 +16,8 @@
 // Corpus: deterministic PRNG (seed logged for reproduction), weighted
 // alphabet of quoting/metacharacters + alphanumerics, length 0–2000.
 // PR job runs 10k cases (default); the nightly CI job runs 1M via
-// MONA_FUZZ_CASES. Every bug this suite finds becomes a fixed case in
-// attacks.test.mjs.
+// RA_FUZZ_CASES (MONA_FUZZ_CASES still accepted for compat). Every bug
+// this suite finds becomes a fixed case in attacks.test.mjs.
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,8 +37,8 @@ process.env.SECRET = 'MARKER-SECRET-b7c2d';
 
 const { parseCommand, resolveBinary } = await import('../src/tools/shell.js');
 
-const CASES = Number(process.env.MONA_FUZZ_CASES) > 0 ? Number(process.env.MONA_FUZZ_CASES) : 10_000;
-const SEED = Number(process.env.MONA_FUZZ_SEED) || (Date.now() % 0xffffffff);
+const CASES = Number(process.env.RA_FUZZ_CASES ?? process.env.MONA_FUZZ_CASES) > 0 ? Number(process.env.RA_FUZZ_CASES ?? process.env.MONA_FUZZ_CASES) : 10_000;
+const SEED = Number(process.env.RA_FUZZ_SEED ?? process.env.MONA_FUZZ_SEED) || (Date.now() % 0xffffffff);
 
 // mulberry32 — deterministic, tiny, adequate for corpus generation.
 function mulberry32(a) {

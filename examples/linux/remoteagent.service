@@ -1,11 +1,11 @@
 [Unit]
-Description=mona-agent — cloud-brained AI agent for this device
+Description=RemoteAgent — AI agent runtime for this device (local policy enforcement)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/mona-agent start
+ExecStart=%h/.local/bin/remoteagent start
 Restart=on-failure
 RestartSec=10
 

@@ -22,8 +22,8 @@ try {
   SERVER_VERSION = JSON.parse(readFileSync(join(__dirname, '..', '..', '..', '..', 'package.json'), 'utf8')).version || SERVER_VERSION;
 } catch { /* keep default */ }
 
-// ── mona args → JSON Schema ───────────────────────────────────────
-// mona tool args are freeform strings: "<type> — <description>".
+// ── remoteagent args → JSON Schema ───────────────────────────────────────
+// remoteagent tool args are freeform strings: "<type> — <description>".
 export function argsToSchema(args = {}) {
   const properties = {};
   for (const [key, raw] of Object.entries(args)) {
@@ -54,7 +54,7 @@ function jsonRpcError(id, code, message) {
 }
 
 /**
- * A stateless MCP request handler over a mona tool registry.
+ * A stateless MCP request handler over a remoteagent tool registry.
  * handle(msg) → response object (or null for notifications/unknown).
  */
 export function createMcpServer({ registry }) {

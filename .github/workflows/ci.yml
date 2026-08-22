@@ -36,7 +36,7 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Run 1M-case parser fuzz
-        run: MONA_FUZZ_CASES=1000000 node --test apps/desktop/test/parse-fuzz.test.mjs
+        run: RA_FUZZ_CASES=1000000 node --test apps/desktop/test/parse-fuzz.test.mjs
 
   test:
     name: Test (Node ${{ matrix.node-version }} / ${{ matrix.os }})
@@ -68,7 +68,7 @@ jobs:
 
       - name: Control-plane import guard (device must not import the server library)
         run: |
-          if grep -rnE "from '@mona/control-plane'|import\('@mona/control-plane'\)" apps/ packages/engine; then
+          if grep -rnE "from '@remoteagent/control-plane'|import\('@remoteagent/control-plane'\)" apps/ packages/engine; then
             echo "::error::apps/desktop or packages/engine imports the control-plane library — the device must never depend on it"
             exit 1
           fi

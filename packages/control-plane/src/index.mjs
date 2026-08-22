@@ -1,4 +1,4 @@
-// mona control-plane library — server-side management modules.
+// RemoteAgent control-plane library — server-side management modules.
 //
 // NOT active on the device: the desktop daemon imports nothing from this
 // package (CI enforces that with a grep guard). These modules serve the

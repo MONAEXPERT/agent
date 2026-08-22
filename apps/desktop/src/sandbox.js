@@ -43,7 +43,7 @@ function has(cmd, pathEnv = process.env.PATH) {
 // binary is NOT availability: probe once with a real deny-default profile and
 // a trivially safe command. The result is cached per process — a spawn probe
 // per command would be its own cost.
-const PROBE_MARKER = 'mona-sandbox-probe';
+const PROBE_MARKER = 'remoteagent-sandbox-probe';
 let PROBE_RESULT = null; // null | true | false
 
 function probeSandboxExec() {
@@ -51,7 +51,7 @@ function probeSandboxExec() {
   let dir = null;
   let profilePath = null;
   try {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-sb-probe-'));
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-sb-probe-'));
     const w = wrapSandboxExec(['/bin/echo', PROBE_MARKER], { readRoots: [], writeRoots: [dir] });
     profilePath = w.profilePath;
     const r = spawnSync(w.cmd, w.args, { encoding: 'utf8', timeout: 5000 });
@@ -136,7 +136,7 @@ export function buildSandboxExecProfile({ readRoots = [], writeRoots = [] } = {}
  *  profile path is generated (pid + timestamp) — never user input. */
 export function wrapSandboxExec(argv, { readRoots = [], writeRoots = [] } = {}) {
   const profile = buildSandboxExecProfile({ readRoots, writeRoots });
-  const profilePath = path.join(os.tmpdir(), `mona-sandbox-${process.pid}-${Date.now()}.sb`);
+  const profilePath = path.join(os.tmpdir(), `remoteagent-sandbox-${process.pid}-${Date.now()}.sb`);
   fs.writeFileSync(profilePath, profile, { mode: 0o600 });
   return {
     cmd: 'sandbox-exec',

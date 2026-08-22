@@ -1,4 +1,4 @@
-// mona engine — the lightweight agent core.
+// RemoteAgent engine — the lightweight agent core.
 //
 // Policy-as-code, budget governor, structured memory, bounded task loop.
 // Zero runtime dependencies; every piece is unit-testable offline.
