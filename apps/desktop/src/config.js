@@ -12,14 +12,31 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { VERSION } from './version.js';
 import { createCredentialStore } from './credentials.js';
-import { env } from '@remoteagent/engine';
+import { env, assertSecureEndpoint, assertSecureWs, DEFAULT_CLOUD_HOSTS } from '@remoteagent/engine';
 
 const DIR = join(homedir(), '.remoteagent');
 const CRED_FILE = join(DIR, 'credentials.json');
 const CONFIG_FILE = join(DIR, 'config.json');
 
 // ── Cloud endpoints ───────────────────────────────────────────────
-const baseUrl = env('CLOUD') || 'https://api.remoteagent.online';
+//
+// The endpoint guard (packages/engine/src/endpoints.js) is the single
+// choke point for where this device dials out. It enforces, in order:
+//   • TLS on every non-loopback connection (https/wss only)
+//   • the remoteagent.online host allowlist — anything else must be
+//     named explicitly via RA_CLOUD_ALLOWLIST (comma-separated, supports
+//     *.domain wildcards)
+//   • no credentials in URLs, no raw IP literals off-loopback
+// A daemon that cannot trust its endpoint refuses to start.
+const CLOUD_ALLOWLIST = Object.freeze([
+  ...DEFAULT_CLOUD_HOSTS,
+  ...String(env('CLOUD_ALLOWLIST') || '').split(',').map((s) => s.trim()).filter(Boolean),
+]);
+
+const baseUrl = assertSecureEndpoint(
+  env('CLOUD') || 'https://api.remoteagent.online',
+  { allowlist: CLOUD_ALLOWLIST }
+);
 
 // Auto-detect platform type from URL
 function detectPlatform(url) {
@@ -41,12 +58,14 @@ export const CLOUD = {
   platform: PLATFORM,
 
   get wsUrl() {
-    if (this.ws) return this.ws;
+    if (this.ws) return assertSecureWs(this.ws, { allowlist: CLOUD_ALLOWLIST });
     const proto = this.base.startsWith('https') ? 'wss' : 'ws';
     const host = new URL(this.base).host;
 
     if (PLATFORM === 'docker') {
-      return `ws://${host}/ws?type=agent`;
+      // Loopback self-host keeps plaintext ws; any other host is wss
+      // (the endpoint guard already forced https off-loopback above).
+      return `${proto}://${host}/ws?type=agent`;
     }
     // Sngine: WebSocket relay on same host, port 4390
     // Nginx proxies /ws to localhost:4390

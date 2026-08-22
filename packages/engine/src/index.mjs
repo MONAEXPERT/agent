@@ -11,6 +11,7 @@
 
 export { Policy, PRESETS, auditWrite, auditVerify } from './policy.js';
 export { env } from './env.js';
+export { DEFAULT_CLOUD_HOSTS, assertSecureEndpoint, assertSecureWs, inspectEndpoint, matchesAllowlist } from './endpoints.js';
 export { AUDIT_DOMAIN, signAuditHash, verifyAuditHash, loadOrCreateAuditKey, keyPathFor, auditHead, anchorDue, compareAnchors } from './audit-sign.js';
 export { verifyCapabilityGrant, resolveCapabilityGrant, intersectCapabilities, grantSigningInput, GRANT_DOMAIN } from './capability-grant.js';
 export { Budget } from './budget.js';
