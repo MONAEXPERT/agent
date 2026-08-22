@@ -5,14 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 
 let RunStore, Policy, toNdjson, exportAuditNdjson, exportRunEvidenceNdjson;
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-siem-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-siem-'));
 const AUDIT = path.join(TMP, 'audit.jsonl');
 process.env.MONA_AUDIT = AUDIT;
 const p = (name) => path.join(TMP, `${name}.json`);
 
 before(async () => {
   ({ toNdjson, exportAuditNdjson, exportRunEvidenceNdjson } = await import('../src/index.mjs'));
-  ({ RunStore, Policy } = await import('@mona/engine'));
+  ({ RunStore, Policy } = await import('@remoteagent/engine'));
 });
 
 describe('SIEM export', () => {

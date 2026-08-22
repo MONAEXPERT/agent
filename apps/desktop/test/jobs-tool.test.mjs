@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-jobs-'));
+const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-jobs-'));
 process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 // Grant the fixtures only — the default allowlist has no `node`.

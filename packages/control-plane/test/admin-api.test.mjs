@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 let AdminApi, FleetController;
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-admin-api-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-admin-api-'));
 process.env.MONA_AUDIT = path.join(TMP, 'audit.jsonl');
 
 before(async () => ({ AdminApi, FleetController } = await import('../src/index.mjs')));

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 
 let SkillsManager, parseSkillDoc;
 
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-skills-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-skills-'));
 
 before(async () => {
   // Isolate from the real ~/.mona-agent config (enabled skills would leak in).

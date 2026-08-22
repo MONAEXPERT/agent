@@ -22,7 +22,7 @@ function unprotectFailingRunner(_command, args, { input }) {
 
 describe('credential store', () => {
   it('round-trips through an injected backend with metadata', () => {
-    const store = createCredentialStore({ homeDir: mkdtempSync(join(tmpdir(), 'mona-')), backend: memoryBackend() });
+    const store = createCredentialStore({ homeDir: mkdtempSync(join(tmpdir(), 'remoteagent-')), backend: memoryBackend() });
     store.save({ apiKey: 'secret', agentId: 'agent-1' });
     assert.deepEqual(store.load(), { apiKey: 'secret', agentId: 'agent-1' });
     assert.equal(store.metadata().secure, true);
@@ -30,12 +30,12 @@ describe('credential store', () => {
   });
 
   it('rejects malformed credentials', () => {
-    const store = createCredentialStore({ homeDir: mkdtempSync(join(tmpdir(), 'mona-')), backend: memoryBackend() });
+    const store = createCredentialStore({ homeDir: mkdtempSync(join(tmpdir(), 'remoteagent-')), backend: memoryBackend() });
     assert.throws(() => store.save({ agentId: 'x' }), /apiKey/);
   });
 
   it('migrates a legacy file only after secure read-back', () => {
-    const homeDir = mkdtempSync(join(tmpdir(), 'mona-'));
+    const homeDir = mkdtempSync(join(tmpdir(), 'remoteagent-'));
     const legacy = join(homeDir, '.mona-agent', 'credentials.json');
     mkdirSync(join(homeDir, '.mona-agent'), { recursive: true });
     writeFileSync(legacy, JSON.stringify({ apiKey: 'secret', agentId: 'a' }));
@@ -46,7 +46,7 @@ describe('credential store', () => {
   });
 
   it('DPAPI backend persists the blob and scope across store instances', () => {
-    const homeDir = mkdtempSync(join(tmpdir(), 'mona-dpapi-'));
+    const homeDir = mkdtempSync(join(tmpdir(), 'remoteagent-dpapi-'));
     const dir = join(homeDir, '.mona-agent');
     const mk = () => windowsDpapiBackend({ dir, runner: identityRunner, scope: 'CurrentUser' });
 
@@ -63,7 +63,7 @@ describe('credential store', () => {
   });
 
   it('DPAPI migration leaves the legacy file intact when read-back fails', () => {
-    const homeDir = mkdtempSync(join(tmpdir(), 'mona-dpapi-'));
+    const homeDir = mkdtempSync(join(tmpdir(), 'remoteagent-dpapi-'));
     const legacy = join(homeDir, '.mona-agent', 'credentials.json');
     mkdirSync(join(homeDir, '.mona-agent'), { recursive: true });
     writeFileSync(legacy, JSON.stringify({ apiKey: 'secret', agentId: 'a' }));

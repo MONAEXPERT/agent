@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 // Isolate policy: the registry gates every call through the policy
 // engine, which denies unknown tools by default. Give the test tools a
 // permissive local policy BEFORE the registry module is imported.
-const POLICY_HOME = mkdtempSync(join(tmpdir(), 'mona-sdk-policy-'));
+const POLICY_HOME = mkdtempSync(join(tmpdir(), 'remoteagent-sdk-policy-'));
 writeFileSync(join(POLICY_HOME, 'policy.json'), JSON.stringify({
   version: 1,
   audit: true,
@@ -95,7 +95,7 @@ describe('toSchemas dialects', () => {
 });
 
 describe('external tool package discovery', () => {
-  const FAKE = mkdtempSync(join(tmpdir(), 'mona-tools-'));
+  const FAKE = mkdtempSync(join(tmpdir(), 'remoteagent-tools-'));
 
   before(() => {
     // Simulate: node_modules/mona-agent-tool-hello with a monaAgent manifest.

@@ -5,14 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 
 let DeviceRegistry, UpgradeOrchestrator, auditVerify;
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-upgrade-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-upgrade-'));
 const AUDIT = path.join(TMP, 'audit.jsonl');
 process.env.MONA_AUDIT = AUDIT;
 const storePath = (name) => path.join(TMP, `${name}.json`);
 
 before(async () => {
   ({ UpgradeOrchestrator } = await import('../src/index.mjs'));
-  ({ DeviceRegistry, auditVerify } = await import('@mona/engine'));
+  ({ DeviceRegistry, auditVerify } = await import('@remoteagent/engine'));
 });
 
 function fleet(tenant, n, storeName) {

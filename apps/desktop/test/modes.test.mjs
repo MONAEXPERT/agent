@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 // Isolate before importing modules that read config at import time.
-const HOME = mkdtempSync(join(tmpdir(), 'mona-modes-'));
+const HOME = mkdtempSync(join(tmpdir(), 'remoteagent-modes-'));
 process.env.HOME = HOME;
 process.env.MONA_POLICY = join(HOME, '.mona-agent', 'policy.json');
 

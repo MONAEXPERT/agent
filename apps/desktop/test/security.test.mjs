@@ -17,14 +17,14 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 // ── Isolate HOME so nothing touches the real user config ─────────
-const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-sec-'));
+const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-sec-'));
 process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 
 const { shell, security: shellSecurity } = await import('../src/tools/shell.js');
 const { files } = await import('../src/tools/files.js');
 const { net, _internals } = await import('../src/tools/net.js');
-const { Policy, auditVerify } = await import('@mona/engine');
+const { Policy, auditVerify } = await import('@remoteagent/engine');
 
 const WS = () => path.join(FAKE_HOME, 'workspace');
 
@@ -43,7 +43,7 @@ describe('security/shell — argv execution', () => {
   });
 
   it('blocks allowlist bypass via path-qualified binary', async () => {
-    const evil = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-evil-'));
+    const evil = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-evil-'));
     const bin = path.join(evil, 'ls');
     fs.writeFileSync(bin, '#!/bin/sh\necho PWNED\n');
     fs.chmodSync(bin, 0o755);
@@ -214,7 +214,7 @@ describe('security/files — sandbox containment', () => {
   });
 
   it('denies symlink escape out of workspace', async () => {
-    const outside = path.join(os.tmpdir(), `mona-outside-${Date.now()}`);
+    const outside = path.join(os.tmpdir(), `remoteagent-outside-${Date.now()}`);
     fs.writeFileSync(outside, 'secret');
     const link = path.join(ws, 'escape-link');
     try { fs.symlinkSync(outside, link); } catch { return; } // no symlink perms → skip

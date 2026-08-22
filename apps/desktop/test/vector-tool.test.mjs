@@ -7,7 +7,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 let vector;
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-vector-tool-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-vector-tool-'));
 const WS = path.join(TMP, 'workspace');
 const STORE = path.join(TMP, 'vector-index.json');
 

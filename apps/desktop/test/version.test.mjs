@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const HOME = mkdtempSync(join(tmpdir(), 'mona-version-'));
+const HOME = mkdtempSync(join(tmpdir(), 'remoteagent-version-'));
 process.env.HOME = HOME;
 
 const { VERSION, compareVersions, isUpdateAvailable } = await import('../src/version.js');

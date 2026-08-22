@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 let RunStore, RUN_STATE, retryDecision;
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-runs-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-runs-'));
 const storePath = (name) => path.join(TMP, `${name}.json`);
 
 before(async () => ({ RunStore, RUN_STATE, retryDecision } = await import('../src/index.mjs')));

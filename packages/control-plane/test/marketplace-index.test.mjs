@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 let generateSigningKeyPair, signManifest, signMarketplaceIndex, verifyMarketplaceIndex, normaliseMarketplaceIndex;
 before(async () => {
   ({ signMarketplaceIndex, verifyMarketplaceIndex, normaliseMarketplaceIndex } = await import('../src/index.mjs'));
-  ({ generateSigningKeyPair, signManifest } = await import('@mona/engine'));
+  ({ generateSigningKeyPair, signManifest } = await import('@remoteagent/engine'));
 });
 
 function signedPlugin(keys) {

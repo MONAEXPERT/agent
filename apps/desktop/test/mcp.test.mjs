@@ -7,7 +7,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import http from 'node:http';
 
-const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-mcp-'));
+const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-mcp-'));
 process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 fs.mkdirSync(process.env.MONA_WORKSPACE, { recursive: true });
@@ -38,7 +38,7 @@ function rawRequest({ port, path = '/', method = 'GET', headers = {}, body = nul
 }
 
 describe('MCP transport', () => {
-  it('argsToSchema converts mona freeform args to JSON Schema', () => {
+  it('argsToSchema converts remoteagent freeform args to JSON Schema', () => {
     const s = argsToSchema({ cmd: 'string — the command', verbose: 'boolean — flag' });
     assert.equal(s.type, 'object');
     assert.deepEqual(s.properties.cmd, { type: 'string', description: 'the command' });
@@ -50,7 +50,7 @@ describe('MCP transport', () => {
     const r = await allowServer.handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
     assert.equal(r.id, 1);
     assert.equal(r.result.protocolVersion, '2024-11-05');
-    assert.equal(r.result.serverInfo.name, 'mona-agent');
+    assert.equal(r.result.serverInfo.name, 'remoteagent');
     assert.match(r.result.serverInfo.version, /^\d+\.\d+\.\d+/);
     assert.ok(r.result.capabilities.tools);
   });

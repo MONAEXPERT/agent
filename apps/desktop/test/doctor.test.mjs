@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-doctor-'));
+const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-doctor-'));
 process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 fs.mkdirSync(process.env.MONA_WORKSPACE, { recursive: true });
@@ -25,7 +25,7 @@ describe('doctor checks', () => {
   });
 
   it('checkDirState reports writable dirs', () => {
-    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-doctor-w-'));
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-doctor-w-'));
     assert.equal(doctor.checkDirState(d, 'x').ok, true);
     assert.equal(doctor.checkDirState(path.join(d, 'missing'), 'x').ok, false);
   });

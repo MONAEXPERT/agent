@@ -5,14 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 
 let RunStore, buildRunEvidence, readAuditEntries, queryAudit;
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-evidence-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-evidence-'));
 const AUDIT = path.join(TMP, 'audit.jsonl');
 process.env.MONA_AUDIT = AUDIT;
 const p = (name) => path.join(TMP, `${name}.json`);
 
 before(async () => {
   ({ buildRunEvidence, readAuditEntries, queryAudit } = await import('../src/index.mjs'));
-  ({ RunStore } = await import('@mona/engine'));
+  ({ RunStore } = await import('@remoteagent/engine'));
 });
 
 describe('buildRunEvidence', () => {
@@ -50,7 +50,7 @@ describe('buildRunEvidence', () => {
 
 describe('readAuditEntries and queryAudit', () => {
   it('loads and verifies audit entries and filters by kind/verdict', async () => {
-    const { Policy } = await import('@mona/engine');
+    const { Policy } = await import('@remoteagent/engine');
     const policy = new Policy({ tools: { sysinfo: 'allow', shell: 'deny' } });
     // Policy.check writes allow/deny tool decisions to the audit log.
     policy.check('sysinfo');

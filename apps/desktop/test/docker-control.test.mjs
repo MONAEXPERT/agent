@@ -53,7 +53,7 @@ describe('docker platform protocol', () => {
     assert.ok(reg);
     assert.equal(reg.type, 'register');
     assert.ok(reg.name);
-    assert.ok(reg.model.includes('mona-agent'));
+    assert.ok(reg.model.includes('remoteagent'));
     ch.close();
   });
 

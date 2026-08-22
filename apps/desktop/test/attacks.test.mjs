@@ -12,7 +12,7 @@ import http from 'node:http';
 import { execFileSync } from 'node:child_process';
 
 // Isolate HOME before importing tool modules (policy/config read at import).
-const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-att-'));
+const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-att-'));
 process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 process.env.MONA_ALLOW_CMDS = 'echo,node,cat,ls,head,uname,date,df,pwd,which';

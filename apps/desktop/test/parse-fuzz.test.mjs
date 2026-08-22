@@ -27,7 +27,7 @@ import fs from 'node:fs';
 import { performance } from 'node:perf_hooks';
 
 // ── Isolate the environment before importing the parser ──────────
-const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-fuzz-'));
+const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-fuzz-'));
 process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 fs.mkdirSync(process.env.MONA_WORKSPACE, { recursive: true });

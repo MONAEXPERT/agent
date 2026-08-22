@@ -17,7 +17,7 @@ const {
   wrap, spawnTuple, SandboxUnavailableError, PLATFORM,
 } = await import('../src/sandbox.js');
 
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-sb-test-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-sb-test-'));
 const WS = path.join(TMP, 'ws');
 fs.mkdirSync(WS, { recursive: true });
 fs.writeFileSync(path.join(WS, 'data.txt'), 'workspace-data');
@@ -52,7 +52,7 @@ posix('sandbox argv builders', () => {
     assert.equal(w.cmd, 'sandbox-exec');
     assert.equal(w.args[0], '-f');
     assert.ok(w.profilePath.startsWith(os.tmpdir()));
-    assert.match(path.basename(w.profilePath), /^mona-sandbox-\d+-\d+\.sb$/);
+    assert.match(path.basename(w.profilePath), /^remoteagent-sandbox-\d+-\d+\.sb$/);
     const st = fs.statSync(w.profilePath);
     assert.equal(st.mode & 0o777, 0o600);
     assert.ok(fs.readFileSync(w.profilePath, 'utf8').includes('(deny default)'));

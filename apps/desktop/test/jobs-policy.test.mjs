@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-jobs-pol-'));
+const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-jobs-pol-'));
 process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 process.env.MONA_ALLOW_CMDS = 'echo,node';

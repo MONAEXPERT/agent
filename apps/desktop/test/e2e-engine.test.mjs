@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-e2e-'));
+const FAKE_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-e2e-'));
 process.env.HOME = FAKE_HOME;
 process.env.MONA_WORKSPACE = path.join(FAKE_HOME, 'workspace');
 process.env.MONA_ALLOW_CMDS = 'node,echo'; // grant the fixtures only
@@ -22,7 +22,7 @@ let tools, TaskLoop, Policy, Budget;
 
 before(async () => {
   ({ tools } = await import('../src/tools/index.js'));
-  ({ TaskLoop, Policy, Budget } = await import('@mona/engine'));
+  ({ TaskLoop, Policy, Budget } = await import('@remoteagent/engine'));
 });
 
 describe('engine → registry integration', () => {

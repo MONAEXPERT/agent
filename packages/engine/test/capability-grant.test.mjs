@@ -21,7 +21,7 @@ import {
 const { publicKey, privateKey } = generateKeyPairSync('ed25519');
 const PUB_PEM = publicKey.export({ type: 'spki', format: 'pem' });
 
-const CEILING = mkdtempSync(join(tmpdir(), 'mona-cap-'));
+const CEILING = mkdtempSync(join(tmpdir(), 'remoteagent-cap-'));
 // Canonical base — resolveRoot realpaths the existing ceiling (macOS /var →
 // /private/var), so expected contained paths must match that canonical form.
 const CANON = realpathSync(CEILING);

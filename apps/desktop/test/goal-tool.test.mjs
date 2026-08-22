@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-goal-tool-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-goal-tool-'));
 process.env.MONA_GOALS_STORE = path.join(TMP, 'goals.json');
 
 let goal, configureGoalRunner;
@@ -39,7 +39,7 @@ describe('goal tool — without a runner', () => {
 
   it('status/list/abort work standalone via the store', async () => {
     // Seed the store directly (same MONA_GOALS_STORE file the tool reads).
-    const { GoalStore } = await import('@mona/engine');
+    const { GoalStore } = await import('@remoteagent/engine');
     const seeded = new GoalStore({}).create({ objective: 'Standalone goal', maxRounds: 3 });
     const st = await goal.run({ action: 'status', id: seeded.id });
     assert.equal(st.status, 'active');
@@ -84,7 +84,7 @@ describe('goal tool — with a runner', () => {
   });
 
   it('resume refuses when the goal is not active or at its cap', async () => {
-    const { GoalStore } = await import('@mona/engine');
+    const { GoalStore } = await import('@remoteagent/engine');
     const store = new GoalStore({}); // same MONA_GOALS_STORE file as the tool
     const aborted = store.create({ objective: 'abort me', maxRounds: 2 });
     store.abort(aborted.id);

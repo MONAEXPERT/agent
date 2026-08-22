@@ -19,7 +19,7 @@ import {
 const { publicKey, privateKey } = generateKeyPairSync('ed25519');
 const PUB_PEM = publicKey.export({ type: 'spki', format: 'pem' });
 
-const CEILING = mkdtempSync(join(tmpdir(), 'mona-cap-att-'));
+const CEILING = mkdtempSync(join(tmpdir(), 'remoteagent-cap-att-'));
 const CANON = realpathSync(CEILING);
 
 const FP = 'fp-device-1';

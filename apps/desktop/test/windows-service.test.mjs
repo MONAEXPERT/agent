@@ -14,22 +14,22 @@ const ROOT = path.resolve(here, '..');
 
 describe('windows-service adapter (portable unit tests)', () => {
   it('requires absolute service paths and quotes them safely', () => {
-    const binary = serviceBinaryPath({ nodePath: 'C:\\Program Files\\nodejs\\node.exe', entrypoint: 'C:\\Program Files\\mona-agent\\bin\\mona-agent.js' });
-    assert.equal(binary, '\"C:\\Program Files\\nodejs\\node.exe\" \"C:\\Program Files\\mona-agent\\bin\\mona-agent.js\" start --force');
+    const binary = serviceBinaryPath({ nodePath: 'C:\\Program Files\\nodejs\\node.exe', entrypoint: 'C:\\Program Files\\remoteagent\\bin\\remoteagent.js' });
+    assert.equal(binary, '\"C:\\Program Files\\nodejs\\node.exe\" \"C:\\Program Files\\remoteagent\\bin\\remoteagent.js\" start --force');
     assert.throws(() => serviceBinaryPath({ nodePath: 'relative.exe' }), /absolute/);
   });
 
   it('builds argument vectors with validated service accounts', () => {
-    const args = buildServiceArgs('install', { nodePath: 'C:\\node.exe', entrypoint: 'C:\\app\\bin\\mona-agent.js', cwd: 'C:\\app', serviceAccount: 'LocalSystem' });
+    const args = buildServiceArgs('install', { nodePath: 'C:\\node.exe', entrypoint: 'C:\\app\\bin\\remoteagent.js', cwd: 'C:\\app', serviceAccount: 'LocalSystem' });
     assert.ok(args.includes('-File'));
     assert.ok(args.includes('install'));
     assert.equal(args.at(-1), 'LocalSystem');
-    assert.throws(() => buildServiceArgs('install', { nodePath: 'C:\\node.exe', entrypoint: 'C:\\app\\bin\\mona-agent.js', serviceAccount: 'rm -rf /' }), /Unsupported service account/);
+    assert.throws(() => buildServiceArgs('install', { nodePath: 'C:\\node.exe', entrypoint: 'C:\\app\\bin\\remoteagent.js', serviceAccount: 'rm -rf /' }), /Unsupported service account/);
   });
 
   it('accepts LocalSystem, built-in service identities, and named accounts', () => {
-    for (const account of [...WINDOWS_SERVICE_ACCOUNTS, 'CONTOSO\\svc_mona']) {
-      const args = buildServiceArgs('install', { nodePath: 'C:\\node.exe', entrypoint: 'C:\\app\\bin\\mona-agent.js', serviceAccount: account });
+    for (const account of [...WINDOWS_SERVICE_ACCOUNTS, 'CONTOSO\\svc_remoteagent']) {
+      const args = buildServiceArgs('install', { nodePath: 'C:\\node.exe', entrypoint: 'C:\\app\\bin\\remoteagent.js', serviceAccount: account });
       assert.equal(args.at(-1), account);
     }
   });

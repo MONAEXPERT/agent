@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync, sign as cryptoSign, createHash } from 'node:crypto';
 
-const TMP = mkdtempSync(join(tmpdir(), 'mona-audit-sign-'));
+const TMP = mkdtempSync(join(tmpdir(), 'remoteagent-audit-sign-'));
 process.env.HOME = join(TMP, 'home');
 process.env.MONA_AUDIT_KEY_DIR = join(TMP, 'keys');
 delete process.env.MONA_AUDIT;
@@ -50,7 +50,7 @@ describe('audit signing primitives', () => {
   test('domain separation: a signature under another domain does not verify', () => {
     const p = freshAudit();
     const key = keyFor(p);
-    const forged = cryptoSign(null, Buffer.from(`mona-enrollment-v1.deadbeef`), key.privateKey).toString('base64url');
+    const forged = cryptoSign(null, Buffer.from(`remoteagent-enrollment-v1.deadbeef`), key.privateKey).toString('base64url');
     assert.equal(verifyAuditHash('deadbeef', forged, key.publicKey), false);
   });
 });

@@ -13,7 +13,7 @@ describe('browser searchUrl', () => {
   });
 
   it('builds a Google search URL', () => {
-    assert.equal(searchUrl('mona agent', 'google'), 'https://www.google.com/search?q=mona%20agent');
+    assert.equal(searchUrl('remoteagent agent', 'google'), 'https://www.google.com/search?q=remoteagent%20agent');
   });
 
   it('defaults to web search', () => {

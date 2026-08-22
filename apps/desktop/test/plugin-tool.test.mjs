@@ -13,7 +13,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { generateKeyPairSync, sign as cryptoSign, createHash, createPrivateKey } from 'node:crypto';
 
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-plugin-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-plugin-'));
 const FAKE = path.join(TMP, 'plugins');
 const POLICY_PATH = path.join(TMP, 'policy.json');
 

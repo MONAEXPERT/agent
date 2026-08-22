@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 let DeviceRegistry, hashCredential, auditVerify;
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-devices-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-devices-'));
 const storePath = (name) => path.join(TMP, `${name}.json`);
 const AUDIT = path.join(TMP, 'audit.jsonl');
 process.env.MONA_AUDIT = AUDIT;

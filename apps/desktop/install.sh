@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# ── mona-agent installer ──────────────────────────────────────────
-# Usage: curl -fsSL https://agent.mona.expert/install.sh | bash
+# ── remoteagent installer ──────────────────────────────────────────
+# Usage: curl -fsSL https://remoteagent.online/install.sh | bash
 #
-# Installs the agent to ~/.mona-agent/agent and puts a `mona-agent`
+# Installs the agent to ~/.remoteagent/agent and puts a `remoteagent`
 # command on your PATH (~/.local/bin). PATH is set for the current
 # shell AND persisted in ~/.zshrc / ~/.bashrc / ~/.profile, so the
 # command also works in every new terminal.
@@ -20,7 +20,7 @@
 set -euo pipefail
 
 REPO="${MONA_REPO:-remoteagent-online/remoteagent}"
-INSTALL_DIR="${MONA_INSTALL_DIR:-$HOME/.mona-agent}"
+INSTALL_DIR="${MONA_INSTALL_DIR:-$HOME/.remoteagent}"
 VERSION_REQ=""
 BRANCH_REQ=""
 DRY_RUN=0
@@ -57,7 +57,7 @@ if [ -n "$VERSION_REQ" ]; then
   REF="$VERSION_REQ"
   # Release tags install the exact asset covered by SHA256SUMS, never
   # GitHub's separately generated source archive.
-  TARBALL_NAME="mona-agent-$VERSION_REQ.tar.gz"
+  TARBALL_NAME="remoteagent-$VERSION_REQ.tar.gz"
   URL="https://github.com/$REPO/releases/download/$VERSION_REQ/$TARBALL_NAME"
   CHECKSUM_URL="https://github.com/$REPO/releases/download/$VERSION_REQ/SHA256SUMS"
 elif [ -n "$BRANCH_REQ" ]; then
@@ -73,13 +73,13 @@ else
     exit 1
   fi
   VERSION_REQ="$REF"
-  TARBALL_NAME="mona-agent-$VERSION_REQ.tar.gz"
+  TARBALL_NAME="remoteagent-$VERSION_REQ.tar.gz"
   URL="https://github.com/$REPO/releases/download/$VERSION_REQ/$TARBALL_NAME"
   CHECKSUM_URL="https://github.com/$REPO/releases/download/$VERSION_REQ/SHA256SUMS"
 fi
 
 echo ""
-echo -e "  ${BOLD}${CYAN} mona-agent${RESET} installer"
+echo -e "  ${BOLD}${CYAN} remoteagent${RESET} installer"
 [ "$DRY_RUN" = 1 ] && echo -e "  ${YELLOW} DRY RUN — nothing will be changed${RESET}"
 echo -e "  ───────────────────────"
 echo ""
@@ -187,8 +187,9 @@ if ! mkdir -p "$BIN_DIR" 2>/dev/null; then
   BIN_DIR="$HOME/bin"
   mkdir -p "$BIN_DIR"
 fi
-ln -sf "$INSTALL_DIR/agent/apps/desktop/bin/remoteagent.js" "$BIN_DIR/mona-agent"
-echo -e "  Symlink:   ${BOLD}$BIN_DIR/mona-agent${RESET}"
+ln -sf "$INSTALL_DIR/agent/apps/desktop/bin/remoteagent.js" "$BIN_DIR/remoteagent"
+ln -sf "$INSTALL_DIR/agent/apps/desktop/bin/remoteagent.js" "$BIN_DIR/mona-agent"   # legacy alias (kept indefinitely)
+echo -e "  Symlink:   ${BOLD}$BIN_DIR/remoteagent${RESET}  ${DIM}(alias: mona-agent)${RESET}"
 
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
@@ -203,27 +204,27 @@ for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.profile"; do
   grep -qF "$BIN_DIR" "$rc" && continue
   grep -qF "\$HOME/$BIN_REL" "$rc" && continue
   grep -qF "~/$BIN_REL" "$rc" && continue
-  printf '\n# added by mona-agent installer (keeps `mona-agent` on PATH)\nexport PATH="%s:$PATH"\n' "$BIN_DIR" >> "$rc"
+  printf '\n# added by remoteagent installer (keeps `remoteagent` on PATH)\nexport PATH="%s:$PATH"\n' "$BIN_DIR" >> "$rc"
   rc_touched="$rc_touched $rc"
   echo -e "  PATH:       added to ~${rc#$HOME}"
 done
 if [ -z "$rc_touched" ] && [ ! -f "$HOME/.zshrc" ] && [ ! -f "$HOME/.bashrc" ] && [ ! -f "$HOME/.profile" ]; then
-  printf '\n# added by mona-agent installer (keeps `mona-agent` on PATH)\nexport PATH="%s:$PATH"\n' "$BIN_DIR" >> "$HOME/.profile"
+  printf '\n# added by remoteagent installer (keeps `remoteagent` on PATH)\nexport PATH="%s:$PATH"\n' "$BIN_DIR" >> "$HOME/.profile"
   echo -e "  PATH:       created ~/.profile"
 fi
 
 echo ""
-echo -e "  ${GREEN}mona-agent installed!${RESET}  ${DIM}(ref: $REF${VERSION_REQ:+, checksum-verified})${RESET}"
+echo -e "  ${GREEN}remoteagent installed!${RESET}  ${DIM}(ref: $REF${VERSION_REQ:+, checksum-verified})${RESET}"
 echo ""
-echo -e "  ${BOLD}Enjoying mona-agent?${RESET}  Star us on GitHub:"
-echo -e "  ${CYAN}https://github.com/MONAEXPERT/agent${RESET}"
+echo -e "  ${BOLD}Enjoying remoteagent?${RESET}  Star us on GitHub:"
+echo -e "  ${CYAN}https://github.com/remoteagent-online/remoteagent${RESET}"
 echo ""
 echo -e "  ${BOLD}Next steps:${RESET}"
 echo ""
-echo -e "  1. Get your API key:   ${CYAN}https://agent.mona.expert/dashboard${RESET}"
-echo -e "  2. Login:              ${CYAN}mona-agent login${RESET}"
-echo -e "  3. Dashboard:          ${CYAN}mona-agent gui${RESET}   ${DIM}(headless: mona-agent start)${RESET}"
+echo -e "  1. Get your API key:   ${CYAN}https://app.remoteagent.online/dashboard${RESET}"
+echo -e "  2. Login:              ${CYAN}remoteagent login${RESET}"
+echo -e "  3. Dashboard:          ${CYAN}remoteagent gui${RESET}   ${DIM}(headless: remoteagent start)${RESET}"
 echo ""
-echo -e "  ${DIM}PATH was set for this shell too — 'mona-agent' works right now.${RESET}"
+echo -e "  ${DIM}PATH was set for this shell too — 'remoteagent' works right now.${RESET}"
 echo -e "  ${DIM}New terminals pick it up automatically.${RESET}"
 echo ""

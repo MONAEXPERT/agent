@@ -10,7 +10,7 @@ import fs from 'node:fs';
 
 let transport;
 
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mona-local-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-local-'));
 const PROVIDER_FILE = path.join(TMP, 'provider.json');
 
 before(async () => {
