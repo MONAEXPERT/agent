@@ -1,14 +1,14 @@
 cff-version: 1.2.0
-message: "If you use mona-agent in your work, please cite it."
-title: "mona-agent — the open-source AI agent for your computer"
+message: "If you use RemoteAgent in your work, please cite it."
+title: "RemoteAgent — the open-source AI agent runtime for your own machines"
 type: software
-version: 2.8.0
-date-released: "2026-08-16"
+version: 2.11.0
+date-released: "2026-08-17"
 authors:
-  - name: "Mona Expert"
-    website: "https://agent.mona.expert"
-repository-code: "https://github.com/MONAEXPERT/agent"
-url: "https://agent.mona.expert"
+  - name: "Remote Agent Online Ltd."
+    website: "https://remoteagent.online"
+repository-code: "https://github.com/remoteagent-online/remoteagent"
+url: "https://remoteagent.online"
 license: MIT
 keywords:
   - ai-agent
