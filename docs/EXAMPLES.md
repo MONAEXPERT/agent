@@ -1,0 +1,140 @@
+# Examples & Recipes
+
+Real things people do with remoteagent. Copy, adapt, enjoy.
+
+## One prompt, one shot
+
+Three apps, three single prompts — each one planned, coded, run and verified
+by the agent end to end, with zero edits by hand. The stats are the recorded
+run traces.
+
+### Google Maps clone
+
+<p align="center"><img src="assets/demos/remoteagent-example-maps.gif" width="720" alt="remoteagent-ai builds a Google Maps clone from a single prompt — pan, zoom, search, places"></p>
+
+`deepseek-chat · 24 steps · 76.5k tokens · ≈ $0.04` — a working Maps clone
+with pan, zoom, search and place markers.
+
+### App Store
+
+<p align="center"><img src="assets/demos/remoteagent-example-appstore.gif" width="720" alt="remoteagent-ai builds an App Store from a single prompt"></p>
+
+`deepseek-chat · 30 steps · 48.2k tokens · ≈ $0.02` — an App Store built from
+one prompt.
+
+### Chess game
+
+<p align="center"><img src="assets/demos/remoteagent-example-chess.gif" width="720" alt="remoteagent-ai builds a playable chess game from a single prompt"></p>
+
+`deepseek-chat · 9 steps · 24.2k tokens · ≈ $0.0079` — a playable chess game:
+board, pieces and rules in one shot.
+
+## Teach the agent your environment (vector memory)
+
+Index a folder of notes/configs in the workspace once, then ask questions in
+plain language — the agent retrieves the closest chunks by meaning:
+
+```bash
+remoteagent exec vector action=index path="."
+remoteagent exec vector action=remember text="deploy server ssh is on port REDACTED_PORT"
+remoteagent exec vector action=search query="how do I restart the web server"
+```
+
+Every new task automatically receives the closest vector hits as context, so
+"restart nginx" works even when the notes say "brew services restart nginx".
+
+## Check on your machine from your phone
+
+1. `remoteagent start` on the machine (or install the launchd/systemd unit
+   from [examples/](../examples)).
+2. Open <https://app.remoteagent.online/dashboard> on your phone.
+3. Chat: *"How's the disk looking?"* — the agent reads `df -h`, and the
+   dashboard shows live CPU/memory sparklines.
+
+## Morning briefing with cron
+
+Get a daily summary of your home server in your dashboard before coffee:
+
+```cron
+# ~/.config/cron.d/remoteagent (or: crontab -e)
+30 7 * * *  $HOME/.local/bin/remoteagent chat "Summarize disk usage, uptime and any failed systemd units."
+```
+
+The reply lands in the dashboard chat history, timestamped.
+
+## Watchdog — alert when a service dies
+
+Ask the agent every 10 minutes; it pings the service and only reports
+problems (the cloud keeps the conversation context):
+
+```cron
+*/10 * * * *  $HOME/.local/bin/remoteagent chat "Check nginx is answering on :80. Only reply if something is wrong."
+```
+
+## Nightly log cleanup
+
+```cron
+10 3 * * *  $HOME/.local/bin/remoteagent exec shell cmd="ls -la ~/logs | tail -20"
+```
+
+`exec` runs one tool with `key=value` arguments — the command still passes
+through the shell allowlist and policy. To let the agent run your own
+scripts, extend the allowlist or set `{"shell": {"unsafe": true}}` in
+`~/.remoteagent/policy.json` (audited, tamper-evident).
+
+## Health check from any shell
+
+```bash
+remoteagent connect          # force a connection test: health, auth, agents
+```
+
+`connect` reports cloud reachability, key validity and the agent list —
+ideal for install verification and support tickets.
+
+## Drive a script from the dashboard
+
+Anything you put in an allowlisted command, the agent can run it for you.
+To run arbitrary scripts, grant them explicitly:
+
+```bash
+# 1. Let the agent run your own commands (comma-separated)
+export MONA_ALLOW_CMDS="df,uptime,uname,whoami,date,hostname,free,ps,top,cat,head,tail,wc,ls,pwd,echo,env,which,backup.sh"
+
+# 2. backup.sh — called from the dashboard chat
+#!/usr/bin/env bash
+tar czf - ~/projects | gpg -c --batch --passphrase-file ~/.backup-pass -o /mnt/backup/projects.tgz.gpg
+```
+
+Say *"run backup.sh"* in the chat; the guarded shell executes it and
+streams the result back to your browser. Every run lands in the audit log.
+
+## Lock it down (security recipes)
+
+```bash
+remoteagent policy preset strict      # read-only agent: no shell, no network
+remoteagent policy explain shell      # see exactly which rule governs shell
+remoteagent audit tail                # last 20 policy decisions
+remoteagent audit verify              # prove the audit chain is untampered
+```
+
+Ideal for unattended machines and compliance reviews: the policy file is
+local and authoritative — the control plane can never widen it.
+
+## Headless Raspberry Pi companion
+
+The agent runs on any Node.js 20+ box:
+
+```bash
+curl -fsSL https://remoteagent.online/install.sh | bash
+remoteagent login
+remoteagent start          # survives reboots via the systemd unit in examples/
+```
+
+Then manage the Pi from the dashboard: temperature, storage, running
+services — with live metrics and chat.
+
+## More
+
+- [INTEGRATIONS.md](INTEGRATIONS.md) — the cloud REST API and scheduling
+- [TOOLS.md](TOOLS.md) — the built-in tool sandbox
+- [examples/](../examples) — launchd & systemd units, health check script

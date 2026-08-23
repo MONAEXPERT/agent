@@ -1,0 +1,46 @@
+// RemoteAgent engine — the lightweight agent core.
+//
+// Policy-as-code, budget governor, structured memory, bounded task loop.
+// Zero runtime dependencies; every piece is unit-testable offline.
+//
+// The enterprise control-plane library (fleet, JIT access, admin API,
+// upgrade rollouts, plugin signing, evidence/SIEM, marketplace index,
+// metrics) lives in a private repo and is NOT part of this OSS client.
+// What stays here is what the device daemon actually imports — nothing
+// below may import the server library back (CI enforces it).
+
+// Local bindings for createEngine below — re-exports don't create scope.
+import { Policy } from './policy.js';
+import { Budget } from './budget.js';
+import { MemoryStore } from './memory.js';
+import { TaskLoop } from './loop.js';
+
+export { Policy, PRESETS, auditWrite, auditVerify } from './policy.js';
+export { env } from './env.js';
+export { DEFAULT_CLOUD_HOSTS, assertSecureEndpoint, assertSecureWs, inspectEndpoint, matchesAllowlist } from './endpoints.js';
+export { AUDIT_DOMAIN, signAuditHash, verifyAuditHash, loadOrCreateAuditKey, keyPathFor, auditHead, anchorDue, compareAnchors } from './audit-sign.js';
+export { verifyCapabilityGrant, resolveCapabilityGrant, intersectCapabilities, grantSigningInput, GRANT_DOMAIN } from './capability-grant.js';
+export { Budget } from './budget.js';
+export { MemoryStore } from './memory.js';
+export { TaskLoop, parseBrainReply, compactMessages, normaliseToolResult } from './loop.js';
+export { runSubtasks, buildSubSystemPrompt, MAX_SUBTASKS, MAX_SUB_PROMPT, MAX_SUB_STEPS } from './delegate.js';
+export { runWorkflow, validatePhases, buildPhaseContext, MAX_PHASES } from './workflow.js';
+export { GoalStore, parseGoalMarker, buildGoalRoundPrompt, goalRoundTaskText, normaliseGoal, MAX_GOAL_ROUNDS, MAX_OBJECTIVE } from './goal.js';
+export { RunStore, RUN_STATE, normaliseRun, retryDecision, RUN_STATUSES, ACTIVE_RUN_STATUSES, TERMINAL_RUN_STATUSES } from './run-state.js';
+export { DeviceRegistry, DEVICE_HEALTH, hashCredential, normaliseDevice, generateDeviceIdentity, generateCredential, signEnrollment, verifyEnrollment, canonical } from './device-registry.js';
+export { hashManifest, generateSigningKeyPair, normalisePluginManifest, signManifest, verifyManifest, checkCapabilities } from './plugin-manifest.js';
+export { PackageLifecycle, PKG_STATES, normalisePackage, verifyPackageArtifact } from './package-lifecycle.js';
+export { VectorStore, embed, cosine, tokenize, hashString, hashString2, VECTOR_DIM } from './vector.js';
+
+/**
+ * One-call engine wiring with sensible defaults.
+ * think(messages, {profile, temperature}) is provided by the caller
+ * (any provider/brain); runTool(name, args) executes sandboxed tools.
+ */
+export function createEngine({ think, runTool, policyPath, storePath, budget } = {}) {
+  const policy = policyPath ? Policy.load(policyPath) : new Policy(null);
+  const b = budget instanceof Budget ? budget : new Budget(budget || {});
+  const memory = new MemoryStore({ storePath });
+  const loop = new TaskLoop({ think, runTool, policy, budget: b });
+  return { policy, budget: b, memory, loop };
+}

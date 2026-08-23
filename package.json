@@ -1,0 +1,91 @@
+{
+  "name": "remoteagent",
+  "version": "2.11.0",
+  "description": "RemoteAgent — the open-source AI agent runtime for your own machines. Local policy enforcement, capability grants, sandboxed tools and a tamper-evident audit log, with egress-only networking. Control your machines from anywhere — under a policy they enforce themselves.",
+  "type": "module",
+  "private": true,
+  "workspaces": [
+    "packages/engine",
+    "packages/protocol",
+    "apps/desktop"
+  ],
+  "bin": {
+    "remoteagent": "./apps/desktop/bin/remoteagent.js",
+    "mona-agent": "./apps/desktop/bin/remoteagent.js"
+  },
+  "scripts": {
+    "start": "node apps/desktop/bin/remoteagent.js start",
+    "gui": "node apps/desktop/bin/remoteagent.js gui",
+    "login": "node apps/desktop/bin/remoteagent.js login",
+    "lint": "node scripts/lint.mjs && eslint apps packages scripts",
+    "typecheck": "tsd",
+    "typecheck:engine": "tsc -p tsconfig.check.json --noEmit",
+    "test": "node scripts/run-tests.mjs"
+  },
+  "engines": {
+    "node": ">=20",
+    "npm": ">=9"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/remoteagent-online/remoteagent.git"
+  },
+  "homepage": "https://remoteagent.online",
+  "bugs": {
+    "url": "https://github.com/remoteagent-online/remoteagent/issues"
+  },
+  "keywords": [
+    "ai-agent",
+    "ai",
+    "agent",
+    "automation",
+    "device-daemon",
+    "cli",
+    "terminal-ui",
+    "remote-control",
+    "computer-use",
+    "macos",
+    "linux",
+    "wsl2",
+    "raspberry-pi",
+    "security",
+    "privacy",
+    "sandbox",
+    "orchestration",
+    "llm",
+    "cloud",
+    "monitoring",
+    "remoteagent"
+  ],
+  "publishConfig": {
+    "provenance": true,
+    "access": "public"
+  },
+  "files": [
+    "apps/desktop/bin",
+    "apps/desktop/src",
+    "apps/desktop/src/windows-service.ps1",
+    "packages/engine/src",
+    "packages/protocol/src",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "docs/",
+    "types/index.d.ts",
+    "types/index.test-d.ts"
+  ],
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.3",
+    "@typescript-eslint/eslint-plugin": "^8.67.0",
+    "@typescript-eslint/parser": "^8.67.0",
+    "eslint": "^10.9.0",
+    "tsd": "^0.31.2",
+    "typescript": "^5.9.3"
+  },
+  "types": "types/index.d.ts"
+}

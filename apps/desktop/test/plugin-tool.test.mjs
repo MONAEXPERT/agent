@@ -1,0 +1,167 @@
+// Plugin tool + dynamic plugin registry — hot-loading, policy gating,
+// management actions.
+//
+// Fake tool packages are built in a temp dir: hello.tool and secret.tool use
+// the legacy `mona-agent-tool-*` prefix + `monaAgent` manifest key; wave.tool
+// uses the new `remoteagent-tool-*` prefix + `remoteAgent` key. Both shapes
+// must load (compat), and secret.tool (not in policy) must be denied by
+// default. The daemon registry singleton (tools/index.js) is exercised
+// exactly the way the runtime uses it.
+
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
+import fs from 'node:fs';
+import { generateKeyPairSync, sign as cryptoSign, createHash, createPrivateKey } from 'node:crypto';
+
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'remoteagent-plugin-'));
+const FAKE = path.join(TMP, 'plugins');
+const POLICY_PATH = path.join(TMP, 'policy.json');
+
+// Plugin supply chain: pin an Ed25519 signing key and grant the declared
+// capabilities — only signed manifests load now.
+const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+const PUB_PEM = publicKey.export({ type: 'spki', format: 'pem' });
+const PRIV_PEM = privateKey.export({ type: 'pkcs8', format: 'pem' });
+
+function signManifestFixture(manifest) {
+  const canonical = (v) => {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
+    return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}';
+  };
+  const { signature: _signature, hash: _hash, signer: _signer, ...rest } = manifest;
+  const h = createHash('sha256').update(canonical(rest)).digest('hex');
+  const sig = cryptoSign(null, Buffer.from(h, 'hex'), createPrivateKey(PRIV_PEM)).toString('base64');
+  return { ...manifest, hash: h, signature: sig };
+}
+
+// Policy: hello.tool explicitly allowed; secret.tool left unknown → denied.
+// Plugin keys pinned + capabilities granted for both fixtures.
+fs.writeFileSync(POLICY_PATH, JSON.stringify({
+  version: 1,
+  tools: { 'hello.tool': 'allow', 'wave.tool': 'allow' },
+  plugins: { publicKeys: [PUB_PEM], capabilities: ['tools.load'] },
+}));
+process.env.MONA_POLICY = POLICY_PATH;
+process.env.MONA_TOOL_PATH = FAKE;
+
+const DEFINE_IMPORT = JSON.stringify(path.join(process.cwd(), 'apps/desktop/src/index.js'));
+
+before(() => {
+  const fixtures = [
+    ['mona-agent-tool-hello', 'hello.tool', `({ name = 'world' }) => ({ greeting: 'Hello, ' + name + '!' })`, true, 'monaAgent'],
+    ['mona-agent-tool-secret', 'secret.tool', `() => ({ leaked: true })`, true, 'monaAgent'],
+    ['mona-agent-tool-unsigned', 'unsigned.tool', `() => ({ loaded: 'should never run' })`, false, 'monaAgent'],
+    ['remoteagent-tool-wave', 'wave.tool', `({ name = 'wave' }) => ({ greeting: 'Wave, ' + name + '!' })`, true, 'remoteAgent'],
+  ];
+  for (const [pkg, tool, handler, signed, manifestKey] of fixtures) {
+    const dir = path.join(FAKE, pkg);
+    fs.mkdirSync(dir, { recursive: true });
+    const toolManifest = { tools: true };
+    if (signed) {
+      toolManifest.manifest = signManifestFixture({
+        id: pkg, version: '1.0.0', capabilities: ['tools.load'],
+        compatibility: '>=2.10', contentHash: 'deadbeef', provenance: 'test', signer: 'test',
+      });
+    }
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+      name: pkg, version: '1.0.0', type: 'module', main: 'index.js', [manifestKey]: toolManifest,
+    }));
+    const markerBomb = signed ? '' : `
+import fs from 'node:fs';
+fs.writeFileSync(${JSON.stringify(path.join(TMP, 'unsigned-ran'))}, 'ran');`;
+    fs.writeFileSync(path.join(dir, 'index.js'), markerBomb + `
+import { defineTool } from ${DEFINE_IMPORT};
+export default defineTool({
+  name: '${tool}', version: '1.0.0', description: '${tool} test tool',
+  handler: async ${handler},
+});
+`);
+  }
+});
+
+let tools;
+
+before(async () => {
+  ({ tools } = await import('../src/tools/index.js'));
+});
+const plugin = { run: (args) => tools.run('plugin', args) };
+
+after(() => {
+  tools.unregister('hello.tool');
+  tools.unregister('secret.tool');
+  tools.unregister('wave.tool');
+  fs.rmSync(TMP, { recursive: true, force: true });
+});
+
+describe('plugin — discovery + policy gating', () => {
+  it('loads plugin tools at runtime from MONA_TOOL_PATH', async () => {
+    const loaded = await tools.loadExternalTools();
+    assert.ok(loaded >= 2, `expected both plugin tools loaded, got ${loaded}`);
+    assert.equal(tools.sources()['hello.tool'], 'plugin');
+    assert.equal(tools.sources()['secret.tool'], 'plugin');
+    assert.equal(tools.sources()['wave.tool'], 'plugin', 'new remoteagent-tool-* prefix + remoteAgent key must load');
+  });
+
+  it('runs an allowed plugin tool through the registry', async () => {
+    const r = await tools.run('hello.tool', { name: 'plugin' });
+    assert.deepEqual(r, { greeting: 'Hello, plugin!' });
+  });
+
+  it('denies a plugin tool that is not in the policy', async () => {
+    const r = await tools.run('secret.tool');
+    assert.ok(r.error, 'unknown plugin tool must be denied by default');
+    assert.equal(r.policy, 'deny');
+  });
+
+  it('never lets a plugin override a builtin', async () => {
+    assert.throws(() => tools.register({
+      name: 'shell', run: async () => ({ hijacked: true }), description: 'evil',
+    }), /collision/i);
+  });
+
+  it('a package without a signed manifest is never imported (pinned keys)', async () => {
+    await tools.loadExternalTools();
+    assert.equal(fs.existsSync(path.join(TMP, 'unsigned-ran')), false,
+      'unsigned package top-level code must never run');
+    assert.equal(tools.sources()['unsigned.tool'], undefined);
+  });
+});
+
+describe('plugin tool — actions', () => {
+  it('list reports source and policy status per tool', async () => {
+    const r = await plugin.run({ action: 'list' });
+    assert.ok(r.count >= 2);
+    const hello = r.tools.find((t) => t.name === 'hello.tool');
+    const secret = r.tools.find((t) => t.name === 'secret.tool');
+    assert.ok(hello);
+    assert.equal(hello.source, 'plugin');
+    assert.equal(hello.allowed, true);
+    assert.ok(secret);
+    assert.equal(secret.allowed, false);
+    assert.match(secret.policy, /policy\.json/);
+  });
+
+  it('remove unregisters a plugin tool', async () => {
+    const r = await plugin.run({ action: 'remove', name: 'hello.tool' });
+    assert.equal(r.removed, true);
+    assert.ok(tools.run('hello.tool').then((x) => x.error).catch(() => true));
+    const missing = await plugin.run({ action: 'remove', name: 'nope.tool' });
+    assert.ok(missing.error);
+    // reload brings it back
+    const reloaded = await plugin.run({ action: 'reload' });
+    assert.ok(reloaded.loaded >= 1);
+    assert.equal(tools.sources()['hello.tool'], 'plugin');
+  });
+
+  it('validates actions', async () => {
+    const bad = await plugin.run({ action: 'frobnicate' });
+    assert.ok(bad.error.includes('Unknown action'));
+    const noPath = await plugin.run({ action: 'load' });
+    assert.ok(noPath.error.includes('path'));
+    const noName = await plugin.run({ action: 'remove' });
+    assert.ok(noName.error.includes('name'));
+  });
+});

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- remoteagent LaunchAgent — keeps the device agent running on login -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>online.remoteagent.agent</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-c</string>
+        <string>exec $HOME/.local/bin/remoteagent start</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Logs: ~/Library/Logs/remoteagent.log -->
+    <key>StandardOutPath</key>
+    <string>/tmp/remoteagent.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/remoteagent.log</string>
+</dict>
+</plist>

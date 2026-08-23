@@ -1,0 +1,13 @@
+[Unit]
+Description=RemoteAgent — AI agent runtime for this device (local policy enforcement)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/remoteagent start
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,636 @@
+// Policy-as-code: user-editable rules that govern what the agent may do.
+//
+// Loaded from RA_POLICY (path to a JSON file) or ~/.remoteagent/policy.json.
+// If neither exists, a safe default policy applies (allow known tools,
+// block destructive shell patterns, require confirmation on dangerous ones).
+//
+// The control plane can NEVER modify policy. It is loaded from local disk
+// only; remote policy updates are rejected outright. This file is the
+// device-side authority — the cloud can only ever ask.
+//
+// Policy shape (all fields optional):
+// {
+//   "version": 1,
+//   "tools":   { "shell": "confirm", "web": "deny", ... },   // allow | deny | confirm
+//   "shell":   { "deny": ["pattern", ...],                   // extra blocked patterns
+//                "approval": ["pattern", ...],               // patterns that need confirmation
+//                "unsafe": false },                          // true = unrestricted argv shell
+//   "rateLimits": { "shell": { "perMinute": 20 }, "*": { "perMinute": 300 } },
+//   "budget":  { "dailyTokens": 500000, "dailyCostUsd": 2 }, // 0 = unlimited
+//   "maxSteps": 12,
+//   "audit":   true                                          // write decisions to audit log
+// }
+//
+// Audit log: ~/.remoteagent/audit.jsonl (RA_AUDIT to override). Hash-chained
+// (h_n = sha256(h_{n-1} || entry)), append-only, and ED25519-SIGNED with the
+// device audit key (domain `mona-audit-v1`, see audit-sign.js) — a chain
+// recomputed under a foreign key fails verification. Verify with
+// `remoteagent audit verify`; `remoteagent audit verify --against-cloud`
+// compares against the control plane's stored anchors.
+
+import { createHash } from 'node:crypto';
+import { readFileSync, existsSync, appendFileSync, mkdirSync, openSync, fstatSync, readSync, closeSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, dirname, resolve } from 'node:path';
+import { signAuditHash, verifyAuditHash, loadOrCreateAuditKey, keyPathFor } from './audit-sign.js';
+
+const DEFAULT_POLICY_PATH = env('POLICY') || join(homedir(), '.remoteagent', 'policy.json');
+const DEFAULT_AUDIT_PATH  = env('AUDIT')  || join(homedir(), '.remoteagent', 'audit.jsonl');
+
+// Destructive shell patterns that are always denied, regardless of policy.
+const BASE_DENY = [
+  /rm\s+(-[a-z]*[rf][a-z]*\s+)+\/s*$/i,
+  /rm\s+(-[a-z]*[rf][a-z]*\s+)+\*\s*$/i,
+  /mkfs\b/i,
+  /dd\s+if=/i,
+  /:\(\)\s*\{.*\}/,
+  />\s*\/dev\/sd[a-z]/i,
+  /chmod\s+777\s+\//i,
+  /sudo\b/i,
+  /shutdown\b|poweroff\b|reboot\b|halt\b/i,
+  /curl\s+.*\|\s*(ba|z)?sh/i,
+  /wget\s+.*\|\s*(ba|z)?sh/i,
+  /format\s+[a-z]:/i,
+  /del\s+\/f\s+\/s\s+[a-z]:\\/i,
+  /rmdir\s+\/s\s+[a-z]:\\/i,
+  /diskpart\b/i,
+];
+
+const KNOWN_TOOLS = new Set([
+  'sysinfo', 'shell', 'files', 'net', 'apps', 'browser', 'web', 'memory', 'notify', 'vector',
+  'jobs', 'delegate', 'goal', 'workflow', 'plugin',
+]);
+
+const VALID_TIERS = new Set(['allow', 'deny', 'confirm', 'prompt']);
+
+// ── Rule matching (P3: rules array with when-conditions) ──────────
+// Policy shape v2 — first-match-wins, deny-by-default:
+// {
+//   "version": 2,
+//   "default": "deny",
+//   "rules": [
+//     { "tool": "sysinfo.*", "effect": "allow" },
+//     { "tool": "fs.read", "effect": "allow",
+//       "when": { "path": { "within": ["~/.remoteagent/workspace"] } } },
+//     { "tool": "shell.run", "effect": "prompt",
+//       "when": { "argv0": { "in": ["git", "npm", "ls"] } } },
+//     { "tool": "net.fetch", "effect": "allow",
+//       "when": { "host": { "notIn": ["metadata.google.internal"] },
+//                 "ip": { "notInCidr": ["127.0.0.0/8", "169.254.0.0/16"] } } },
+//     { "tool": "*", "effect": "deny" }
+//   ]
+// }
+
+/** Convert a policy glob ("sysinfo.*", "fs.*", "*") to a RegExp. */
+export function globToRegExp(pattern) {
+  const p = String(pattern).trim();
+  if (p === '*') return /^.*$/;
+  const escaped = p
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*')
+    .replace(/\?/g, '.');
+  return new RegExp(`^${escaped}$`);
+}
+
+/** Expand ~ at the start of a path. */
+function expandTilde(p) {
+  return p.startsWith('~/') ? join(homedir(), p.slice(2)) : p;
+}
+
+/** Realpath containment check — symlink-safe prefix comparison. */
+export function pathWithin(path, roots) {
+  try {
+    const { realpathSync } = requireRealpath();
+    const real = realpathSync(String(path));
+    for (const root of roots || []) {
+      const base = realpathSync(expandTilde(String(root)));
+      if (real === base) return true;
+      if (real.startsWith(base.endsWith('/') ? base : base + '/')) return true;
+    }
+  } catch { /* missing path → not within */ }
+  return false;
+}
+
+/** IPv4/IPv6 CIDR containment (stdlib only). */
+export function ipInCidr(ip, cidrs) {
+  if (!Array.isArray(cidrs)) return false;
+  for (const cidr of cidrs) {
+    const [net, bitsRaw] = String(cidr).split('/');
+    const bits = Number(bitsRaw);
+    if (ip === net) return true; // exact match (also covers bare /32, /128)
+    try {
+      if (ipInNet(ip, net, bits)) return true;
+    } catch { /* not parseable as this family */ }
+  }
+  return false;
+}
+
+function ipInNet(ip, net, bits) {
+  const isIp4 = String(ip).includes('.');
+  const isNet4 = String(net).includes('.');
+  if (isIp4 !== isNet4) return false; // family mismatch
+  if (isIp4) {
+    // Explicit IPv4: 4-byte comparison with IPv4 prefix bits.
+    const a = ip4Bytes(ip), b = ip4Bytes(net);
+    if (!a || !b) return false;
+    const n = bits ?? 32;
+    const fullBytes = Math.floor(n / 8);
+    const remBits = n % 8;
+    for (let i = 0; i < fullBytes; i++) if (a[i] !== b[i]) return false;
+    if (remBits > 0) {
+      const mask = 0xff << (8 - remBits);
+      if ((a[fullBytes] & mask) !== (b[fullBytes] & mask)) return false;
+    }
+    return true;
+  }
+  const a = ipv6Bytes(ip), b = ipv6Bytes(net);
+  if (!a || !b || a.length !== b.length) return false;
+  const fullBytes = Math.floor((bits ?? 128) / 8);
+  const remBits = (bits ?? 128) % 8;
+  for (let i = 0; i < fullBytes; i++) if (a[i] !== b[i]) return false;
+  if (remBits > 0) {
+    const mask = 0xff << (8 - remBits);
+    if ((a[fullBytes] & mask) !== (b[fullBytes] & mask)) return false;
+  }
+  return true;
+}
+
+function ip4Bytes(addr) {
+  const parts = String(addr).split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return null;
+  return parts;
+}
+
+function ipv6Bytes(addr) {
+  const s = String(addr);
+  if (s.includes('.')) {
+    // IPv4 — map to IPv4-mapped IPv6 for uniform comparison.
+    const parts = s.split('.').map(Number);
+    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return null;
+    return [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, ...parts];
+  }
+  const groups = s.split(':').filter(Boolean);
+  if (groups.length > 8) return null;
+  const bytes = [];
+  for (const g of groups) {
+    const v = parseInt(g, 16);
+    if (Number.isNaN(v)) return null;
+    bytes.push((v >> 8) & 0xff, v & 0xff);
+  }
+  while (bytes.length < 16) bytes.unshift(0);
+  return bytes.slice(0, 16);
+}
+
+function requireRealpath() {
+  return { realpathSync: realpathSyncImpl };
+}
+
+import { realpathSync as realpathSyncImpl } from 'node:fs';
+import { env } from './env.js';
+
+/** Evaluate one `when` condition object against the call args. */
+function matchWhen(when, args) {
+  if (!when || typeof when !== 'object') return true;
+  for (const [key, cond] of Object.entries(when)) {
+    const value = args?.[key];
+    if (cond && typeof cond === 'object') {
+      // value list checks
+      if (Array.isArray(cond.in) && !cond.in.includes(value)) return false;
+      if (Array.isArray(cond.notIn) && cond.notIn.includes(value)) return false;
+      if (Array.isArray(cond.includes) && !cond.includes.every((s) => String(value || '').includes(s))) return false;
+      // path containment
+      if (Array.isArray(cond.within) && !pathWithin(value, cond.within)) return false;
+      // numeric bounds
+      if (typeof cond.max === 'number' && !(Number(value) <= cond.max)) return false;
+      if (typeof cond.min === 'number' && !(Number(value) >= cond.min)) return false;
+      // CIDR checks
+      if (Array.isArray(cond.inCidr) && !ipInCidr(value, cond.inCidr)) return false;
+      if (Array.isArray(cond.notInCidr) && ipInCidr(value, cond.notInCidr)) return false;
+    }
+  }
+  return true;
+}
+
+/** Find the first rule matching tool+args. Returns the rule or null. */
+function firstMatchingRule(rules, name, args) {
+  for (const rule of rules || []) {
+    if (!rule || typeof rule.tool !== 'string') continue;
+    if (!globToRegExp(rule.tool).test(name)) continue;
+    if (!matchWhen(rule.when, args)) continue;
+    return rule;
+  }
+  return null;
+}
+
+// ── Audit log (hash-chained, append-only) ─────────────────────────
+function sha256(s) {
+  return createHash('sha256').update(s).digest('hex');
+}
+
+let auditSeq = 0;
+let auditPrev = '';
+const auditKeys = new Map(); // key file → loaded device audit key
+
+/** The device audit key for a given log path, lazily loaded/created. */
+function deviceAuditKey(path = DEFAULT_AUDIT_PATH) {
+  const file = keyPathFor(path);
+  if (!auditKeys.has(file)) auditKeys.set(file, loadOrCreateAuditKey(file));
+  return auditKeys.get(file);
+}
+
+/** Read only the final line of the audit log (cheap tail) for chain recovery. */
+function readLastLine(path) {
+  let fd;
+  try {
+    if (!existsSync(path)) return null;
+    fd = openSync(path, 'r');
+    const size = fstatSync(fd).size;
+    if (size === 0) return null;
+    const len = Math.min(size, 4096);
+    const buf = Buffer.alloc(len);
+    readSync(fd, buf, 0, len, size - len);
+    const text = buf.toString('utf8').trimEnd();
+    const idx = text.lastIndexOf('\n');
+    return (idx >= 0 ? text.slice(idx + 1) : text).trim();
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) { try { closeSync(fd); } catch { /* already closed */ } }
+  }
+}
+
+/** Append one audit entry. Never throws — auditing must not break tool calls. */
+export function auditWrite(entry, path = DEFAULT_AUDIT_PATH) {
+  try {
+    // Recover the chain tip from disk before every append so a daemon and a
+    // CLI writing the same log cannot break the hash chain with stale,
+    // process-local sequence numbers.
+    const lastLine = readLastLine(path);
+    if (lastLine) {
+      try {
+        const last = JSON.parse(lastLine);
+        auditSeq = Number(last.seq) || 0;
+        auditPrev = last.hash || '';
+      } catch { /* corrupt tail — chain is already broken; keep going */ }
+    } else {
+      auditSeq = 0;
+      auditPrev = '';
+      mkdirSync(dirname(path), { recursive: true });
+    }
+    const line = JSON.stringify({
+      seq: ++auditSeq,
+      ts:  new Date().toISOString(),
+      ...entry,
+      prev: auditPrev,
+    });
+    const hash = sha256(line);
+    const key = deviceAuditKey(path);
+    const record = { ...JSON.parse(line), hash, sig: signAuditHash(hash, key.privateKey), pub: key.publicKey };
+    appendFileSync(path, JSON.stringify(record) + '\n', { mode: 0o600 });
+    auditPrev = hash;
+  } catch { /* audit must never crash the agent */ }
+}
+
+/**
+ * Verify the hash chain AND every Ed25519 signature of an audit log.
+ * Returns { ok, checked, brokenAt, reason? }. `checked` = number of entries
+ * verified; brokenAt = seq of first mismatch. An entry without a signature
+ * (legacy or stripped) and any signature that fails against the device
+ * audit key are both reported — a chain recomputed under a foreign key
+ * fails at its first entry.
+ */
+export function auditVerify(path = DEFAULT_AUDIT_PATH, opts = {}) {
+  try {
+    if (!existsSync(path)) return { ok: true, checked: 0, brokenAt: null };
+    const key = opts.key || deviceAuditKey(path);
+    const lines = readFileSync(path, 'utf8').trim().split('\n').filter(Boolean);
+    let prev = '';
+    for (let i = 0; i < lines.length; i++) {
+      let rec;
+      try { rec = JSON.parse(lines[i]); } catch { return { ok: false, checked: i, brokenAt: i + 1, reason: 'corrupt JSON' }; }
+      const expected = sha256(JSON.stringify({ seq: rec.seq, ts: rec.ts, ...stripHash(rec), prev: rec.prev }));
+      if (rec.hash !== expected) return { ok: false, checked: i, brokenAt: rec.seq, reason: 'hash mismatch' };
+      if (rec.prev !== prev)     return { ok: false, checked: i, brokenAt: rec.seq, reason: 'chain break' };
+      if (!rec.sig)              return { ok: false, checked: i, brokenAt: rec.seq, reason: 'missing signature' };
+      if (!verifyAuditHash(rec.hash, rec.sig, key.publicKey)) {
+        return { ok: false, checked: i, brokenAt: rec.seq, reason: 'signature mismatch' };
+      }
+      prev = rec.hash;
+    }
+    return { ok: true, checked: lines.length, brokenAt: null };
+  } catch (err) {
+    return { ok: false, checked: 0, brokenAt: null, reason: err.message };
+  }
+}
+
+function stripHash(rec) {
+  const { hash: _hash, sig: _sig, pub: _pub, ...rest } = rec;
+  return rest;
+}
+
+// ── Rate limiter (sliding per-minute window) ──────────────────────
+class RateLimiter {
+  constructor(rules = {}) {
+    this.rules = rules;            // { tool: { perMinute }, "*": { perMinute } }
+    this.hits = new Map();         // tool -> [timestamps]
+  }
+
+  /** Returns true when the call is allowed (under the limit). */
+  allow(tool, now = Date.now()) {
+    const limit = this.rules[tool]?.perMinute ?? this.rules['*']?.perMinute ?? 0;
+    if (!limit) return true;
+    const windowStart = now - 60_000;
+    const hits = (this.hits.get(tool) || []).filter((t) => t > windowStart);
+    if (hits.length >= limit) {
+      this.hits.set(tool, hits);
+      return false;
+    }
+    hits.push(now);
+    this.hits.set(tool, hits);
+    return true;
+  }
+
+  /** Side-effect-free check — reports whether a call would pass, without
+   *  consuming a token (used by explain()). */
+  peek(tool, now = Date.now()) {
+    const limit = this.rules[tool]?.perMinute ?? this.rules['*']?.perMinute ?? 0;
+    if (!limit) return true;
+    const windowStart = now - 60_000;
+    const hits = (this.hits.get(tool) || []).filter((t) => t > windowStart);
+    return hits.length < limit;
+  }
+}
+
+// ── Policy presets ────────────────────────────────────────────────
+export const PRESETS = {
+  // Read-only: shell, network and browser disabled. Files confined to the
+  // workspace. The agent can observe but not change anything.
+  strict: {
+    version: 1,
+    audit: true,
+    tools: {
+      sysinfo: 'allow', files: 'allow', memory: 'allow', notify: 'allow',
+      vector: 'allow',
+      shell: 'deny', net: 'deny', web: 'deny', browser: 'deny', apps: 'deny',
+    },
+  },
+  // Balanced: shell commands and browser require per-command approval;
+  // everything else allowed. Rate limits on shell and net.
+  standard: {
+    version: 1,
+    audit: true,
+    tools: {
+      sysinfo: 'allow', files: 'allow', memory: 'allow', notify: 'allow',
+      vector: 'allow',
+      shell: 'confirm', net: 'allow', web: 'allow', browser: 'confirm', apps: 'confirm',
+    },
+    rateLimits: {
+      shell: { perMinute: 20 },
+      net:   { perMinute: 60 },
+      '*':   { perMinute: 300 },
+    },
+  },
+  // Everything allowed (matches pre-policy behavior). Startup warning.
+  permissive: {
+    version: 1,
+    audit: true,
+    tools: {
+      sysinfo: 'allow', shell: 'allow', files: 'allow', net: 'allow',
+      web: 'allow', browser: 'allow', apps: 'allow', memory: 'allow', notify: 'allow',
+      vector: 'allow',
+    },
+  },
+};
+
+export class Policy {
+  constructor(raw = null) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    this.raw = r;
+    this.toolRules = r.tools && typeof r.tools === 'object' ? r.tools : {};
+    this.shellDeny = Array.isArray(r.shell?.deny) ? r.shell.deny : [];
+    // New shape: shell.approval. Legacy shape: approval.patterns.
+    this.approvalPatterns = Array.isArray(r.shell?.approval)
+      ? r.shell.approval
+      : Array.isArray(r.approval?.patterns) ? r.approval.patterns : [];
+    this.shellUnsafe = r.shell?.unsafe === true;
+    this.dailyTokens = Number(r.budget?.dailyTokens) || 0;
+    this.dailyCostUsd = Number(r.budget?.dailyCostUsd) || 0;
+    this.maxSteps = Math.min(16, Math.max(2, Number(r.maxSteps) || 8));
+    this.auditEnabled = r.audit !== false;
+    this.auditPath = typeof r.auditPath === 'string' ? r.auditPath : DEFAULT_AUDIT_PATH;
+    this.rateLimiter = new RateLimiter(r.rateLimits && typeof r.rateLimits === 'object' ? r.rateLimits : {});
+
+    // Capability-grant ceiling (Fix 3): the device owner's hard upper bound on
+    // what a remote capability grant may ever request. Remote extension is
+    // OFF unless the owner explicitly enables it — no env fallback, no default
+    // true. Ceiling paths are normalized (expandTilde + resolve).
+    const caps = r.capabilities && typeof r.capabilities === 'object' ? r.capabilities : {};
+    this.capabilities = {
+      allowRemoteExtension: caps.allowRemoteExtension === true,
+      grantPublicKey: (Array.isArray(caps.grantPublicKey)
+        ? caps.grantPublicKey
+        : (typeof caps.grantPublicKey === 'string' && caps.grantPublicKey ? [caps.grantPublicKey] : []))
+        .map(String).filter(Boolean),
+      maxTtlSec: Number(caps.maxTtlSec) > 0 ? Number(caps.maxTtlSec) : 900,
+      requireMfa: Array.isArray(caps.requireMfa) ? caps.requireMfa.map(String).filter(Boolean) : [],
+      ceiling: {
+        shell: { allow: (caps.ceiling?.shell?.allow || []).map(String).filter(Boolean) },
+        paths: { allow: (caps.ceiling?.paths?.allow || []).map((p) => resolve(expandTilde(String(p)))).filter(Boolean) },
+        tools: (caps.ceiling?.tools || []).map(String).filter(Boolean),
+      },
+    };
+
+    // P3 rules layer: when a rules array is present it is authoritative
+    // (first-match-wins, deny-by-default). Legacy `tools` map still works
+    // as a fallback so existing 2.x policy files keep working unchanged.
+    this.rules = Array.isArray(r.rules) ? r.rules : null;
+    this.defaultEffect = r.default === 'allow' ? 'allow' : 'deny';
+
+    // Plugin supply chain: the ONLY keys that may sign a plugin manifest,
+    // and the ONLY capabilities a plugin may declare. Both empty by default —
+    // no pinned keys, no granted capabilities → no plugin loads.
+    const plugins = r.plugins && typeof r.plugins === 'object' ? r.plugins : {};
+    this.pluginPublicKeys = (Array.isArray(plugins.publicKeys) ? plugins.publicKeys : [])
+      .map(String).filter(Boolean);
+    this.pluginCapabilities = (Array.isArray(plugins.capabilities) ? plugins.capabilities : [])
+      .map(String).filter(Boolean);
+
+    // Deprecated env fallback: RA_SHELL_UNSAFE=1 still works for one minor
+    // version but is superseded by policy `shell.unsafe`. Prefer the policy file.
+    if (!this.shellUnsafe && env('SHELL_UNSAFE') === '1') {
+      this.shellUnsafe = true;
+      this._unsafeSource = 'env';
+    } else {
+      this._unsafeSource = this.shellUnsafe ? 'policy' : null;
+    }
+  }
+
+  static load(path = DEFAULT_POLICY_PATH) {
+    try {
+      if (existsSync(path)) {
+        return new Policy(JSON.parse(readFileSync(path, 'utf8')));
+      }
+    } catch {
+      // unreadable/invalid policy → fall back to safe defaults
+    }
+    return new Policy(null);
+  }
+
+  /** Named presets: strict | standard | permissive */
+  static preset(name) {
+    if (!PRESETS[name]) {
+      throw new Error(`Unknown preset "${name}" — use: ${Object.keys(PRESETS).join(', ')}`);
+    }
+    return new Policy(PRESETS[name]);
+  }
+
+  /** True when the env-var fallback is active (deprecated path). */
+  get unsafeSource() { return this._unsafeSource; }
+
+  /** Risk tier for a tool: allow | deny | confirm (default: allow for known tools). */
+  toolTier(name) {
+    const rule = this.toolRules[name];
+    if (VALID_TIERS.has(rule)) return rule;
+    return KNOWN_TOOLS.has(name) ? 'allow' : 'deny';
+  }
+
+  /** Check a tool call against the policy (rules → tiers → rate limits). */
+  check(name, args = {}) {
+    // P3: rules array is authoritative when present.
+    if (this.rules) {
+      const rule = firstMatchingRule(this.rules, name, args);
+      const effect = rule ? rule.effect : this.defaultEffect;
+      const reason = rule
+        ? `Rule "${rule.tool}" → ${effect}`
+        : `No rule matched — default ${this.defaultEffect}`;
+      if (effect === 'prompt' || effect === 'confirm') {
+        // prompt/confirm in headless = deny unless approval is granted by the
+        // caller (TUI grants it; the daemon auto-denies without --yes-i-know).
+        if (this.auditEnabled) {
+          auditWrite({ kind: 'tool', tool: name, argsHash: sha256(JSON.stringify(args ?? {})).slice(0, 16), verdict: 'confirm', reason }, this.auditPath);
+        }
+        return { allowed: false, tier: 'confirm', rule: rule?.tool || null, reason };
+      }
+      if (effect === 'deny') {
+        if (this.auditEnabled) {
+          auditWrite({ kind: 'tool', tool: name, argsHash: sha256(JSON.stringify(args ?? {})).slice(0, 16), verdict: 'deny', reason }, this.auditPath);
+        }
+        return { allowed: false, tier: 'deny', rule: rule?.tool || null, reason };
+      }
+      // allow — still subject to rate limits
+      if (!this.rateLimiter.allow(name)) {
+        const rl = { allowed: false, tier: 'deny', rule: rule?.tool || null, reason: `Rate limit exceeded for "${name}"` };
+        if (this.auditEnabled) auditWrite({ kind: 'tool', tool: name, argsHash: sha256(JSON.stringify(args ?? {})).slice(0, 16), verdict: 'deny', reason: rl.reason }, this.auditPath);
+        return rl;
+      }
+      if (this.auditEnabled) {
+        auditWrite({ kind: 'tool', tool: name, argsHash: sha256(JSON.stringify(args ?? {})).slice(0, 16), verdict: 'allow', reason }, this.auditPath);
+      }
+      return { allowed: true, tier: 'allow', rule: rule?.tool || null, reason };
+    }
+
+    // Legacy path: tier map (2.x behavior unchanged).
+    const tier = this.toolTier(name);
+    let verdict;
+    if (tier === 'deny') {
+      verdict = { allowed: false, tier, reason: `Tool "${name}" is denied by policy` };
+    } else if (tier === 'confirm') {
+      verdict = { allowed: false, tier, reason: `Tool "${name}" requires approval` };
+    } else if (!this.rateLimiter.allow(name)) {
+      verdict = { allowed: false, tier: 'deny', reason: `Rate limit exceeded for "${name}"` };
+    } else {
+      verdict = { allowed: true, tier: 'allow', reason: '' };
+    }
+    if (this.auditEnabled) {
+      auditWrite({
+        kind: 'tool', tool: name,
+        argsHash: sha256(JSON.stringify(args ?? {})).slice(0, 16),
+        verdict: verdict.allowed ? 'allow' : verdict.tier,
+        reason: verdict.reason,
+      }, this.auditPath);
+    }
+    return verdict;
+  }
+
+  /** Check a shell command: base deny + policy deny + approval patterns. */
+  shellCheck(cmd) {
+    const c = String(cmd || '');
+    for (const pat of BASE_DENY) {
+      if (pat.test(c)) {
+        return this.#audited('shell', 'deny', 'Blocked by base safety rules');
+      }
+    }
+    for (const pat of this.shellDeny) {
+      try {
+        if (new RegExp(pat, 'i').test(c)) return this.#audited('shell', 'deny', 'Blocked by policy');
+      } catch { /* invalid pattern ignored */ }
+    }
+    for (const pat of this.approvalPatterns) {
+      try {
+        if (new RegExp(pat, 'i').test(c)) return this.#audited('shell', 'confirm', 'Requires approval by policy');
+      } catch { /* invalid pattern ignored */ }
+    }
+    if (!this.rateLimiter.allow('shell')) {
+      return this.#audited('shell', 'deny', 'Rate limit exceeded for "shell"');
+    }
+    if (this.shellUnsafe) {
+      return this.#audited('shell', 'unsafe', `Unrestricted shell (${this._unsafeSource}) — audited`);
+    }
+    return { allowed: true, tier: 'allow', reason: '' };
+  }
+
+  /** Explain why a call would be allowed/denied (for `remoteagent policy explain`).
+   *  Rules array wins; legacy tier map fallback preserved. */
+  explain(name, args = {}) {
+    if (this.rules) {
+      const rule = firstMatchingRule(this.rules, name, args);
+      if (rule) {
+        return {
+          tool: name,
+          decision: `Rule "${rule.tool}" matched → ${rule.effect}`,
+          tier: rule.effect === 'prompt' ? 'confirm' : rule.effect,
+          matchedRule: rule.tool,
+          policyPath: DEFAULT_POLICY_PATH,
+        };
+      }
+      return {
+        tool: name,
+        decision: `No rule matched — default ${this.defaultEffect}`,
+        tier: this.defaultEffect,
+        matchedRule: null,
+        policyPath: DEFAULT_POLICY_PATH,
+      };
+    }
+    const tier = this.toolTier(name);
+    let matched;
+    if (this.toolRules[name]) matched = `tools.${name} = "${tier}"`;
+    else if (KNOWN_TOOLS.has(name)) matched = 'default (known tool)';
+    else matched = 'default (unknown tool)';
+    const rateOk = this.rateLimiter.peek(name);
+    const parts = [];
+    if (tier === 'deny') parts.push(`denied by ${matched}`);
+    else if (tier === 'confirm') parts.push(`requires approval by ${matched}`);
+    else if (!rateOk) parts.push('rate limit exceeded');
+    else parts.push('allowed');
+    return {
+      tool: name,
+      decision: parts.join('; '),
+      tier,
+      rateLimited: !rateOk,
+      matchedRule: matched,
+      policyPath: DEFAULT_POLICY_PATH,
+    };
+  }
+
+  #audited(kind, tier, reason) {
+    if (this.auditEnabled) {
+      auditWrite({ kind, tool: 'shell', verdict: tier, reason }, this.auditPath);
+    }
+    return { allowed: tier === 'unsafe' || tier === 'allow', tier, reason };
+  }
+
+  budget() {
+    return { dailyTokens: this.dailyTokens, dailyCostUsd: this.dailyCostUsd };
+  }
+
+}
