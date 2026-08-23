@@ -106,7 +106,7 @@ jobs:
           cat SHA256SUMS
 
       - name: Attest source archive provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             remoteagent-${{ github.ref_name }}.tar.gz
